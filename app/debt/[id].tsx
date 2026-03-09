@@ -33,13 +33,12 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
   Debt,
   DebtType,
   debtTypeLabel,
   debtTypeIcon,
-  formatCurrency,
-  formatCurrencyFull,
   monthsToText,
   runStrategy,
   MonthlySnapshot,
@@ -176,6 +175,7 @@ export default function DebtDetailScreen() {
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const { debts, payments, updateDebt, deleteDebt, logPayment } = useDebts();
+  const { fmt, fmtFull } = useCurrency();
 
   const debt = useMemo(() => debts.find((d) => d.id === id), [debts, id]);
 
@@ -493,6 +493,7 @@ function ProgressTab({
   whatIfExtra, setWhatIfExtra, whatIfInput, setWhatIfInput,
   whatIfResult, singleResult,
 }: any) {
+  const { fmt } = useCurrency();
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const interestSaved = whatIfResult
     ? Math.max(0, (singleResult?.totalInterestPaid ?? 0) - whatIfResult.totalInterestPaid)
@@ -540,21 +541,21 @@ function ProgressTab({
             <View style={styles.ringStat}>
               <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Principal Paid</Text>
               <Text style={[styles.ringStatValue, { color: Colors.progressGreen }]}>
-                {formatCurrency(totalPaid)}
+                {fmt(totalPaid)}
               </Text>
             </View>
             <View style={[styles.ringStatDivider, { backgroundColor: C.border }]} />
             <View style={styles.ringStat}>
               <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Remaining</Text>
               <Text style={[styles.ringStatValue, { color: Colors.danger }]}>
-                {formatCurrency(debt.balance)}
+                {fmt(debt.balance)}
               </Text>
             </View>
             <View style={[styles.ringStatDivider, { backgroundColor: C.border }]} />
             <View style={styles.ringStat}>
-              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Total Interest</Text>
+              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
               <Text style={[styles.ringStatValue, { color: Colors.warning }]}>
-                {formatCurrency(totalInterest)}
+                {fmt(totalInterest)}
               </Text>
             </View>
           </View>
@@ -567,7 +568,7 @@ function ProgressTab({
           <View style={styles.chartWrap}>
             <View style={styles.chartYLabel}>
               <Text style={[styles.chartAxisText, { color: C.textSecondary }]}>
-                {formatCurrency(debt.balance)}
+                {fmt(debt.balance)}
               </Text>
               <Text style={[styles.chartAxisText, { color: C.textSecondary }]}>$0</Text>
             </View>
@@ -631,7 +632,7 @@ function ProgressTab({
             <View style={styles.whatIfResultStat}>
               <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Saves</Text>
               <Text style={[styles.whatIfResultValue, { color: typeColor }]}>
-                {formatCurrency(interestSaved)}
+                {fmt(interestSaved)}
               </Text>
             </View>
             <View style={[styles.whatIfResultDivider, { backgroundColor: typeColor + "30" }]} />
@@ -651,6 +652,7 @@ function ProgressTab({
 function TransactionsTab({
   debt, C, isDark, typeColor, upcomingPayments, pastPayments, onMarkPaid, allPayments,
 }: any) {
+  const { fmt, fmtFull } = useCurrency();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
 
   return (
@@ -704,7 +706,7 @@ function TransactionsTab({
                       {formatDate(p.date)}
                     </Text>
                     <Text style={[styles.timelineAmount, { color: i === 0 ? typeColor : C.text }]}>
-                      {formatCurrencyFull(p.amount)}
+                      {fmtFull(p.amount)}
                     </Text>
                   </View>
                   <View style={styles.timelineRow}>
@@ -712,7 +714,7 @@ function TransactionsTab({
                       <Text style={[styles.timelineBadgeText, { color: typeColor }]}>Minimum</Text>
                     </View>
                     <Text style={[styles.timelineBalAfter, { color: C.textSecondary }]}>
-                      Balance: {formatCurrency(p.balanceAfter)}
+                      Balance: {fmt(p.balanceAfter)}
                     </Text>
                   </View>
                 </View>
@@ -756,7 +758,7 @@ function TransactionsTab({
                       {new Date(p.date).toLocaleDateString()}
                     </Text>
                     <Text style={[styles.timelineAmount, { color: Colors.progressGreen }]}>
-                      {formatCurrencyFull(p.amount)}
+                      {fmtFull(p.amount)}
                     </Text>
                   </View>
                   <View style={[styles.timelineBadge, { backgroundColor: Colors.progressGreen + "15" }]}>
@@ -775,6 +777,7 @@ function TransactionsTab({
 function DetailsTab({
   debt, C, isDark, typeColor, totalInterest, totalMonths, onEdit, onDelete,
 }: any) {
+  const { fmt, fmtFull } = useCurrency();
   const sections = [
     {
       title: "Loan Info",
@@ -790,17 +793,17 @@ function DetailsTab({
       title: "Balance & Rate",
       icon: "wallet-outline",
       rows: [
-        { label: "Current Balance", value: formatCurrencyFull(debt.balance) },
+        { label: "Current Balance", value: fmtFull(debt.balance) },
         { label: "Annual Percentage Rate", value: `${debt.apr}%` },
-        { label: "Monthly Interest", value: formatCurrencyFull(debt.balance * (debt.apr / 100 / 12)) },
-        { label: "Total Interest to Pay", value: formatCurrencyFull(totalInterest) },
+        { label: "Monthly Interest", value: fmtFull(debt.balance * (debt.apr / 100 / 12)) },
+        { label: "Total Interest Paid to Date", value: fmtFull(totalInterest) },
       ],
     },
     {
       title: "Payment Terms",
       icon: "repeat-outline",
       rows: [
-        { label: "Minimum Payment", value: formatCurrencyFull(debt.minimumPayment) },
+        { label: "Minimum Payment", value: fmtFull(debt.minimumPayment) },
         { label: "Payment Frequency", value: "Once per month" },
         { label: "Due Day", value: ordinal(debt.dueDate) + " of the month" },
         { label: "Payoff in", value: monthsToText(totalMonths) },

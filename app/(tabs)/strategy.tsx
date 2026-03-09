@@ -1,27 +1,119 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  useColorScheme,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, useColorScheme, Platform, Modal } from "react-native";
+import * as Linking from "expo-linking";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
-import {
-  Strategy,
-  formatCurrency,
-  monthsToText,
-  Debt,
-} from "@/lib/calculations";
+import { useCurrency } from "@/context/CurrencyContext";
+import { Strategy, StrategyResult, monthsToText, Debt, runConsolidationScenario } from "@/lib/calculations";
+import DraggableFlatList, { RenderItemParams } from "react-native-draggable-flatlist";
 
 type StrategyTab = Strategy;
+
+const CONSOLIDATION_RATES = [
+  { label: "6%", value: 6 },
+  { label: "9%", value: 9 },
+  { label: "12%", value: 12 },
+  { label: "15%", value: 15 },
+];
+
+function ConsolidationScenario({
+  debts,
+  currentResult,
+  C,
+}: {
+  debts: Debt[];
+  currentResult: StrategyResult;
+  C: typeof Colors.light;
+}) {
+  const [targetApr, setTargetApr] = useState(9);
+  const { fmt } = useCurrency();
+  const totalBalance = debts.reduce((sum, d) => sum + d.balance, 0);
+  const totalMinimums = debts.reduce((sum, d) => sum + d.minimumPayment, 0);
+  const scenario = runConsolidationScenario(totalBalance, targetApr, totalMinimums);
+  const interestSaved = Math.max(0, currentResult.totalInterestPaid - scenario.totalInterestPaid);
+  const monthsFaster = Math.max(0, currentResult.totalMonths - scenario.totalMonths);
+
+  return (
+    <View style={[styles.consolidationCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+      <View style={styles.consolidationHeader}>
+        <View style={[styles.consolidationIcon, { backgroundColor: Colors.accent + "20" }]}>
+          <Ionicons name="git-merge" size={20} color={Colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.consolidationTitle, { color: C.text }]}>Consolidation Scenario</Text>
+          <Text style={[styles.consolidationSub, { color: C.textSecondary }]}>
+            What if you merged all debts at a lower rate?
+          </Text>
+        </View>
+      </View>
+
+      <Text style={[styles.consolidationRateLabel, { color: C.textSecondary }]}>Target APR</Text>
+      <View style={styles.rateChips}>
+        {CONSOLIDATION_RATES.map((r) => (
+          <Pressable
+            key={r.value}
+            onPress={() => { setTargetApr(r.value); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            style={[
+              styles.rateChip,
+              {
+                backgroundColor: targetApr === r.value ? Colors.accent : C.surfaceSecondary,
+                borderColor: targetApr === r.value ? Colors.accent : C.border,
+              },
+            ]}
+          >
+            <Text style={[styles.rateChipText, { color: targetApr === r.value ? "#fff" : C.textSecondary }]}>
+              {r.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={[styles.consolidationResults, { backgroundColor: Colors.accent + "0C", borderColor: Colors.accent + "30" }]}>
+        <View style={styles.consolidationStat}>
+          <Text style={[styles.consolidationStatLabel, { color: C.textSecondary }]}>Payoff Time</Text>
+          <Text style={[styles.consolidationStatValue, { color: Colors.accent }]}>
+            {monthsToText(scenario.totalMonths)}
+          </Text>
+          {monthsFaster > 0 && (
+            <Text style={[styles.consolidationStatDelta, { color: Colors.progressGreen }]}>
+              {monthsFaster}mo faster
+            </Text>
+          )}
+        </View>
+        <View style={[styles.consolidationDivider, { backgroundColor: C.border }]} />
+        <View style={styles.consolidationStat}>
+          <Text style={[styles.consolidationStatLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
+          <Text style={[styles.consolidationStatValue, { color: Colors.accent }]}>
+            {fmt(scenario.totalInterestPaid)}
+          </Text>
+          {interestSaved > 0 && (
+            <Text style={[styles.consolidationStatDelta, { color: Colors.progressGreen }]}>
+              Save {fmt(interestSaved)}
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {interestSaved > 500 && (
+        <Pressable
+          onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
+          style={[styles.consolidationCTA, { backgroundColor: Colors.accent }]}
+        >
+          <Text style={styles.consolidationCTAText}>Explore Consolidation Loans</Text>
+          <Ionicons name="arrow-forward" size={15} color="#fff" />
+        </Pressable>
+      )}
+
+      <Text style={[styles.consolidationDisclaimer, { color: C.textSecondary }]}>
+        Assumes all debts consolidated into one loan. Results are estimates.
+      </Text>
+    </View>
+  );
+}
 
 const STRATEGIES: { key: StrategyTab; label: string; icon: string; description: string }[] = [
   {
@@ -40,7 +132,23 @@ const STRATEGIES: { key: StrategyTab; label: string; icon: string; description: 
     key: "custom",
     label: "Custom",
     icon: "reorder-three",
-    description: "Set your own payoff order.",
+    description:
+      "Starts the same as your current order — drag debts below to change your results.",
+  },
+];
+
+const EXTRA_METHODS = [
+  {
+    id: "tsunami" as const,
+    label: "Debt Tsunami (Emotional)",
+    icon: "water-outline",
+    tagline: "Tackle the debts that feel most stressful first.",
+  },
+  {
+    id: "cashflow" as const,
+    label: "Highest Payment First (Cash-Flow)",
+    icon: "trending-up-outline",
+    tagline: "Free up cash faster by clearing your largest payments first.",
   },
 ];
 
@@ -69,6 +177,7 @@ function StrategyCard({
   C: typeof Colors.light;
   isDark: boolean;
 }) {
+  const { fmt } = useCurrency();
   return (
     <Pressable
       onPress={onSelect}
@@ -115,9 +224,9 @@ function StrategyCard({
           <Text style={[styles.stratStatValue, { color: C.text }]}>{monthsToText(months)}</Text>
         </View>
         <View style={[styles.stratStat, { alignItems: "flex-end" }]}>
-          <Text style={[styles.stratStatLabel, { color: C.textSecondary }]}>Total Interest</Text>
+          <Text style={[styles.stratStatLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
           <Text style={[styles.stratStatValue, { color: Colors.danger }]}>
-            {formatCurrency(interest)}
+            {fmt(interest)}
           </Text>
         </View>
       </View>
@@ -143,9 +252,10 @@ export default function StrategyScreen() {
     setCustomOrder,
     totalBalance,
   } = useDebts();
+  const { fmt } = useCurrency();
 
   const [sliderValue, setSliderValue] = useState(extraPayment);
-  const [draggingOrder, setDraggingOrder] = useState<string[] | null>(null);
+  const [methodModal, setMethodModal] = useState<"tsunami" | "cashflow" | null>(null);
 
   const handleStrategySelect = (s: Strategy) => {
     setSelectedStrategy(s);
@@ -181,12 +291,15 @@ export default function StrategyScreen() {
         ] as Debt[])
       : debts;
 
-  const moveDebt = (fromIdx: number, toIdx: number) => {
-    const ids = orderedDebts.map((d) => d.id);
-    const moved = ids.splice(fromIdx, 1)[0];
-    ids.splice(toIdx, 0, moved);
+  const applyCashflowOrder = () => {
+    if (debts.length === 0) return;
+    const ids = [...debts]
+      .sort((a, b) => b.minimumPayment - a.minimumPayment)
+      .map((d) => d.id);
     setCustomOrder(ids);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedStrategy("custom");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMethodModal(null);
   };
 
   return (
@@ -225,7 +338,7 @@ export default function StrategyScreen() {
             <Ionicons name="bulb" size={22} color="rgba(255,255,255,0.9)" />
             <View style={{ flex: 1 }}>
               <Text style={styles.ahaMomentTitle}>Avalanche saves you</Text>
-              <Text style={styles.ahaMomentSaving}>{formatCurrency(avalancheSavings)}</Text>
+              <Text style={styles.ahaMomentSaving}>{fmt(avalancheSavings)}</Text>
               <Text style={styles.ahaMomentSub}>
                 vs. Snowball in total interest
               </Text>
@@ -265,6 +378,38 @@ export default function StrategyScreen() {
           })}
         </View>
 
+        {debts.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>Other Approaches</Text>
+            <View style={styles.strategyCards}>
+              {EXTRA_METHODS.map((m) => (
+                <Pressable
+                  key={m.id}
+                  onPress={() => {
+                    setMethodModal(m.id);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={({ pressed }) => [
+                    styles.extraMethodCard,
+                    { backgroundColor: C.surface, borderColor: C.border, opacity: pressed ? 0.92 : 1 },
+                  ]}
+                >
+                  <View style={styles.extraMethodIcon}>
+                    <Ionicons name={m.icon as any} size={18} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.extraMethodLabel, { color: C.text }]}>{m.label}</Text>
+                    <Text style={[styles.extraMethodTagline, { color: C.textSecondary }]} numberOfLines={2}>
+                      {m.tagline}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
+
         <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>
           Extra Monthly Payment
         </Text>
@@ -273,7 +418,7 @@ export default function StrategyScreen() {
           <View style={styles.sliderTop}>
             <Text style={[styles.sliderLabel, { color: C.text }]}>Extra Payment</Text>
             <Text style={[styles.sliderValue, { color: Colors.primary }]}>
-              +{formatCurrency(sliderValue)}/mo
+              +{fmt(sliderValue)}/mo
             </Text>
           </View>
 
@@ -336,7 +481,7 @@ export default function StrategyScreen() {
               <View style={styles.impactStat}>
                 <Text style={[styles.impactLabel, { color: C.textSecondary }]}>Interest</Text>
                 <Text style={[styles.impactValue, { color: Colors.primary }]}>
-                  {formatCurrency(currentResult.totalInterestPaid)}
+                  {fmt(currentResult.totalInterestPaid)}
                 </Text>
               </View>
             </View>
@@ -346,38 +491,63 @@ export default function StrategyScreen() {
         {selectedStrategy === "custom" && debts.length > 0 && (
           <>
             <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>
-              Custom Order (tap to reorder)
+              Custom Order (hold and drag to reorder your debts)
             </Text>
             <View style={[styles.customOrderCard, { backgroundColor: C.surface, borderColor: C.border }]}>
-              {orderedDebts.map((debt, idx) => (
-                <View
-                  key={debt.id}
-                  style={[styles.orderRow, { borderBottomColor: C.border, borderBottomWidth: idx < orderedDebts.length - 1 ? StyleSheet.hairlineWidth : 0 }]}
-                >
-                  <View style={[styles.orderNum, { backgroundColor: Colors.primary }]}>
-                    <Text style={styles.orderNumText}>{idx + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.orderName, { color: C.text }]}>{debt.name}</Text>
-                    <Text style={[styles.orderBalance, { color: C.textSecondary }]}>
-                      {formatCurrency(debt.balance)}
-                    </Text>
-                  </View>
-                  <View style={styles.orderArrows}>
-                    {idx > 0 && (
-                      <Pressable onPress={() => moveDebt(idx, idx - 1)} hitSlop={8}>
-                        <Ionicons name="chevron-up" size={20} color={Colors.primary} />
-                      </Pressable>
-                    )}
-                    {idx < orderedDebts.length - 1 && (
-                      <Pressable onPress={() => moveDebt(idx, idx + 1)} hitSlop={8}>
-                        <Ionicons name="chevron-down" size={20} color={Colors.primary} />
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              ))}
+              <DraggableFlatList
+                data={orderedDebts}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                onDragEnd={({ data }) => {
+                  const ids = data.map((d) => d.id);
+                  setCustomOrder(ids);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                renderItem={({ item, drag, isActive }: RenderItemParams<Debt>) => {
+                  const index = orderedDebts.findIndex((d) => d.id === item.id);
+                  return (
+                    <Pressable
+                      onLongPress={drag}
+                      disabled={isActive}
+                      style={[
+                        styles.orderRow,
+                        {
+                          borderBottomColor: C.border,
+                          borderBottomWidth: index < orderedDebts.length - 1 ? StyleSheet.hairlineWidth : 0,
+                          backgroundColor: isActive ? Colors.primary + "08" : "transparent",
+                        },
+                      ]}
+                    >
+                      <View style={[styles.orderNum, { backgroundColor: Colors.primary }]}>
+                        <Text style={styles.orderNumText}>{index + 1}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.orderName, { color: C.text }]} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={[styles.orderBalance, { color: C.textSecondary }]}>
+                          {fmt(item.balance)}
+                        </Text>
+                      </View>
+                      <View style={styles.orderHandle}>
+                        <Ionicons name="reorder-three" size={22} color={C.textSecondary} />
+                      </View>
+                    </Pressable>
+                  );
+                }}
+              />
             </View>
+          </>
+        )}
+
+        {debts.length > 0 && totalBalance > 5000 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>Consolidation Scenario</Text>
+            <ConsolidationScenario
+              debts={debts}
+              currentResult={avalancheResult}
+              C={C}
+            />
           </>
         )}
 
@@ -386,7 +556,7 @@ export default function StrategyScreen() {
           <View style={[styles.compHeader, { borderBottomColor: C.border }]}>
             <Text style={[styles.compHeaderCell, { color: C.textSecondary, flex: 1.5 }]}>Strategy</Text>
             <Text style={[styles.compHeaderCell, { color: C.textSecondary }]}>Months</Text>
-            <Text style={[styles.compHeaderCell, { color: C.textSecondary }]}>Interest</Text>
+            <Text style={[styles.compHeaderCell, { color: C.textSecondary }]}>Interest Paid to Date</Text>
           </View>
           {[
             { label: "Avalanche", result: avalancheResult, key: "avalanche" },
@@ -413,13 +583,118 @@ export default function StrategyScreen() {
                 {monthsToText(row.result.totalMonths)}
               </Text>
               <Text style={[styles.compCell, { color: Colors.danger }]}>
-                {formatCurrency(row.result.totalInterestPaid)}
+                {fmt(row.result.totalInterestPaid)}
               </Text>
             </View>
           ))}
         </View>
       </ScrollView>
+
+      <MethodModal
+        type="tsunami"
+        visible={methodModal === "tsunami"}
+        onClose={() => setMethodModal(null)}
+        onUse={() => {
+          setSelectedStrategy("custom");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setMethodModal(null);
+        }}
+        C={C}
+      />
+      <MethodModal
+        type="cashflow"
+        visible={methodModal === "cashflow"}
+        onClose={() => setMethodModal(null)}
+        onUse={applyCashflowOrder}
+        C={C}
+      />
     </View>
+  );
+}
+
+function MethodModal({
+  type,
+  visible,
+  onClose,
+  onUse,
+  C,
+}: {
+  type: "tsunami" | "cashflow";
+  visible: boolean;
+  onClose: () => void;
+  onUse: () => void;
+  C: typeof Colors.light;
+}) {
+  const isTsunami = type === "tsunami";
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: C.background }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: C.border }]}>
+          <Text style={[styles.modalTitle, { color: C.text }]}>
+            {isTsunami ? "Debt Tsunami (Emotional Approach)" : "Highest Monthly Payment First (Cash-Flow)"}
+          </Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Ionicons name="close" size={24} color={C.textSecondary} />
+          </Pressable>
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.modalContent, { paddingBottom: 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {isTsunami ? (
+            <>
+              <Text style={[styles.modalParagraph, { color: C.text }]}>
+                Debt Tsunami focuses on the debts that cause you the most stress first — like money owed to family, collections, or anything that weighs on you emotionally.
+              </Text>
+              <Text style={[styles.modalParagraph, { color: C.text }]}>
+                Instead of sorting by balance or interest rate, you put the most emotionally heavy debts at the top of your custom payoff list, then move on to the next most stressful once each one is cleared.
+              </Text>
+              <Text style={[styles.modalParagraph, { color: C.textSecondary }]}>
+                This can be a good fit if anxiety, relationships, or constant calls are your main concern. You can switch to Snowball or Avalanche later once the most stressful debts are behind you.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.modalParagraph, { color: C.text }]}>
+                Highest Monthly Payment First is a cash-flow approach. You order your debts by whichever has the largest minimum payment.
+              </Text>
+              <Text style={[styles.modalParagraph, { color: C.text }]}>
+                By knocking out the largest payments first, you free up monthly cash sooner so it is easier to keep up with other bills and avoid falling behind.
+              </Text>
+              <Text style={[styles.modalParagraph, { color: C.textSecondary }]}>
+                Once a high-payment debt is gone, you can roll that amount into the next debt, or switch to Avalanche or Snowball for the rest of your plan.
+              </Text>
+            </>
+          )}
+        </ScrollView>
+        <View style={[styles.modalFooter, { borderTopColor: C.border }]}>
+          <Pressable
+            onPress={onUse}
+            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+          >
+            <LinearGradient
+              colors={[Colors.primary, Colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.modalPrimaryBtn}
+            >
+              <Text style={styles.modalPrimaryText}>
+                {isTsunami ? "Use this with Custom Order" : "Apply Highest Payment First"}
+              </Text>
+            </LinearGradient>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.modalSecondaryBtn}>
+            <Text style={[styles.modalSecondaryText, { color: C.textSecondary }]}>Maybe later</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -431,7 +706,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
-  headerSub: { fontSize: 14, marginTop: 2 },
+  headerSub: { fontSize: 16, marginTop: 2 },
   scroll: { padding: 16, gap: 12 },
   ahaMoment: {
     flexDirection: "row",
@@ -440,11 +715,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
-  ahaMomentTitle: { color: "rgba(255,255,255,0.8)", fontSize: 13 },
+  ahaMomentTitle: { color: "rgba(255,255,255,0.95)", fontSize: 14 },
   ahaMomentSaving: { color: "#fff", fontSize: 24, fontWeight: "800" },
-  ahaMomentSub: { color: "rgba(255,255,255,0.7)", fontSize: 12 },
+  ahaMomentSub: { color: "rgba(255,255,255,0.88)", fontSize: 13 },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -471,7 +746,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  bestBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  bestBadgeText: { color: "#fff", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   stratCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   stratCheckWrap: {
     width: 28,
@@ -482,11 +757,11 @@ const styles = StyleSheet.create({
   },
   stratIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   stratLabel: { fontSize: 16, fontWeight: "700" },
-  stratDesc: { fontSize: 13, marginTop: 2, lineHeight: 18 },
+  stratDesc: { fontSize: 15, marginTop: 2, lineHeight: 20 },
   stratDivider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
   stratStats: { flexDirection: "row", justifyContent: "space-between" },
   stratStat: {},
-  stratStatLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  stratStatLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
   stratStatValue: { fontSize: 15, fontWeight: "700", marginTop: 2 },
   sliderCard: {
     borderRadius: 14,
@@ -532,7 +807,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  sliderQuickBtnText: { fontSize: 13, fontWeight: "500" },
+  sliderQuickBtnText: { fontSize: 14, fontWeight: "500" },
   impactRow: {
     flexDirection: "row",
     borderRadius: 10,
@@ -541,7 +816,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   impactStat: { flex: 1, alignItems: "center" },
-  impactLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
+  impactLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 },
   impactValue: { fontSize: 18, fontWeight: "700", marginTop: 2 },
   impactDivider: { width: StyleSheet.hairlineWidth },
   customOrderCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
@@ -551,6 +826,46 @@ const styles = StyleSheet.create({
   orderName: { fontSize: 15, fontWeight: "600" },
   orderBalance: { fontSize: 13 },
   orderArrows: { flexDirection: "column", gap: 0 },
+  consolidationCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  consolidationHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  consolidationIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  consolidationTitle: { fontSize: 16, fontWeight: "700" },
+  consolidationSub: { fontSize: 13, marginTop: 2 },
+  consolidationRateLabel: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  rateChips: { flexDirection: "row", gap: 8 },
+  rateChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  rateChipText: { fontSize: 14, fontWeight: "600" },
+  consolidationResults: {
+    flexDirection: "row",
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  consolidationStat: { flex: 1, alignItems: "center", gap: 2 },
+  consolidationStatLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.4 },
+  consolidationStatValue: { fontSize: 18, fontWeight: "800" },
+  consolidationStatDelta: { fontSize: 12, fontWeight: "600" },
+  consolidationDivider: { width: StyleSheet.hairlineWidth },
+  consolidationCTA: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 10,
+  },
+  consolidationCTAText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  consolidationDisclaimer: { fontSize: 12, textAlign: "center" },
   compTable: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   compHeader: {
     flexDirection: "row",
@@ -558,8 +873,85 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  compHeaderCell: { flex: 1, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  compHeaderCell: { flex: 1, fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   compRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   compRowLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
   compCell: { flex: 1, fontSize: 14 },
+  extraMethodCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  extraMethodIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary + "15",
+  },
+  extraMethodLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  extraMethodTagline: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 12,
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 10,
+  },
+  modalParagraph: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  modalPrimaryBtn: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalPrimaryText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalSecondaryBtn: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  modalSecondaryText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
 });

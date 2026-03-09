@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
 import { useThemePreference, type ThemePreference } from "@/context/ThemeContext";
+import { useCurrency, SUPPORTED_CURRENCIES } from "@/context/CurrencyContext";
 
 const APP_VERSION = "1.0.0";
 // Replace with your App Store ID once the app is published (e.g. id1234567890)
@@ -34,8 +35,10 @@ export default function SettingsScreen() {
   const C = isDark ? Colors.dark : Colors.light;
   const { clearAllData } = useDebts();
   const { themePreference, setThemePreference } = useThemePreference();
+  const { currency, setCurrency } = useCurrency();
   const [deleting, setDeleting] = useState(false);
   const [appearanceDropdownOpen, setAppearanceDropdownOpen] = useState(false);
+  const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
 
   const appearanceLabel = themePreference === "system" ? "System" : themePreference === "light" ? "Light" : "Dark";
 
@@ -123,7 +126,7 @@ export default function SettingsScreen() {
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Pressable
             onPress={openAppearancePicker}
-            style={[styles.row, styles.rowLast]}
+            style={styles.row}
           >
             <View style={[styles.rowIcon, { backgroundColor: C.textSecondary + "20" }]}>
               <Ionicons name="phone-portrait-outline" size={20} color={C.textSecondary} />
@@ -132,7 +135,57 @@ export default function SettingsScreen() {
             <Text style={[styles.rowValue, { color: C.textSecondary }]}>{appearanceLabel}</Text>
             <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
           </Pressable>
+          <Pressable
+            onPress={() => { setCurrencyDropdownOpen(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            style={[styles.row, styles.rowLast]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: C.textSecondary + "20" }]}>
+              <Ionicons name="cash-outline" size={20} color={C.textSecondary} />
+            </View>
+            <Text style={[styles.rowLabel, { color: C.text }]}>Currency</Text>
+            <Text style={[styles.rowValue, { color: C.textSecondary }]}>{currency.code} ({currency.symbol})</Text>
+            <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
+          </Pressable>
         </View>
+
+        <Modal
+          visible={currencyDropdownOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setCurrencyDropdownOpen(false)}
+        >
+          <View style={styles.dropdownBackdrop}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setCurrencyDropdownOpen(false)} />
+            <View style={[styles.currencySheet, { backgroundColor: C.surface }]}>
+              <Text style={[styles.dropdownTitle, { color: C.textSecondary }]}>Select Currency</Text>
+              <ScrollView bounces={false}>
+                {SUPPORTED_CURRENCIES.map((c, i) => (
+                  <Pressable
+                    key={c.code}
+                    onPress={async () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      await setCurrency(c.code);
+                      setCurrencyDropdownOpen(false);
+                    }}
+                    style={[
+                      styles.dropdownOption,
+                      { borderBottomColor: C.border },
+                      i === SUPPORTED_CURRENCIES.length - 1 && styles.dropdownOptionLast,
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.dropdownOptionLabel, { color: C.text }]}>{c.code} — {c.name}</Text>
+                      <Text style={[styles.currencySymbol, { color: C.textSecondary }]}>{c.symbol}</Text>
+                    </View>
+                    {currency.code === c.code && (
+                      <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         {Platform.OS !== "ios" && (
           <Modal
@@ -329,4 +382,12 @@ const styles = StyleSheet.create({
   },
   dropdownOptionLast: { borderBottomWidth: 0 },
   dropdownOptionLabel: { fontSize: 16, fontWeight: "500" },
+  currencySheet: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 20,
+    overflow: "hidden",
+    maxHeight: "80%",
+  },
+  currencySymbol: { fontSize: 13, marginTop: 2 },
 });

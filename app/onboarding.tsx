@@ -25,10 +25,10 @@ import {
   DebtType,
   debtTypeLabel,
   isSecuredByType,
-  formatCurrency,
   monthsToText,
   runStrategy,
 } from "@/lib/calculations";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -96,6 +96,7 @@ const PARTICLE_COLORS = ["#2ECC71", "#3498DB", "#9B59B6", "#E67E22", "#E74C3C", 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { addDebt, setOnboardingDone } = useDebts();
+  const { fmt } = useCurrency();
   const scheme = useColorScheme();
   const isDarkMode = scheme === "dark";
   const [step, setStep] = useState<Step>(1);
@@ -313,12 +314,12 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
               styles.s1Body,
               {
                 color: isDark
-                  ? "rgba(255,255,255,0.75)"
+                  ? "rgba(255,255,255,0.92)"
                   : DARK.textSub,
               },
             ]}
           >
-            The most powerful debt payoff app.{"\n"}Your path to financial freedom starts here.
+            I found the same payoff features other apps charged for — available here.{"\n"}Your path to financial freedom starts right on your phone.
           </Text>
         </Animated.View>
 
@@ -331,12 +332,12 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
               styles.s1StarText,
               {
                 color: isDark
-                  ? "rgba(255,255,255,0.7)"
-                  : "#5A7A62",
+                  ? "rgba(255,255,255,0.92)"
+                  : "#1A4530",
               },
             ]}
           >
-            "Every feature you need to crush debt — free."
+            "Built to feel calm, clear, and human while you pay off debt."
           </Text>
         </Animated.View>
 
@@ -375,7 +376,7 @@ const FEATURE_CARDS = [
   {
     icon: "flash",
     title: "Avalanche & Snowball",
-    desc: "Both strategies. Most competitors charge $5–15/mo.",
+    desc: "Both strategies side by side so you can see what fits you best.",
     color: DARK.teal,
   },
   {
@@ -387,7 +388,7 @@ const FEATURE_CARDS = [
   {
     icon: "bar-chart",
     title: "Full Analytics",
-    desc: "Charts, projections, and a payoff timeline. All free.",
+    desc: "Charts, projections, and a payoff timeline that updates as you go.",
     color: "#3498DB",
   },
   {
@@ -438,20 +439,20 @@ function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
               { color: isDark ? "#FFFFFF" : DARK.text },
             ]}
           >
-            Everything.
+            Your payoff toolkit.
           </Text>
-          <Text style={[styles.s2TitleGreen, { color: DARK.teal }]}>Free.</Text>
+          <Text style={[styles.s2TitleGreen, { color: DARK.teal }]}>In one place.</Text>
           <Text
             style={[
               styles.s2Sub,
               {
                 color: isDark
-                  ? "rgba(255,255,255,0.75)"
+                  ? "rgba(255,255,255,0.92)"
                   : DARK.textSub,
               },
             ]}
           >
-            No paywalls. No catches. No gimmicks.
+            I found the same payoff features other apps charged for — available here with a simple, transparent experience.
           </Text>
         </View>
 
@@ -691,12 +692,12 @@ function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad }: any) {
     ? [
         {
           icon: "trending-down",
-          text: `Total interest at minimums: ${formatCurrency(interest)}`,
+          text: `Total interest at minimums: ${fmt(interest)}`,
           color: Colors.danger,
         },
         {
           icon: "flash",
-          text: `With $100 extra/mo: ${monthsSaved > 0 ? `free ${monthsToText(monthsSaved)} sooner` : "—"}, saves ${formatCurrency(interestSaved)}`,
+          text: `With $100 extra/mo: ${monthsSaved > 0 ? `free ${monthsToText(monthsSaved)} sooner` : "—"}, saves ${fmt(interestSaved)}`,
           color: DARK.teal,
         },
         {
@@ -901,7 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   skipText: {
-    color: "#5A7A62",
+    color: "#1A4530",
     fontSize: 14,
     textAlign: "center",
   },
@@ -954,8 +955,8 @@ const styles = StyleSheet.create({
   s1Stars: { alignItems: "center", gap: 8 },
   starsRow: { flexDirection: "row", gap: 4 },
   s1StarText: {
-    color: "#5A7A62",
-    fontSize: 13,
+    color: "#1A4530",
+    fontSize: 14,
     textAlign: "center",
     fontStyle: "italic",
   },
@@ -1024,14 +1025,14 @@ const styles = StyleSheet.create({
   },
   freeBadgeText: {
     color: DARK.teal,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
   featureDesc: {
     color: DARK.textSub,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 20,
   },
   s2Btns: { gap: 14, marginTop: 8 },
 
@@ -1057,8 +1058,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   s3Label: {
-    color: "#5A7A62",
-    fontSize: 11,
+    color: "#1A4530",
+    fontSize: 13,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.7,
@@ -1087,7 +1088,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   typeGridLabel: {
-    fontSize: 12,
+    fontSize: 13,
     flex: 1,
   },
   s3Fields: { gap: 10 },
@@ -1105,14 +1106,14 @@ const styles = StyleSheet.create({
   },
   s3FieldLabel: {
     color: DARK.textSub,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     flex: 1,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   s3FieldOptional: {
-    fontSize: 11,
+    fontSize: 12,
   },
   s3FieldInputRow: {
     flexDirection: "row",
@@ -1120,7 +1121,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   s3FieldAdornment: {
-    color: "#5A7A62",
+    color: "#1A4530",
     fontSize: 18,
     fontWeight: "600",
   },

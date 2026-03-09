@@ -11,24 +11,34 @@ import {
   Animated,
   Modal,
 } from "react-native";
+import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { Debt, DebtType, debtTypeLabel, debtTypeIcon, isSecuredByType } from "@/lib/calculations";
+import { Debt, DebtType, debtTypeLabel, debtTypeIcon, isSecuredByType, isBusinessDebtType } from "@/lib/calculations";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
-const DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
+const PERSONAL_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
   { key: "creditCard", icon: "card", color: "#3498DB" },
   { key: "personalLoan", icon: "cash", color: "#9B59B6" },
   { key: "studentLoan", icon: "school", color: "#E67E22" },
   { key: "medical", icon: "medkit", color: "#E74C3C" },
   { key: "auto", icon: "car", color: "#1ABC9C" },
-  { key: "taxDebt", icon: "business", color: "#F39C12" },
-  { key: "businessDebt", icon: "briefcase", color: "#34495E" },
+  { key: "taxDebt", icon: "receipt", color: "#F39C12" },
+  { key: "collectionAccount", icon: "alert-circle", color: "#C0392B" },
+  { key: "repossessedVehicle", icon: "car-outline", color: "#7F8C8D" },
   { key: "other", icon: "ellipsis-horizontal-circle", color: "#95A5A6" },
 ];
+
+const BUSINESS_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
+  { key: "businessCreditCard", icon: "card-outline", color: "#16A085" },
+  { key: "businessDebt", icon: "briefcase", color: "#2980B9" },
+  { key: "securedBusinessDebt", icon: "lock-closed", color: "#8E44AD" },
+];
+
+const ALL_DEBT_TYPES = [...PERSONAL_DEBT_TYPES, ...BUSINESS_DEBT_TYPES];
 
 interface Props {
   initial?: Partial<Debt>;
@@ -74,7 +84,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
-  const selectedType = DEBT_TYPES.find((t) => t.key === debtType)!;
+  const selectedType = ALL_DEBT_TYPES.find((t) => t.key === debtType)!;
 
   const handleTypeSelect = (type: DebtType) => {
     setDebtType(type);
@@ -191,12 +201,53 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 },
               ]}
             >
-              <Text style={[styles.selectText, { color: C.text }]}>
-                {debtTypeLabel(debtType)}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={[styles.typeChipIcon, { backgroundColor: (selectedType?.color ?? Colors.primary) + "20" }]}>
+                  <Ionicons name={(selectedType?.icon ?? "help-circle") as any} size={14} color={selectedType?.color ?? Colors.primary} />
+                </View>
+                <Text style={[styles.selectText, { color: C.text }]}>
+                  {debtTypeLabel(debtType)}
+                </Text>
+              </View>
               <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
             </Pressable>
           </FormField>
+
+          {debtType === "taxDebt" && (
+            <Pressable
+              onPress={() => Linking.openURL("https://www.curadebt.com/taxpps")}
+              style={[styles.smartBanner, { backgroundColor: "#FFF8E7", borderColor: "#F39C12" }]}
+            >
+              <View style={[styles.smartBannerIcon, { backgroundColor: "#F39C1220" }]}>
+                <Ionicons name="receipt-outline" size={18} color="#F39C12" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.smartBannerLabel, { color: "#7D5300" }]}>Tax Debt Relief Options</Text>
+                <Text style={[styles.smartBannerText, { color: "#4A3200" }]}>
+                  See if you could qualify for IRS programs that may reduce what you owe. A specialist can walk you through your options.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#F39C12" />
+            </Pressable>
+          )}
+
+          {isBusinessDebtType(debtType) && (
+            <Pressable
+              onPress={() => Linking.openURL("https://www.curadebt.com/biz")}
+              style={[styles.smartBanner, { backgroundColor: "#EAF6FF", borderColor: "#2980B9" }]}
+            >
+              <View style={[styles.smartBannerIcon, { backgroundColor: "#2980B920" }]}>
+                <Ionicons name="briefcase-outline" size={18} color="#2980B9" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.smartBannerLabel, { color: "#14527A" }]}>Business Debt Solutions</Text>
+                <Text style={[styles.smartBannerText, { color: "#0A3350" }]}>
+                  See options tailored to business owners that can reduce payments and improve cash flow
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#2980B9" />
+            </Pressable>
+          )}
 
           <FormField label="Nickname *" error={errors.name} C={C}>
             <TextInput
@@ -206,22 +257,6 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
               placeholder="e.g. Chase Sapphire, Student Aid"
               placeholderTextColor={C.textSecondary + "99"}
               autoCapitalize="words"
-              returnKeyType="next"
-              onFocus={() => Haptics.selectionAsync()}
-            />
-          </FormField>
-
-          <FormField label="Current balance *" prefix="$" error={errors.balance} C={C}>
-            <TextInput
-              style={[styles.input, styles.inputWithPrefix, inputBase, errors.balance && styles.inputError]}
-              value={balance}
-              onChangeText={(v) => {
-                setBalance(formatCurrencyInput(v));
-                if (errors.balance) setErrors((e) => ({ ...e, balance: "" }));
-              }}
-              placeholder="5,000"
-                  placeholderTextColor={C.textSecondary + "99"}
-              keyboardType="decimal-pad"
               returnKeyType="next"
               onFocus={() => Haptics.selectionAsync()}
             />
@@ -242,6 +277,73 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
               onFocus={() => Haptics.selectionAsync()}
             />
           </FormField>
+
+          {parseFloat(apr) >= 18 && !isBusinessDebtType(debtType) && debtType !== "taxDebt" && (
+            <Pressable
+              onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
+              style={[styles.smartBanner, { backgroundColor: "#EDFAF1", borderColor: Colors.primary }]}
+            >
+              <View style={[styles.smartBannerIcon, { backgroundColor: Colors.primary + "20" }]}>
+                <Ionicons name="trending-down" size={18} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.smartBannerLabel, { color: Colors.primaryDark }]}>See if you could save on your debt</Text>
+                <Text style={styles.smartBannerText}>
+                  See if you can lower your {parseFloat(apr).toFixed(1)}% rate with a personal loan and pay off debt faster.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+            </Pressable>
+          )}
+
+          <FormField label="Current balance *" prefix="$" error={errors.balance} C={C}>
+            <TextInput
+              style={[styles.input, styles.inputWithPrefix, inputBase, errors.balance && styles.inputError]}
+              value={balance}
+              onChangeText={(v) => {
+                setBalance(formatCurrencyInput(v));
+                if (errors.balance) setErrors((e) => ({ ...e, balance: "" }));
+              }}
+              placeholder="5,000"
+                  placeholderTextColor={C.textSecondary + "99"}
+              keyboardType="decimal-pad"
+              returnKeyType="next"
+              onFocus={() => Haptics.selectionAsync()}
+            />
+          </FormField>
+
+          {parseFloat(balance) >= 10000 && !isSecured && debtType !== "studentLoan" && !isBusinessDebtType(debtType) && debtType !== "taxDebt" && (
+            parseFloat(balance) >= 24000 ? (
+              <Pressable
+                onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
+                style={[styles.smartBanner, { backgroundColor: "#FEF0F0", borderColor: Colors.danger }]}
+              >
+                <View style={[styles.smartBannerIcon, { backgroundColor: Colors.danger + "20" }]}>
+                  <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.smartBannerLabel, { color: Colors.danger }]}>Urgent: Options Available</Text>
+                  <Text style={[styles.smartBannerText, { color: "#7B1A1A" }]}>
+                    With ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt, you may qualify for programs that could meaningfully lower your balance. A quick review can show what might be possible.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.danger} />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
+                style={[styles.smartBanner, { backgroundColor: "#EDFAF1", borderColor: Colors.primary }]}
+              >
+                <View style={[styles.smartBannerIcon, { backgroundColor: Colors.primary + "20" }]}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
+                </View>
+                <Text style={styles.smartBannerText}>
+                  See if you could save on your debt — ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt may qualify for options with lower payments.
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+              </Pressable>
+            )
+          )}
 
           <FormField label="Minimum payment *" prefix="$" error={errors.minPayment} C={C}>
             <TextInput
@@ -388,39 +490,52 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
               { paddingBottom: insets.bottom + 24 },
             ]}
           >
-            {DEBT_TYPES.map((t) => {
-              const selected = debtType === t.key;
-              return (
-                <Pressable
-                  key={t.key}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    handleTypeSelect(t.key);
-                    setCategoryPickerOpen(false);
-                    if (errors.debtType) setErrors((e) => ({ ...e, debtType: "" }));
-                  }}
-                  style={[
-                    styles.categoryRow,
-                    {
-                      borderBottomColor: C.border,
-                      backgroundColor: selected ? Colors.primary + "12" : "transparent",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.categoryRowText,
-                      { color: selected ? Colors.primary : C.text },
-                    ]}
-                  >
-                    {debtTypeLabel(t.key)}
-                  </Text>
-                  {selected && (
-                    <Ionicons name="checkmark" size={18} color={Colors.primary} />
-                  )}
-                </Pressable>
-              );
-            })}
+            {[
+              { label: "Personal Debts", types: PERSONAL_DEBT_TYPES },
+              { label: "Business Debts", types: BUSINESS_DEBT_TYPES },
+            ].map((section) => (
+              <View key={section.label}>
+                <View style={[styles.categorySectionHeader, { backgroundColor: C.surfaceSecondary, borderBottomColor: C.border }]}>
+                  <Text style={[styles.categorySectionLabel, { color: C.textSecondary }]}>{section.label}</Text>
+                </View>
+                {section.types.map((t) => {
+                  const selected = debtType === t.key;
+                  return (
+                    <Pressable
+                      key={t.key}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleTypeSelect(t.key);
+                        setCategoryPickerOpen(false);
+                        if (errors.debtType) setErrors((e) => ({ ...e, debtType: "" }));
+                      }}
+                      style={[
+                        styles.categoryRow,
+                        {
+                          borderBottomColor: C.border,
+                          backgroundColor: selected ? Colors.primary + "12" : "transparent",
+                        },
+                      ]}
+                    >
+                      <View style={[styles.categoryRowIcon, { backgroundColor: t.color + "20" }]}>
+                        <Ionicons name={t.icon as any} size={16} color={t.color} />
+                      </View>
+                      <Text
+                        style={[
+                          styles.categoryRowText,
+                          { color: selected ? Colors.primary : C.text, flex: 1 },
+                        ]}
+                      >
+                        {debtTypeLabel(t.key)}
+                      </Text>
+                      {selected && (
+                        <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
           </KeyboardAwareScrollViewCompat>
         </View>
       </Modal>
@@ -529,7 +644,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -562,14 +677,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     flex: 1,
   },
   fieldHint: {
-    fontSize: 11,
+    fontSize: 13,
   },
   fieldInputWrap: {
     position: "relative",
@@ -634,7 +749,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: Colors.danger,
-    fontSize: 11,
+    fontSize: 13,
     flex: 1,
   },
   fieldInputError: {
@@ -667,13 +782,67 @@ const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  categoryRowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   categoryRowText: {
     fontSize: 16,
+  },
+  categorySectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  categorySectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  typeChipIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smartBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+    marginHorizontal: 16,
+  },
+  smartBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smartBannerLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  smartBannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#1A3A2A",
+    fontWeight: "500",
   },
   dueGrid: {
     flexDirection: "row",
@@ -692,7 +861,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   dueChipText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
   },
   footer: {

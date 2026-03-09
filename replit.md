@@ -1,75 +1,84 @@
 # DebtFree - Payoff Planner & Tracker
 
-A comprehensive debt management app built with Expo React Native and Express backend.
+A comprehensive debt management app built with Expo React Native and Express backend. Targets elderly users (65+) with Duolingo-inspired design, WCAG AA/AAA contrast compliance, and big bold typography.
 
 ## Architecture
 
-- **Frontend**: Expo Router (React Native) with file-based routing
-- **Backend**: Express.js (TypeScript) serving REST API
+- **Frontend**: Expo Router (React Native) with file-based routing, running on web via Metro bundler
+- **Backend**: Express.js (TypeScript) serving REST API on port 5000
+- **Dev Proxy**: Express server proxies non-API requests to Metro bundler (port 8081) in development
 - **State**: React Context + AsyncStorage for local persistence
-- **Database**: PostgreSQL (Neon-backed) via `pg` Pool
+- **Database**: PostgreSQL via `pg` Pool (Replit built-in)
 - **Styling**: React Native StyleSheet with dark/light mode support
 
 ## App Structure
 
 ```
 app/
-  _layout.tsx     - Root layout with AppNavigator (onboarding gate)
-  onboarding.tsx  - 3-step onboarding flow (value prop → add debt → payoff reveal)
+  _layout.tsx       - Root layout with providers: CurrencyProvider, NotificationProvider, DebtProvider
+  onboarding.tsx    - 3-step onboarding flow (value prop → add debt → payoff reveal)
+  settings.tsx      - Settings screen with appearance + currency picker
   (tabs)/
-    index.tsx       - Debts tab: add, edit, delete, view debts
-    strategy.tsx    - Strategy tab: Snowball, Avalanche, Custom with comparison
-    plan.tsx        - Payoff Plan tab: month-by-month amortization
-    dashboard.tsx   - Dashboard tab: progress, what-if, CTA cards
+    index.tsx         - Debts tab: add, edit, delete, view debts + notification bell icon
+    strategy.tsx      - Strategy tab: Snowball, Avalanche, Custom + consolidation scenario
+    plan.tsx          - Payoff Plan tab: month-by-month list + calendar view (toggle)
+    dashboard.tsx     - Dashboard tab: progress, what-if, CTA cards
+    calculators.tsx   - Calculators tab: Payoff+Extra, Monthly Payment, Refinance
 
 components/
-  DebtForm.tsx    - Rebuilt add/edit debt form (type picker, validation, haptics)
-  LeadForm.tsx    - Lead capture form (CTA conversion)
-  CTACards.tsx    - Revenue trigger cards (5 triggers)
-  ProgressRing.tsx - Animated SVG progress ring
+  DebtForm.tsx          - Add/edit debt form (type picker, validation, haptics)
+  LeadForm.tsx          - Lead capture form (CTA conversion)
+  CTACards.tsx          - Revenue trigger cards (5 triggers)
+  NotificationBell.tsx  - Bell icon with badge + reminder panel modal
+  ProgressRing.tsx      - Animated SVG progress ring
   KeyboardAwareScrollViewCompat.tsx - Cross-platform keyboard-aware scroll
 
 context/
-  DebtContext.tsx - Global debt state + calculations + onboardingDone flag
+  DebtContext.tsx         - Global debt state + calculations + onboardingDone flag
+  CurrencyContext.tsx     - Multi-currency support (9 currencies), useCurrency hook
+  NotificationContext.tsx - In-app payment reminder engine, useNotifications hook
+  ThemeContext.tsx        - Dark/light/system theme preference
 
 lib/
   calculations.ts - Pure JS calculation engine (Snowball/Avalanche/Custom)
+  query-client.ts - API client using EXPO_PUBLIC_DOMAIN env var
 
 server/
+  index.ts        - Express server (port 5000); dev mode proxies to Metro on 8081
   routes.ts       - Lead API endpoints, PostgreSQL persistence
+  templates/      - Landing page HTML for production static builds
 ```
 
-## Features
+## Key Features
 
-- **Onboarding**: 3-step first-run flow that adds first debt and shows payoff date
-- **4 Tabs**: Debts, Strategy, Payoff Plan, Dashboard
-- **Calculation Engine**: Avalanche, Snowball, Custom strategies with full amortization
-- **CTA System**: 5 revenue triggers (settlement, tax, high APR, multiple cards, missed payment)
-- **Lead Form**: Collects contact info, stored persistently in PostgreSQL
-- **What-If Scenarios**: Extra payment and lump sum simulation
-- **Progress Tracking**: Payment logging, progress ring
-- **Dark/Light Mode**: Full support
+- **5 Tabs**: Debts, Strategy, Plan, Calculators, Tracking
+- **Currency**: 9 currencies (USD, PKR, EUR, GBP, AED, SAR, CAD, AUD, INR) — persisted in AsyncStorage
+- **Notifications**: In-app payment reminders based on debt due dates; bell icon with badge; reminder prefs (1/3/7 days before)
+- **Calculators**: Payoff + Extra Payments, Monthly Payment, Refinance — all real-time
+- **Calendar View**: Plan tab toggles between list amortization and calendar grid showing debt due dates
+- **Smart CTAs**: 4 trigger types (APR ≥18%, tax debt, business debt, balance ≥$10K/$24K)
+- **Strategy**: Snowball, Avalanche, Custom drag-and-drop order + consolidation scenario
+- **Onboarding**: 3-step onboarding gated by `onboardingDone` flag
 
-## Color Theme
+## Development
 
-- Primary: #2ECC71 (Emerald Green)
-- Primary Dark: #27AE60
-- Accent: #1ABC9C
-- Danger: #E74C3C
-- Warning: #F39C12
+The `npm run dev` script runs:
+1. Metro bundler (Expo dev server) on port 8081
+2. Express server on port 5000, which proxies all non-/api requests to Metro
 
-## Backend Endpoints
+The Replit webview shows port 5000, so the full app is visible through the Express proxy.
 
-- `POST /api/leads` - Submit a lead (persistent PostgreSQL storage)
-- `GET /api/leads` - List all leads (admin, last 100)
-- `GET /api/leads/count` - Count total leads
+## Production Build
 
-## Database Schema
+Production uses a static Expo build:
+1. `node scripts/build.js` - Starts Metro, downloads bundles for iOS/Android, creates static-build/
+2. `npm run server:build` - Bundles the Express server with esbuild
+3. `node server_dist/index.js` - Serves static files + API on port 5000
 
-- `leads` table: id, first_name, last_name, email, phone, consent, debt_type, approximate_amount, call_time, state, trigger_type, created_at
+## Currency Pattern
 
-## Environment Variables
+All monetary displays use `fmt(n)` from `useCurrency()` hook instead of raw `formatCurrency()` from calculations.ts. The `fmtFull(n)` provides 2-decimal formatting.
 
-- `DATABASE_URL` - PostgreSQL connection string (provisioned automatically)
-- `WEBHOOK_URL` (optional) - Forward leads to CRM/webhook
-- `EXPO_PUBLIC_DOMAIN` - App domain for API calls
+## Notification Pattern
+
+`useNotifications()` provides `reminders`, `pendingCount`, `dismiss`, `dismissAll`, `updatePrefs`, and `setDebts`. The `index.tsx` (Debts tab) syncs the debt list to the notification context via `useEffect`.

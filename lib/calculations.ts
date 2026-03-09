@@ -5,7 +5,11 @@ export type DebtType =
   | "studentLoan"
   | "taxDebt"
   | "auto"
+  | "collectionAccount"
+  | "repossessedVehicle"
   | "businessDebt"
+  | "businessCreditCard"
+  | "securedBusinessDebt"
   | "other";
 
 export interface Debt {
@@ -50,7 +54,11 @@ export interface StrategyResult {
 export type Strategy = "snowball" | "avalanche" | "custom";
 
 export function isSecuredByType(type: DebtType): boolean {
-  return type === "auto";
+  return type === "auto" || type === "securedBusinessDebt";
+}
+
+export function isBusinessDebtType(type: DebtType): boolean {
+  return type === "businessDebt" || type === "businessCreditCard" || type === "securedBusinessDebt";
 }
 
 function calculateMonthlyInterest(balance: number, apr: number): number {
@@ -90,6 +98,14 @@ export function runStrategy(
     }
   }
 
+  // Total amount the user is committing each month:
+  // all current minimum payments, plus any extra they choose to add.
+  const baseMinimums = sortedDebts.reduce(
+    (sum, d) => sum + d.minimumPayment,
+    0
+  );
+  const monthlyBudget = baseMinimums + extraPayment;
+
   const balances = new Map<string, number>();
   sortedDebts.forEach((d) => balances.set(d.id, d.balance));
 
@@ -118,51 +134,65 @@ export function runStrategy(
       (d) => (balances.get(d.id) ?? 0) > 0
     );
 
+    if (activeDebts.length === 0) {
+      // Safety, though we should have bailed earlier.
+      break;
+    }
+
+    // First, compute interest and minimums for all active debts.
+    const monthInterestByDebt = new Map<string, number>();
+    const monthMinByDebt = new Map<string, number>();
+    let minTotalThisMonth = 0;
+
     for (const debt of activeDebts) {
       const balance = balances.get(debt.id) ?? 0;
-      if (balance <= 0) continue;
-
       const interest = calculateMonthlyInterest(balance, debt.apr);
       const minPay = Math.min(debt.minimumPayment, balance + interest);
-      const principal = Math.max(0, minPay - interest);
+
+      monthInterestByDebt.set(debt.id, interest);
+      monthMinByDebt.set(debt.id, minPay);
+      minTotalThisMonth += minPay;
+    }
+
+    // The user commits the same overall budget every month.
+    // Any dollars freed up when debts are paid off get rolled
+    // into the first active debt in the chosen strategy order.
+    const available = Math.max(monthlyBudget, minTotalThisMonth);
+    const extraPool = Math.max(0, available - minTotalThisMonth);
+
+    for (let i = 0; i < activeDebts.length; i++) {
+      const debt = activeDebts[i];
+      const id = debt.id;
+      const balance = balances.get(id) ?? 0;
+      if (balance <= 0) continue;
+
+      const interest = monthInterestByDebt.get(id) ?? 0;
+      let payment = monthMinByDebt.get(id) ?? 0;
+
+      // The first active debt in the sorted list gets all extra money.
+      if (i === 0 && extraPool > 0) {
+        payment += Math.min(extraPool, Math.max(0, balance + interest - payment));
+      }
+
+      const cappedPayment = Math.min(payment, balance + interest);
+      const principal = Math.max(0, cappedPayment - interest);
 
       monthInterest += interest;
       monthPrincipal += principal;
 
       const newBalance = Math.max(0, balance - principal);
-      balances.set(debt.id, newBalance);
+      balances.set(id, newBalance);
 
       breakdown.push({
-        debtId: debt.id,
+        debtId: id,
         balance: newBalance,
-        payment: minPay,
+        payment: cappedPayment,
         principal,
         interest,
       });
 
-      if (newBalance <= 0) paidOffThisMonth.push(debt.id);
-    }
-
-    for (const debt of activeDebts) {
-      if (remainingExtra <= 0) break;
-      const balance = balances.get(debt.id) ?? 0;
-      if (balance <= 0) continue;
-
-      const extraApplied = Math.min(remainingExtra, balance);
-      const newBalance = balance - extraApplied;
-      balances.set(debt.id, newBalance);
-      remainingExtra -= extraApplied;
-      monthPrincipal += extraApplied;
-
-      const snapIdx = breakdown.findIndex((s) => s.debtId === debt.id);
-      if (snapIdx >= 0) {
-        breakdown[snapIdx].balance = newBalance;
-        breakdown[snapIdx].payment += extraApplied;
-        breakdown[snapIdx].principal += extraApplied;
-      }
-
-      if (newBalance <= 0 && !paidOffThisMonth.includes(debt.id)) {
-        paidOffThisMonth.push(debt.id);
+      if (newBalance <= 0) {
+        paidOffThisMonth.push(id);
       }
     }
 
@@ -239,7 +269,11 @@ export function debtTypeLabel(type: DebtType): string {
     studentLoan: "Student Loan",
     taxDebt: "Tax Debt",
     auto: "Auto Loan",
-    businessDebt: "Business Debt",
+    collectionAccount: "Collection Account",
+    repossessedVehicle: "Repossessed Vehicle",
+    businessDebt: "Business Loan",
+    businessCreditCard: "Business Credit Card",
+    securedBusinessDebt: "Secured Business Debt",
     other: "Other",
   };
   return labels[type] ?? "Other";
@@ -251,12 +285,58 @@ export function debtTypeIcon(type: DebtType): string {
     medical: "medkit",
     personalLoan: "cash",
     studentLoan: "school",
-    taxDebt: "business",
+    taxDebt: "receipt",
     auto: "car",
+    collectionAccount: "alert-circle",
+    repossessedVehicle: "car-outline",
     businessDebt: "briefcase",
+    businessCreditCard: "card-outline",
+    securedBusinessDebt: "lock-closed",
     other: "ellipsis-horizontal-circle",
   };
   return icons[type] ?? "ellipsis-horizontal-circle";
+}
+
+export interface ConsolidationResult {
+  monthlyPayment: number;
+  totalInterestPaid: number;
+  totalMonths: number;
+  payoffDate: Date;
+  totalPaid: number;
+}
+
+export function runConsolidationScenario(
+  totalBalance: number,
+  consolidationApr: number,
+  monthlyPayment: number
+): ConsolidationResult {
+  if (totalBalance <= 0 || monthlyPayment <= 0) {
+    return { monthlyPayment, totalInterestPaid: 0, totalMonths: 0, payoffDate: new Date(), totalPaid: totalBalance };
+  }
+  const monthlyRate = consolidationApr / 100 / 12;
+  let balance = totalBalance;
+  let totalInterest = 0;
+  let months = 0;
+
+  while (balance > 0 && months < 600) {
+    const interest = balance * monthlyRate;
+    const payment = Math.min(monthlyPayment, balance + interest);
+    const principal = payment - interest;
+    if (principal <= 0) { months = 600; break; }
+    balance -= principal;
+    totalInterest += interest;
+    months++;
+  }
+
+  const payoffDate = new Date();
+  payoffDate.setMonth(payoffDate.getMonth() + months);
+  return {
+    monthlyPayment,
+    totalInterestPaid: totalInterest,
+    totalMonths: months,
+    payoffDate,
+    totalPaid: totalBalance + totalInterest,
+  };
 }
 
 export function estimatePayoffDate(

@@ -8,6 +8,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { DebtProvider, useDebts } from "@/context/DebtContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { CurrencyProvider } from "@/context/CurrencyContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -65,9 +67,13 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <KeyboardProvider>
             <ThemeProvider>
-              <DebtProvider>
-                <AppNavigator />
-              </DebtProvider>
+              <CurrencyProvider>
+                <NotificationProvider>
+                  <DebtProvider>
+                    <AppNavigator />
+                  </DebtProvider>
+                </NotificationProvider>
+              </CurrencyProvider>
             </ThemeProvider>
           </KeyboardProvider>
         </GestureHandlerRootView>

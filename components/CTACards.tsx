@@ -11,7 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
-import { formatCurrency, approximateDebtRange } from "@/lib/calculations";
+import { approximateDebtRange } from "@/lib/calculations";
+import { useCurrency } from "@/context/CurrencyContext";
 import { LeadForm } from "./LeadForm";
 
 interface CTACardData {
@@ -43,9 +44,12 @@ export function CTACards() {
     avalancheResult,
   } = useDebts();
 
+  const { fmt } = useCurrency();
   const [leadFormVisible, setLeadFormVisible] = useState(false);
   const [activeCTA, setActiveCTA] = useState<CTACardData | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
+
+  const isUrgent = totalUnsecuredBalance >= 24000;
 
   const isLeadRecent = () => {
     if (!leadSubmittedAt) return false;
@@ -58,22 +62,21 @@ export function CTACards() {
 
   const cards: CTACardData[] = [];
 
-  if (totalUnsecuredBalance > 10000) {
-    const savings = approximateDebtRange(totalUnsecuredBalance);
-    const programMonths = "24–48 months";
-    const currentPayoff = avalancheResult.totalMonths;
+  if (totalUnsecuredBalance >= 10000) {
     cards.push({
       id: "settlement",
-      title: "Free Debt Relief Consultation",
-      body: `Based on your ${formatCurrency(
-        totalUnsecuredBalance
-      )} in unsecured debt, you may qualify for programs that can reduce payments and help you become debt‑free faster.`,
-      ctaLabel: "Get Free Debt Consultation",
+      title: isUrgent
+        ? `See If You Could Reduce Your ${fmt(totalUnsecuredBalance)} Debt`
+        : "See If You Could Save on Your Debt",
+      body: isUrgent
+        ? `With ${fmt(totalUnsecuredBalance)} in unsecured debt, you may qualify for programs that could lower your balance and monthly payment. A confidential review can walk through your options.`
+        : `Based on your ${fmt(totalUnsecuredBalance)} in unsecured debt, you may qualify for relief programs that can lower your balance and help you become debt‑free faster.`,
+      ctaLabel: isUrgent ? "Check My Options Now" : "See If You Qualify For Debt Relief",
       icon: "shield-checkmark",
       triggerType: "settlement",
       debtType: "Unsecured Debt",
       amount: totalUnsecuredBalance,
-      gradient: [Colors.primary + "CC", Colors.accent + "CC"],
+      gradient: isUrgent ? [Colors.danger, "#C0392B"] : [Colors.primary, Colors.accent],
       url: "https://www.curadebt.com/debtpps",
     });
   }
@@ -83,24 +86,26 @@ export function CTACards() {
     cards.push({
       id: "tax",
       title: "Tax Debt Relief Options",
-      body: `Tax debt over $10K may qualify for IRS programs like Offer in Compromise. A free confidential consultation can evaluate your options.`,
-      ctaLabel: "Get Free Tax Consultation",
+      body: `Tax debt over $10K may qualify for IRS programs like Offer in Compromise. A confidential conversation can help you understand which options might fit your situation.`,
+      ctaLabel: "See If You Qualify For Tax Relief",
       icon: "document-text",
       triggerType: "tax",
       debtType: "Tax Debt",
       amount: taxDebt?.balance,
-      gradient: ["#E67E22CC", "#F39C12CC"],
+      gradient: ["#E67E22", "#F39C12"],
       url: "https://www.curadebt.com/taxpps",
     });
   }
 
-  const businessDebts = debts.filter((d) => d.debtType === "businessDebt");
+  const businessDebts = debts.filter((d) =>
+    ["businessDebt", "businessCreditCard", "securedBusinessDebt"].includes(d.debtType)
+  );
   const totalBusinessBalance = businessDebts.reduce(
     (sum, d) => sum + d.balance,
     0
   );
 
-  if (totalBusinessBalance > 10000) {
+  if (totalBusinessBalance > 0) {
     cards.push({
       id: "business",
       title: "Business Debt Relief",
@@ -111,7 +116,7 @@ export function CTACards() {
       debtType: "Business Debt",
       amount: totalBusinessBalance,
       // Use brand colors for better contrast in dark mode
-      gradient: [Colors.accent + "CC", Colors.primary + "CC"],
+      gradient: [Colors.accent, Colors.primary],
       url: "https://www.curadebt.com/biz",
     });
   }
@@ -127,7 +132,7 @@ export function CTACards() {
       triggerType: "highApr",
       debtType: "High Interest Debt",
       amount: totalUnsecuredBalance,
-      gradient: ["#9B59B6CC", "#8E44ADCC"],
+      gradient: ["#9B59B6", "#8E44AD"],
       url: "https://www.curadebt.com/debtpps",
     });
   }
@@ -136,13 +141,13 @@ export function CTACards() {
     cards.push({
       id: "multipleCards",
       title: "Simplify Your Payments",
-      body: `You have ${creditCardCount} credit card debts with ${formatCurrency(totalMinimums)}/mo in minimums. See consolidation options that could lower your rate and payment.`,
+      body: `You have ${creditCardCount} credit card debts with ${fmt(totalMinimums)}/mo in minimums. See consolidation options that could lower your rate and payment.`,
       ctaLabel: "Explore Consolidation",
       icon: "layers",
       triggerType: "multipleCards",
       debtType: "Credit Card",
       amount: totalUnsecuredBalance,
-      gradient: ["#3498DBCC", "#2980B9CC"],
+      gradient: ["#3498DB", "#2980B9"],
     });
   }
 
@@ -156,7 +161,7 @@ export function CTACards() {
       triggerType: "missed",
       debtType: "Delinquent Debt",
       amount: totalUnsecuredBalance,
-      gradient: [Colors.danger + "CC", "#C0392BCC"],
+      gradient: [Colors.danger, "#C0392B"],
     });
   }
 
@@ -177,9 +182,19 @@ export function CTACards() {
   return (
     <>
       <View style={styles.container}>
-        <Text style={[styles.sectionTitle, { color: C.text }]}>
-          Personalized Options
-        </Text>
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.forYouBadge}>
+            <Ionicons name="sparkles" size={12} color="#fff" />
+            <Text style={styles.forYouBadgeText}>For You</Text>
+          </View>
+          <Text
+            style={[styles.sectionTitle, { color: C.text }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Personalized Recommendations
+          </Text>
+        </View>
         {visible.map((card) => (
           <CTACard
             key={card.id}
@@ -261,12 +276,33 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingTop: 4,
   },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    paddingHorizontal: 2,
+    flex: 1,
+  },
+  forYouBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  forYouBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   card: {
     borderRadius: 16,
@@ -323,7 +359,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   disclaimer: {
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
   },
 });

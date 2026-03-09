@@ -13,6 +13,7 @@ import {
   Strategy,
   StrategyResult,
   isSecuredByType,
+  isBusinessDebtType,
   runStrategy,
 } from "@/lib/calculations";
 import { secureGetItem, secureSetItem, secureRemoveItem } from "@/lib/secure-storage";
@@ -53,6 +54,7 @@ interface DebtContextValue {
   totalMinimums: number;
   hasHighAprDebt: boolean;
   hasTaxDebt: boolean;
+  hasBusinessDebt: boolean;
   creditCardCount: number;
   hasMissedPayment: boolean;
 
@@ -169,6 +171,11 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
 
   const creditCardCount = useMemo(
     () => debts.filter((d) => d.debtType === "creditCard").length,
+    [debts]
+  );
+
+  const hasBusinessDebt = useMemo(
+    () => debts.some((d) => isBusinessDebtType(d.debtType) && d.balance > 0),
     [debts]
   );
 
@@ -296,6 +303,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       totalMinimums,
       hasHighAprDebt,
       hasTaxDebt,
+      hasBusinessDebt,
       creditCardCount,
       hasMissedPayment,
       addDebt,
@@ -326,6 +334,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       totalMinimums,
       hasHighAprDebt,
       hasTaxDebt,
+      hasBusinessDebt,
       creditCardCount,
       hasMissedPayment,
       addDebt,

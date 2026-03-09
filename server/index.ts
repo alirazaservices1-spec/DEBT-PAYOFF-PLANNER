@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const log = console.log;
@@ -160,6 +161,31 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 
+function configureExpoDev(app: express.Application) {
+  log("Dev mode: proxying non-API requests to Metro bundler on port 8081");
+
+  const metroProxy = createProxyMiddleware({
+    target: "http://localhost:8081",
+    changeOrigin: true,
+    ws: true,
+    on: {
+      error: (err, req, res) => {
+        log(`Metro proxy error: ${(err as Error).message}`);
+        if (res && "writeHead" in res) {
+          (res as Response).status(502).send("Metro bundler not ready yet. Please wait...");
+        }
+      },
+    },
+  });
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    return metroProxy(req, res, next);
+  });
+}
+
 function configureExpoAndLanding(app: express.Application) {
   const templatePath = path.resolve(
     process.cwd(),
@@ -230,7 +256,11 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
-  configureExpoAndLanding(app);
+  if (process.env.NODE_ENV === "development") {
+    configureExpoDev(app);
+  } else {
+    configureExpoAndLanding(app);
+  }
 
   const server = await registerRoutes(app);
 

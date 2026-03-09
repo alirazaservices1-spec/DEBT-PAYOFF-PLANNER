@@ -52,6 +52,14 @@ const TAB_CONFIG = [
     sfSelected: "calendar.fill",
   },
   {
+    name: "calculators",
+    label: "Calc",
+    icon: "calculator-outline" as const,
+    iconActive: "calculator" as const,
+    sfDefault: "function",
+    sfSelected: "function",
+  },
+  {
     name: "dashboard",
     label: "Tracking",
     icon: "stats-chart-outline" as const,

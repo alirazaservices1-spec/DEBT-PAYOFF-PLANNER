@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   TextInput,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,13 +23,15 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
-  formatCurrency,
   monthsToText,
   runStrategy,
 } from "@/lib/calculations";
 import { ProgressRing } from "@/components/ProgressRing";
 import { CTACards } from "@/components/CTACards";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
@@ -78,6 +81,7 @@ export default function DashboardScreen() {
     payments,
     logPayment,
   } = useDebts();
+  const { fmt } = useCurrency();
 
   const [whatIfExtra, setWhatIfExtra] = useState(extraPayment);
   const [whatIfLump, setWhatIfLump] = useState(0);
@@ -130,6 +134,128 @@ export default function DashboardScreen() {
     setLogMissed(false);
   };
 
+  const handleExportSummary = async () => {
+    if (debts.length === 0) {
+      Alert.alert("Nothing to export", "Add at least one debt to export a summary PDF.");
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const asOf = now.toLocaleDateString();
+      const payoffDateStr = formatPayoffDate(payoffDate);
+      const payoffMonthsStr = monthsToText(activeResult.totalMonths);
+
+      const html = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+                margin: 24px;
+                color: #111827;
+              }
+              h1 { font-size: 24px; margin-bottom: 4px; }
+              h2 { font-size: 18px; margin-top: 24px; margin-bottom: 8px; }
+              p { font-size: 13px; margin: 2px 0; color: #4b5563; }
+              .section {
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                padding: 12px 14px;
+                margin-top: 12px;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                font-size: 13px;
+                margin: 4px 0;
+              }
+              .label { color: #6b7280; }
+              .value { font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <h1>Debt Payoff Summary</h1>
+            <p>Generated on ${asOf}</p>
+
+            <div class="section">
+              <div class="row">
+                <span class="label">Total remaining balance</span>
+                <span class="value">${fmt(totalBalance)}</span>
+              </div>
+              <div class="row">
+                <span class="label">Projected payoff date</span>
+                <span class="value">${payoffDateStr}</span>
+              </div>
+              <div class="row">
+                <span class="label">Time to debt-free</span>
+                <span class="value">${payoffMonthsStr}</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Monthly Payments</h2>
+              <div class="row">
+                <span class="label">Minimums + extra</span>
+                <span class="value">${fmt(debts.reduce((s, d) => s + d.minimumPayment, 0) + extraPayment)}/mo</span>
+              </div>
+              <div class="row">
+                <span class="label">Interest per month (approx.)</span>
+                <span class="value">${fmt(monthlyInterest)}/mo</span>
+              </div>
+              <div class="row">
+                <span class="label">Portion to principal</span>
+                <span class="value">${Math.round(principalRatio * 100)}%</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Total Interest Paid to Date</h2>
+              <div class="row">
+                <span class="label">At current strategy</span>
+                <span class="value">${fmt(activeResult.totalInterestPaid)}</span>
+              </div>
+              <div class="row">
+                <span class="label">With extra payment (${fmt(whatIfExtra)}/mo)</span>
+                <span class="value">${fmt(whatIfResult.totalInterestPaid)}</span>
+              </div>
+              <div class="row">
+                <span class="label">Interest saved</span>
+                <span class="value">${fmt(interestSaved)}</span>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      // On web, fall back to the browser print dialog.
+      if (Platform.OS === "web") {
+        await Print.printAsync({ html });
+        return;
+      }
+
+      // On native, generate a PDF file and open the share sheet
+      // so the user can save/download it.
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Share debt payoff summary",
+        UTI: "com.adobe.pdf",
+      });
+    } catch (err: any) {
+      const message = err?.message ?? "";
+      // Treat common "user cancelled" cases as normal:
+      // - expo-print: "Printing did not complete"
+      // - expo-sharing: "User did not share"
+      if (message.includes("Printing did not complete") || message.includes("User did not share")) {
+        return;
+      }
+      console.error("Export summary failed", err);
+      Alert.alert("Export failed", "Something went wrong while creating the PDF. Please try again.");
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <View
@@ -148,13 +274,22 @@ export default function DashboardScreen() {
             Your path to debt freedom
           </Text>
         </View>
-        <Pressable
-          onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-          style={[styles.logBtn, { backgroundColor: Colors.primary + "20", borderColor: Colors.primary + "40" }]}
-        >
-          <Ionicons name="add" size={18} color={Colors.primary} />
-          <Text style={[styles.logBtnText, { color: Colors.primary }]}>Log</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={handleExportSummary}
+            style={[styles.logBtn, { backgroundColor: Colors.primary + "12", borderColor: Colors.primary + "30" }]}
+          >
+            <Ionicons name="download-outline" size={16} color={Colors.primary} />
+            <Text style={[styles.logBtnText, { color: Colors.primary }]}>Export</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+            style={[styles.logBtn, { backgroundColor: Colors.primary + "20", borderColor: Colors.primary + "40" }]}
+          >
+            <Ionicons name="add" size={18} color={Colors.primary} />
+            <Text style={[styles.logBtnText, { color: Colors.primary }]}>Log</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -162,6 +297,7 @@ export default function DashboardScreen() {
         contentContainerStyle={[
           styles.scroll,
           Platform.OS === "web" && { paddingBottom: 34 },
+          debts.length === 0 && { flexGrow: 1, justifyContent: "center" },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -174,8 +310,13 @@ export default function DashboardScreen() {
               <View style={styles.heroTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.heroLabel, { color: C.textSecondary }]}>Total Remaining</Text>
-                  <Text style={[styles.heroBalance, { color: C.text }]}>
-                    {formatCurrency(totalBalance)}
+                  <Text
+                    style={[styles.heroBalance, { color: C.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
+                    {fmt(totalBalance)}
                   </Text>
                   <View style={styles.heroMeta}>
                     <Ionicons name="calendar" size={13} color={Colors.primary} />
@@ -225,7 +366,7 @@ export default function DashboardScreen() {
             <View style={styles.statsGrid}>
               <StatCard
                 label="Monthly Payment"
-                value={formatCurrency(debts.reduce((s, d) => s + d.minimumPayment, 0) + extraPayment)}
+                value={fmt(debts.reduce((s, d) => s + d.minimumPayment, 0) + extraPayment)}
                 sub="minimums + extra"
                 color={Colors.primary}
                 icon="wallet"
@@ -242,8 +383,8 @@ export default function DashboardScreen() {
                 isDark={isDark}
               />
               <StatCard
-                label="Total Interest"
-                value={formatCurrency(activeResult.totalInterestPaid)}
+                label="Total Interest Paid to Date"
+                value={fmt(activeResult.totalInterestPaid)}
                 sub="at current strategy"
                 color={Colors.danger}
                 icon="trending-up"
@@ -260,6 +401,8 @@ export default function DashboardScreen() {
                 isDark={isDark}
               />
             </View>
+
+            <CTACards />
 
             <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
               <View style={styles.sectionHeader}>
@@ -282,13 +425,13 @@ export default function DashboardScreen() {
                   <View style={styles.ringLegendItem}>
                     <View style={[styles.ringLegendDot, { backgroundColor: Colors.progressGreen }]} />
                     <Text style={[styles.ringLegendText, { color: C.text }]}>
-                      Principal: {formatCurrency(Math.max(0, totalMonthlies - monthlyInterest))}/mo
+                      Principal: {fmt(Math.max(0, totalMonthlies - monthlyInterest))}/mo
                     </Text>
                   </View>
                   <View style={styles.ringLegendItem}>
                     <View style={[styles.ringLegendDot, { backgroundColor: Colors.danger }]} />
                     <Text style={[styles.ringLegendText, { color: C.text }]}>
-                      Interest: {formatCurrency(monthlyInterest)}/mo
+                      Interest: {fmt(monthlyInterest)}/mo
                     </Text>
                   </View>
                 </View>
@@ -329,7 +472,7 @@ export default function DashboardScreen() {
                   <View style={styles.whatIfResultStat}>
                     <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Saves</Text>
                     <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
-                      {formatCurrency(interestSaved)}
+                      {fmt(interestSaved)}
                     </Text>
                     <Text style={[styles.whatIfResultSub, { color: C.textSecondary }]}>in interest</Text>
                   </View>
@@ -379,7 +522,7 @@ export default function DashboardScreen() {
                   <View style={styles.whatIfResultStat}>
                     <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Interest</Text>
                     <Text style={[styles.whatIfResultValue, { color: Colors.accent }]}>
-                      {formatCurrency(whatIfLumpResult.totalInterestPaid)}
+                      {fmt(whatIfLumpResult.totalInterestPaid)}
                     </Text>
                   </View>
                 </View>
@@ -407,7 +550,7 @@ export default function DashboardScreen() {
                         </Text>
                       </View>
                       <Text style={[styles.paymentAmount, { color: p.isMissed ? Colors.danger : Colors.progressGreen }]}>
-                        {p.isMissed ? "—" : formatCurrency(p.amount)}
+                        {p.isMissed ? "—" : fmt(p.amount)}
                       </Text>
                     </View>
                   );
@@ -415,13 +558,11 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            <CTACards />
-
             <View style={styles.comingSoonWrap}>
-              <LinearGradient
-                colors={isDark ? ["#0D2818", "#0A1F12"] : ["#E8F8EE", "#D4F0E0"]}
-                style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(46,204,113,0.25)" : "rgba(46,204,113,0.35)" }]}
-              >
+            <LinearGradient
+              colors={isDark ? ["#0D2818", "#0A1F12"] : ["#E8F8EE", "#D4F0E0"]}
+              style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(46,204,113,0.35)" : "rgba(46,204,113,0.45)" }]}
+            >
                 <View style={styles.comingSoonBadge}>
                   <Ionicons name="rocket-outline" size={14} color="#fff" />
                   <Text style={styles.comingSoonBadgeText}>We're building</Text>
@@ -438,7 +579,7 @@ export default function DashboardScreen() {
                   <View style={styles.comingSoonTitleWrap}>
                     <Text style={[styles.comingSoonCardTitle, { color: C.text }]}>Coming soon</Text>
                     <Text style={[styles.comingSoonCardSub, { color: C.textSecondary }]}>
-                      Like Duolingo — but for getting out of debt
+                      Small, game-like steps to help you stay on track getting out of debt
                     </Text>
                   </View>
                 </View>
@@ -478,34 +619,6 @@ export default function DashboardScreen() {
             <Text style={[styles.emptyDashBody, { color: C.textSecondary }]}>
               Head to the Debts tab to add your accounts. Your progress, payoff date, and personalized options will appear here.
             </Text>
-
-            <View style={styles.comingSoonWrap}>
-              <LinearGradient
-                colors={isDark ? ["#0D2818", "#0A1F12"] : ["#E8F8EE", "#D4F0E0"]}
-                style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(46,204,113,0.25)" : "rgba(46,204,113,0.35)" }]}
-              >
-                <View style={styles.comingSoonBadge}>
-                  <Ionicons name="rocket-outline" size={14} color="#fff" />
-                  <Text style={styles.comingSoonBadgeText}>We're building</Text>
-                </View>
-                <View style={styles.comingSoonCardHeader}>
-                  <View style={styles.comingSoonCardIconWrap}>
-                    <LinearGradient
-                      colors={[Colors.primary, Colors.primaryDark]}
-                      style={styles.comingSoonCardIcon}
-                    >
-                      <Ionicons name="sparkles" size={26} color="#fff" />
-                    </LinearGradient>
-                  </View>
-                  <View style={styles.comingSoonTitleWrap}>
-                    <Text style={[styles.comingSoonCardTitle, { color: C.text }]}>Coming soon</Text>
-                    <Text style={[styles.comingSoonCardSub, { color: C.textSecondary }]}>
-                      Friends, community, streaks & celebrations — like Duolingo for debt.
-                    </Text>
-                  </View>
-                </View>
-              </LinearGradient>
-            </View>
           </View>
         )}
       </ScrollView>
@@ -607,8 +720,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
-  headerSub: { fontSize: 14, marginTop: 2 },
+  headerSub: { fontSize: 16, marginTop: 2 },
   logBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -630,10 +748,10 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   heroTop: { flexDirection: "row", alignItems: "center", gap: 16 },
-  heroLabel: { fontSize: 13, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  heroLabel: { fontSize: 14, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
   heroBalance: { fontSize: 36, fontWeight: "800", letterSpacing: -1, marginTop: 4 },
   heroMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
-  heroMetaText: { fontSize: 12 },
+  heroMetaText: { fontSize: 14 },
   heroRing: { position: "relative", alignItems: "center", justifyContent: "center" },
   heroRingCenter: {
     position: "absolute",
@@ -642,7 +760,7 @@ const styles = StyleSheet.create({
     maxWidth: "75%",
   },
   heroRingPct: { fontSize: 20, fontWeight: "800" },
-  heroRingLabel: { fontSize: 10, marginTop: -2 },
+  heroRingLabel: { fontSize: 13, marginTop: -2 },
   progressBar: {
     height: 6,
     borderRadius: 3,
@@ -675,9 +793,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  statLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
   statValue: { fontSize: 18, fontWeight: "700" },
-  statSub: { fontSize: 11 },
+  statSub: { fontSize: 13 },
   section: {
     borderRadius: 16,
     borderWidth: 1,
@@ -691,15 +809,15 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionTitle: { fontSize: 16, fontWeight: "700" },
   ringRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  ringLabel: { fontSize: 11, marginTop: 4 },
+  ringLabel: { fontSize: 13, marginTop: 4 },
   ringLegend: { flex: 1, gap: 8 },
   ringLegendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   ringLegendDot: { width: 10, height: 10, borderRadius: 5 },
   ringLegendText: { fontSize: 14 },
-  whatIfLabel: { fontSize: 13, fontWeight: "500" },
+  whatIfLabel: { fontSize: 15, fontWeight: "500" },
   whatIfQuickBtns: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   whatIfBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
-  whatIfBtnText: { fontSize: 13, fontWeight: "500" },
+  whatIfBtnText: { fontSize: 14, fontWeight: "500" },
   whatIfResult: {
     flexDirection: "row",
     borderRadius: 12,
@@ -708,9 +826,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   whatIfResultStat: { flex: 1, alignItems: "center" },
-  whatIfResultLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 },
+  whatIfResultLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
   whatIfResultValue: { fontSize: 20, fontWeight: "800", marginTop: 2 },
-  whatIfResultSub: { fontSize: 11, marginTop: 2 },
+  whatIfResultSub: { fontSize: 13, marginTop: 2 },
   whatIfDivider: { width: StyleSheet.hairlineWidth },
   paymentRow: {
     flexDirection: "row",
@@ -721,7 +839,7 @@ const styles = StyleSheet.create({
   },
   paymentDot: { width: 8, height: 8, borderRadius: 4 },
   paymentName: { fontSize: 14, fontWeight: "600" },
-  paymentDate: { fontSize: 12, marginTop: 1 },
+  paymentDate: { fontSize: 14, marginTop: 1 },
   paymentAmount: { fontSize: 15, fontWeight: "700" },
   emptyDash: { alignItems: "center", paddingVertical: 48, gap: 16, paddingHorizontal: 32 },
   comingSoonWrap: { marginTop: 4 },

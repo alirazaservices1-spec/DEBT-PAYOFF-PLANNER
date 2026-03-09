@@ -24,17 +24,20 @@ import Animated, {
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
+import { useCurrency } from "@/context/CurrencyContext";
+import { useNotifications } from "@/context/NotificationContext";
 import {
   Debt,
   DebtType,
   debtTypeLabel,
   debtTypeIcon,
-  formatCurrency,
   estimatePayoffDate,
   monthsToText,
 } from "@/lib/calculations";
 import { DebtForm } from "@/components/DebtForm";
 import { ProgressRing } from "@/components/ProgressRing";
+import { CTACards } from "@/components/CTACards";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   creditCard: "#3498DB",
@@ -43,13 +46,18 @@ const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   medical: "#E74C3C",
   auto: "#1ABC9C",
   taxDebt: "#F39C12",
-  businessDebt: "#34495E",
+  businessDebt: "#2C3E50",
+  collectionAccount: "#C0392B",
+  repossessedVehicle: "#7F8C8D",
+  businessCreditCard: "#16A085",
+  securedBusinessDebt: "#8E44AD",
   other: "#95A5A6",
 };
 
 const DEBT_TYPE_COLORS_DARK: Partial<Record<DebtType, string>> = {
-  // Lighten this type for readability on dark backgrounds
   businessDebt: "#A9B6C2",
+  collectionAccount: "#E57373",
+  securedBusinessDebt: "#CE93D8",
 };
 
 function getDebtTypeColor(type: DebtType, isDark: boolean): string {
@@ -69,12 +77,12 @@ function TotalDebtCard({
   totalBalance,
   principalPaid,
   debtFreeDate,
-  formatCurrency,
+  fmt,
 }: {
   totalBalance: number;
   principalPaid: number;
   debtFreeDate: Date | null;
-  formatCurrency: (n: number) => string;
+  fmt: (n: number) => string;
 }) {
   const [ringProgress, setRingProgress] = useState(0);
   const totalOriginal = totalBalance + principalPaid;
@@ -102,8 +110,8 @@ function TotalDebtCard({
         <View style={styles.totalTopRow}>
           <View style={styles.totalLeft}>
             <Text style={styles.totalLabel}>Principal Paid</Text>
-            <Text style={styles.totalAmount} numberOfLines={1} adjustsFontSizeToFit>
-              {formatCurrency(principalPaid)}
+            <Text style={styles.totalAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {fmt(principalPaid)}
             </Text>
             <Text style={styles.totalDebtFree}>Debt-Free {debtFreeStr}</Text>
           </View>
@@ -136,7 +144,7 @@ function TotalDebtCard({
           <View style={styles.totalBottomText}>
             <Text style={styles.totalLabel}>Total Balance</Text>
             <Text style={styles.totalAmount} numberOfLines={1} adjustsFontSizeToFit>
-              {formatCurrency(totalBalance)}
+              {fmt(totalBalance)}
             </Text>
           </View>
         </View>
@@ -150,11 +158,13 @@ function DebtCardItem({
   onDelete,
   C,
   isDark,
+  fmt,
 }: {
   debt: Debt;
   onDelete: () => void;
   C: typeof Colors.light;
   isDark: boolean;
+  fmt: (n: number) => string;
 }) {
   const translateX = useSharedValue(0);
   const deleteWidth = 80;
@@ -232,14 +242,14 @@ function DebtCardItem({
                 <Text style={[styles.debtName, { color: C.text }]} numberOfLines={1}>
                   {debt.name}
                 </Text>
-                <Text style={[styles.debtTypeBadge, { color: typeColor + "CC" }]}>
+                <Text style={[styles.debtTypeBadge, { color: typeColor }]}>
                   {debtTypeLabel(debt.debtType)}
                   {debt.isSecured ? " • Secured" : ""}
                 </Text>
               </View>
               <View style={styles.debtBalanceWrap}>
                 <Text style={[styles.debtBalance, { color: C.text }]}>
-                  {formatCurrency(debt.balance)}
+                  {fmt(debt.balance)}
                 </Text>
                 <Text style={[styles.debtApr, { color: Colors.danger }]}>
                   {debt.apr}% APR
@@ -260,7 +270,7 @@ function DebtCardItem({
                   Min. Payment
                 </Text>
                 <Text style={[styles.debtStatValue, { color: C.text }]}>
-                  {formatCurrency(debt.minimumPayment)}/mo
+                  {fmt(debt.minimumPayment)}/mo
                 </Text>
               </View>
               <View style={styles.debtStat}>
@@ -301,6 +311,12 @@ export default function DebtsScreen() {
   const { debts, totalBalance, totalMinimums, payments, avalancheResult, addDebt, deleteDebt } =
     useDebts();
   const principalPaid = payments.reduce((s, p) => s + (p.isMissed ? 0 : p.amount), 0);
+  const { fmt } = useCurrency();
+  const { setDebts } = useNotifications();
+
+  useEffect(() => {
+    setDebts(debts.map((d) => ({ id: d.id, name: d.name, minimumPayment: d.minimumPayment, dueDate: d.dueDate })));
+  }, [debts]);
 
   const [formVisible, setFormVisible] = useState(false);
 
@@ -335,6 +351,21 @@ export default function DebtsScreen() {
 
   const webTopPad = Platform.OS === "web" ? 67 : 0;
 
+  const listHeader =
+    debts.length > 0 ? (
+      <>
+        <TotalDebtCard
+          totalBalance={totalBalance}
+          principalPaid={principalPaid}
+          debtFreeDate={avalancheResult.payoffDate}
+          fmt={fmt}
+        />
+        <View style={styles.ctaCardsWrap}>
+          <CTACards />
+        </View>
+      </>
+    ) : null;
+
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <View
@@ -347,39 +378,33 @@ export default function DebtsScreen() {
           },
         ]}
       >
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: C.text }]}>DebtFree</Text>
           {debts.length > 0 && (
             <Text style={[styles.headerSub, { color: C.textSecondary }]}>
               {debts.length} {debts.length === 1 ? "account" : "accounts"} •{" "}
-              {formatCurrency(totalMinimums)}/mo minimums
+              {fmt(totalMinimums)}/mo minimums
             </Text>
           )}
         </View>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/settings");
-          }}
-          style={styles.headerIconBtn}
-          hitSlop={12}
-        >
-          <Ionicons name="settings-outline" size={24} color={C.text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <NotificationBell />
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/settings");
+            }}
+            hitSlop={12}
+          >
+            <Ionicons name="settings-outline" size={24} color={C.text} />
+          </Pressable>
+        </View>
       </View>
-
-      {debts.length > 0 && (
-        <TotalDebtCard
-          totalBalance={totalBalance}
-          principalPaid={principalPaid}
-          debtFreeDate={avalancheResult.payoffDate}
-          formatCurrency={formatCurrency}
-        />
-      )}
 
       <FlatList
         data={[...debts].reverse()}
         keyExtractor={(d) => d.id}
+        ListHeaderComponent={listHeader}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.listContent,
@@ -394,6 +419,7 @@ export default function DebtsScreen() {
             onDelete={() => handleDelete(item)}
             C={C}
             isDark={isDark}
+            fmt={fmt}
           />
         )}
         ListEmptyComponent={
@@ -405,7 +431,7 @@ export default function DebtsScreen() {
               Add Your First Debt
             </Text>
             <Text style={[styles.emptyBody, { color: C.textSecondary }]}>
-              Track all your debts in one place and watch your path to financial freedom.
+              Track all your debts in one place and watch your path to financial freedom unfold.
             </Text>
             <Pressable onPress={openAdd}>
               <LinearGradient
@@ -473,7 +499,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   headerSub: {
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 2,
   },
   headerIconBtn: {
@@ -481,6 +507,16 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  ctaCardsWrap: {
+    paddingHorizontal: 0,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   fab: {
     position: "absolute",
@@ -502,7 +538,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   totalCardOuter: {
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     marginTop: 8,
     marginBottom: 4,
     borderRadius: 28,
@@ -682,7 +718,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   debtApr: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -708,7 +744,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   debtStatLabel: {
-    fontSize: 11,
+    fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
