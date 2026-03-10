@@ -65,7 +65,7 @@ function ConsolidationScenario({
               },
             ]}
           >
-            <Text style={[styles.rateChipText, { color: targetApr === r.value ? "#fff" : C.textSecondary }]}>
+            <Text style={[styles.rateChipText, { color: targetApr === r.value ? "#05130A" : C.textSecondary }]}>
               {r.label}
             </Text>
           </Pressable>
@@ -103,8 +103,8 @@ function ConsolidationScenario({
           onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
           style={[styles.consolidationCTA, { backgroundColor: Colors.accent }]}
         >
-          <Text style={styles.consolidationCTAText}>Explore Consolidation Loans</Text>
-          <Ionicons name="arrow-forward" size={15} color="#fff" />
+          <Text style={[styles.consolidationCTAText, { color: "#05130A" }]}>Explore Consolidation Loans</Text>
+          <Ionicons name="arrow-forward" size={15} color="#05130A" />
         </Pressable>
       )}
 
@@ -115,25 +115,39 @@ function ConsolidationScenario({
   );
 }
 
-const STRATEGIES: { key: StrategyTab; label: string; icon: string; description: string }[] = [
+const STRATEGIES: { key: StrategyTab; label: string; icon: string; description: string; fullDescription: string[] }[] = [
   {
     key: "avalanche",
     label: "Avalanche",
     icon: "trending-down",
     description: "Highest APR first. Minimize total interest paid.",
+    fullDescription: [
+      "The Avalanche method tackles your debt with the highest interest rate first, regardless of its balance.",
+      "By targeting the most expensive debt first, you pay the least amount of interest over time. Once that debt is gone, you roll its payment into the next highest-rate debt.",
+      "This method typically saves the most money overall and works especially well if you have high-rate credit cards or personal loans.",
+    ],
   },
   {
     key: "snowball",
     label: "Snowball",
     icon: "snow",
     description: "Smallest balance first. Build momentum quickly.",
+    fullDescription: [
+      "The Snowball method pays off your smallest balance first, no matter the interest rate.",
+      "Each time a debt is cleared, you gain a sense of progress and momentum. The freed-up payment rolls into the next smallest debt, creating a 'snowball' effect.",
+      "This approach works well if you need early wins to stay motivated. You may pay slightly more in total interest compared to Avalanche, but the psychological boost can keep you on track.",
+    ],
   },
   {
     key: "custom",
     label: "Custom",
     icon: "reorder-three",
-    description:
-      "Starts the same as your current order — drag debts below to change your results.",
+    description: "Drag debts below to set your own payoff order.",
+    fullDescription: [
+      "The Custom method puts you in control. You decide the exact order in which your debts get paid off.",
+      "Use the drag handles below the strategy selector to reorder your debts however makes sense for your situation — whether that is a mix of balance, rate, or personal priority.",
+      "Once you set an order, your payoff plan updates instantly to reflect your choices.",
+    ],
   },
 ];
 
@@ -162,6 +176,7 @@ function StrategyCard({
   isSelected,
   isBest,
   onSelect,
+  onInfo,
   C,
   isDark,
 }: {
@@ -174,13 +189,14 @@ function StrategyCard({
   isSelected: boolean;
   isBest: boolean;
   onSelect: () => void;
+  onInfo: () => void;
   C: typeof Colors.light;
   isDark: boolean;
 }) {
   const { fmt } = useCurrency();
   return (
     <Pressable
-      onPress={onSelect}
+      onPress={onInfo}
       style={({ pressed }) => [
         styles.stratCard,
         {
@@ -193,7 +209,7 @@ function StrategyCard({
     >
       {isBest && (
         <View style={styles.bestBadge}>
-          <Text style={styles.bestBadgeText}>BEST</Text>
+          <Text style={styles.bestBadgeText}>Min. Interest</Text>
         </View>
       )}
       <View style={styles.stratCardHeader}>
@@ -211,10 +227,12 @@ function StrategyCard({
             {description}
           </Text>
         </View>
-        {isSelected && (
+        {isSelected ? (
           <View style={[styles.stratCheckWrap, { backgroundColor: Colors.primary }]}>
             <Ionicons name="checkmark" size={18} color="#fff" />
           </View>
+        ) : (
+          <Ionicons name="information-circle-outline" size={20} color={C.textSecondary} />
         )}
       </View>
       <View style={[styles.stratDivider, { backgroundColor: C.border }]} />
@@ -224,7 +242,7 @@ function StrategyCard({
           <Text style={[styles.stratStatValue, { color: C.text }]}>{monthsToText(months)}</Text>
         </View>
         <View style={[styles.stratStat, { alignItems: "flex-end" }]}>
-          <Text style={[styles.stratStatLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
+          <Text style={[styles.stratStatLabel, { color: C.textSecondary }]}>Total Interest Paid</Text>
           <Text style={[styles.stratStatValue, { color: Colors.danger }]}>
             {fmt(interest)}
           </Text>
@@ -256,6 +274,7 @@ export default function StrategyScreen() {
 
   const [sliderValue, setSliderValue] = useState(extraPayment);
   const [methodModal, setMethodModal] = useState<"tsunami" | "cashflow" | null>(null);
+  const [stratModal, setStratModal] = useState<StrategyTab | null>(null);
 
   const handleStrategySelect = (s: Strategy) => {
     setSelectedStrategy(s);
@@ -330,15 +349,15 @@ export default function StrategyScreen() {
       >
         {avalancheResult.totalMonths > 0 && avalancheSavings > 0 && (
           <LinearGradient
-            colors={[Colors.primary, Colors.primaryDark]}
+            colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.ahaMoment}
           >
             <Ionicons name="bulb" size={22} color="rgba(255,255,255,0.9)" />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.ahaMomentTitle}>Avalanche saves you</Text>
-              <Text style={styles.ahaMomentSaving}>{fmt(avalancheSavings)}</Text>
+              <Text style={styles.ahaMomentSaving} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{fmt(avalancheSavings)}</Text>
               <Text style={styles.ahaMomentSub}>
                 vs. Snowball in total interest
               </Text>
@@ -371,6 +390,7 @@ export default function StrategyScreen() {
                 isSelected={selectedStrategy === s.key}
                 isBest={isBest}
                 onSelect={() => handleStrategySelect(s.key)}
+                onInfo={() => { setStratModal(s.key); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                 C={C}
                 isDark={isDark}
               />
@@ -461,7 +481,7 @@ export default function StrategyScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.sliderQuickBtnText, { color: sliderValue === v ? "#fff" : C.textSecondary }]}>
+                  <Text style={[styles.sliderQuickBtnText, { color: sliderValue === v ? "#05130A" : C.textSecondary }]}>
                     {v === 0 ? "None" : `+$${v}`}
                   </Text>
                 </Pressable>
@@ -608,7 +628,90 @@ export default function StrategyScreen() {
         onUse={applyCashflowOrder}
         C={C}
       />
+      {STRATEGIES.map((s) => (
+        <StrategyExplainModal
+          key={s.key}
+          strategy={s}
+          visible={stratModal === s.key}
+          isSelected={selectedStrategy === s.key}
+          onClose={() => setStratModal(null)}
+          onUse={() => {
+            handleStrategySelect(s.key);
+            setStratModal(null);
+          }}
+          C={C}
+        />
+      ))}
     </View>
+  );
+}
+
+function StrategyExplainModal({
+  strategy,
+  visible,
+  isSelected,
+  onClose,
+  onUse,
+  C,
+}: {
+  strategy: typeof STRATEGIES[number];
+  visible: boolean;
+  isSelected: boolean;
+  onClose: () => void;
+  onUse: () => void;
+  C: typeof Colors.light;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: C.background }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: C.border }]}>
+          <Text style={[styles.modalTitle, { color: C.text }]}>{strategy.label} Method</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Ionicons name="close" size={24} color={C.textSecondary} />
+          </Pressable>
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.modalContent, { paddingBottom: 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.stratExplainIcon, { backgroundColor: Colors.primary + "15" }]}>
+            <Ionicons name={strategy.icon as any} size={36} color={Colors.primary} />
+          </View>
+          {strategy.fullDescription.map((para, i) => (
+            <Text key={i} style={[styles.modalParagraph, { color: i === strategy.fullDescription.length - 1 ? C.textSecondary : C.text }]}>
+              {para}
+            </Text>
+          ))}
+        </ScrollView>
+        <View style={[styles.modalFooter, { borderTopColor: C.border }]}>
+          <Pressable
+            onPress={onUse}
+            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+          >
+            <LinearGradient
+              colors={isSelected ? [Colors.buttonGreen + "80", Colors.buttonGreenDark + "80"] : [Colors.buttonGreen, Colors.buttonGreenDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.modalPrimaryBtn}
+            >
+              <Text style={styles.modalPrimaryText}>
+                {isSelected ? `${strategy.label} is your current method` : `Use ${strategy.label}`}
+              </Text>
+              {!isSelected && <Ionicons name="checkmark" size={18} color="#fff" />}
+            </LinearGradient>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.modalSecondaryBtn}>
+            <Text style={[styles.modalSecondaryText, { color: C.textSecondary }]}>Back to strategies</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -679,7 +782,7 @@ function MethodModal({
             style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
           >
             <LinearGradient
-              colors={[Colors.primary, Colors.primaryDark]}
+              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.modalPrimaryBtn}
@@ -741,7 +844,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.buttonGreenDark,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -822,7 +925,7 @@ const styles = StyleSheet.create({
   customOrderCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   orderRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   orderNum: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  orderNumText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  orderNumText: { color: "#05130A", fontSize: 13, fontWeight: "700" },
   orderName: { fontSize: 15, fontWeight: "600" },
   orderBalance: { fontSize: 13 },
   orderArrows: { flexDirection: "column", gap: 0 },
@@ -940,6 +1043,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  stratExplainIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 8,
   },
   modalPrimaryText: {
     color: "#fff",

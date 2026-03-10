@@ -22,6 +22,7 @@ import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
 import { DebtForm } from "@/components/DebtForm";
 import {
+  Debt,
   DebtType,
   debtTypeLabel,
   isSecuredByType,
@@ -93,6 +94,13 @@ function Particle({ delay, color }: { delay: number; color: string }) {
 
 const PARTICLE_COLORS = ["#2ECC71", "#3498DB", "#9B59B6", "#E67E22", "#E74C3C", "#F39C12", "#1ABC9C"];
 
+const FREE_FEATURES = [
+  "Debt payoff plan (Avalanche + Snowball)",
+  "Debt-free date and payoff timeline",
+  "What-if extra payment scenarios for $25, $50, $100, and more",
+  "Charts and projections",
+];
+
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { addDebt, setOnboardingDone } = useDebts();
@@ -156,13 +164,14 @@ export default function OnboardingScreen() {
 
   const step3Ready = balance.length > 0 && parseFloat(balance) > 0 && apr.length > 0;
 
-  const handleOnboardingDebtSave = async (data: Omit<any, "id" | "dateAdded">) => {
+  const handleOnboardingDebtSave = async (data: Omit<Debt, "id" | "dateAdded">) => {
     await addDebt(data);
-    const result = runStrategy(
-      [{ ...data, id: "preview", dateAdded: new Date().toISOString() }],
-      0,
-      "avalanche"
-    );
+    const previewDebt: Debt = {
+      ...data,
+      id: "preview",
+      dateAdded: new Date().toISOString(),
+    };
+    const result = runStrategy([previewDebt], 0, "avalanche");
     setFirstDebt(data);
     setPayoffResult(result);
     setFormVisible(false);
@@ -202,12 +211,14 @@ export default function OnboardingScreen() {
             firstDebt={firstDebt}
             payoffResult={payoffResult}
             onEnter={handleEnter}
-            topPad={topPad} botPad={botPad}
+            topPad={topPad}
+            botPad={botPad}
+            fmt={fmt}
           />
         )}
       </Animated.View>
 
-      <View style={[styles.dotsRow, { bottom: botPad + 12 }]}>
+      <View style={[styles.dotsRow, { bottom: botPad - 8 }]}>
         {([1, 2, 3, 4] as Step[]).map((s) => (
           <View
             key={s}
@@ -262,7 +273,6 @@ export default function OnboardingScreen() {
 function Screen1({ onNext, onSkip, topPad, botPad }: any) {
   const scaleAnim = useRef(new Animated.Value(0.6)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const starsAnim = useRef(new Animated.Value(0)).current;
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
 
@@ -270,7 +280,6 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
     Animated.stagger(120, [
       Animated.spring(scaleAnim, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(starsAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -291,7 +300,7 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
             style={styles.s1IconGlow}
           >
             <LinearGradient
-              colors={[DARK.teal, Colors.primaryDark]}
+              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
               style={styles.s1Icon}
             >
               <Ionicons name="trending-up" size={52} color="#fff" />
@@ -299,7 +308,7 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
           </LinearGradient>
         </Animated.View>
 
-        <Animated.View style={{ opacity: fadeAnim, gap: 10, alignItems: "center" }}>
+        <Animated.View style={{ opacity: fadeAnim, gap: 10, alignItems: "center", width: "100%" }}>
           <Text
             style={[
               styles.s1Title,
@@ -319,32 +328,31 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
               },
             ]}
           >
-            I found the same payoff features other apps charged for — available here.{"\n"}Your path to financial freedom starts right on your phone.
+            Free Features Included In The App:
           </Text>
-        </Animated.View>
-
-        <Animated.View style={[styles.s1Stars, { opacity: starsAnim }]}>
-          <View style={styles.starsRow}>
-            {[0,1,2,3,4].map(i => <Ionicons key={i} name="star" size={16} color="#F39C12" />)}
+          <View style={styles.s1List}>
+            {FREE_FEATURES.map((t) => (
+              <View key={t} style={styles.s1ListRow}>
+                <View style={styles.s1CheckDot}>
+                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                </View>
+                <Text
+                  style={[
+                    styles.s1ListText,
+                    { color: isDark ? "rgba(255,255,255,0.88)" : DARK.textSub },
+                  ]}
+                >
+                  {t}
+                </Text>
+              </View>
+            ))}
           </View>
-          <Text
-            style={[
-              styles.s1StarText,
-              {
-                color: isDark
-                  ? "rgba(255,255,255,0.92)"
-                  : "#1A4530",
-              },
-            ]}
-          >
-            "Built to feel calm, clear, and human while you pay off debt."
-          </Text>
         </Animated.View>
 
         <View style={styles.s1Btns}>
           <Pressable onPress={onNext} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
             <LinearGradient
-              colors={[DARK.teal, Colors.primaryDark]}
+              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.primaryBtn}
             >
@@ -363,7 +371,7 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
                 },
               ]}
             >
-              I'll explore on my own
+              I'll Explore On My Own
             </Text>
           </Pressable>
         </View>
@@ -374,32 +382,33 @@ function Screen1({ onNext, onSkip, topPad, botPad }: any) {
 
 const FEATURE_CARDS = [
   {
-    icon: "flash",
-    title: "Avalanche & Snowball",
-    desc: "Both strategies side by side so you can see what fits you best.",
-    color: DARK.teal,
-  },
-  {
-    icon: "search",
-    title: "What-If Scenarios",
-    desc: "See how $100 extra changes your entire plan instantly.",
-    color: "#9B59B6",
-  },
-  {
-    icon: "bar-chart",
-    title: "Full Analytics",
-    desc: "Charts, projections, and a payoff timeline that updates as you go.",
+    icon: "create",
+    title: "Add Your Debts",
+    desc: "Enter balances, APR, and minimum payments for each debt.",
     color: "#3498DB",
   },
   {
-    icon: "people",
-    title: "Expert Access",
-    desc: "Qualify? Get a free professional debt consultation.",
+    icon: "swap-vertical",
+    title: "Choose A Strategy",
+    desc: "Compare Avalanche and Snowball any time.",
+    color: DARK.teal,
+  },
+  {
+    icon: "calendar",
+    title: "See Your Payoff Date",
+    desc: "Get a debt-free date, timeline, and charts that update as you go.",
+    color: "#9B59B6",
+  },
+  {
+    icon: "calculator",
+    title: "Run What-If Scenarios",
+    desc: "See how extra $25, $50, $100, and more can move up your payoff date and interest savings.",
     color: "#E67E22",
   },
 ];
 
 function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const cardAnims = useRef(FEATURE_CARDS.map(() => new Animated.Value(60))).current;
   const fadeAnims = useRef(FEATURE_CARDS.map(() => new Animated.Value(0))).current;
   const scheme = useColorScheme();
@@ -439,9 +448,9 @@ function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
               { color: isDark ? "#FFFFFF" : DARK.text },
             ]}
           >
-            Your payoff toolkit.
+            How It Works.
           </Text>
-          <Text style={[styles.s2TitleGreen, { color: DARK.teal }]}>In one place.</Text>
+          <Text style={[styles.s2TitleGreen, { color: DARK.teal }]}>In One Place.</Text>
           <Text
             style={[
               styles.s2Sub,
@@ -452,61 +461,87 @@ function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
               },
             ]}
           >
-            I found the same payoff features other apps charged for — available here with a simple, transparent experience.
+            Add your debts, compare strategies, and see a debt-free date you can act on.
           </Text>
         </View>
 
-        {FEATURE_CARDS.map((card, i) => (
-          <Animated.View
-            key={card.title}
-            style={[
-              styles.featureCard,
-              {
-                borderLeftColor: card.color,
-                opacity: fadeAnims[i],
-                transform: [{ translateX: cardAnims[i] }],
-                backgroundColor: isDark ? "#0D1520" : DARK.card,
-                borderColor: isDark ? "#1A2535" : DARK.cardBorder,
-              },
-            ]}
-          >
-            <View style={[styles.featureIconWrap, { backgroundColor: card.color + "22" }]}>
-              <Ionicons name={card.icon as any} size={22} color={card.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.featureTitleRow}>
-                <Text
+        {FEATURE_CARDS.map((card, i) => {
+          const isExpanded = expandedIndex === i;
+          return (
+            <Animated.View
+              key={card.title}
+              style={[
+                styles.featureCard,
+                {
+                  borderLeftColor: card.color,
+                  opacity: fadeAnims[i],
+                  transform: [{ translateX: cardAnims[i] }],
+                  backgroundColor: isDark ? "#0D1520" : DARK.card,
+                  borderColor: isDark ? "#1A2535" : DARK.cardBorder,
+                },
+              ]}
+            >
+              <Pressable
+                onPress={() => setExpandedIndex(isExpanded ? null : i)}
+                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              >
+                <View
                   style={[
-                    styles.featureTitle,
-                    { color: isDark ? "#FFFFFF" : DARK.text },
+                    styles.featureIconWrap,
+                    { backgroundColor: card.color + "22", marginRight: 14 },
                   ]}
                 >
-                  {card.title}
-                </Text>
-                <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>FREE</Text>
+                  <Ionicons name={card.icon as any} size={22} color={card.color} />
                 </View>
-              </View>
-              <Text
-                style={[
-                  styles.featureDesc,
-                  {
-                    color: isDark
-                      ? "rgba(255,255,255,0.7)"
-                      : DARK.textSub,
-                  },
-                ]}
-              >
-                {card.desc}
-              </Text>
-            </View>
-          </Animated.View>
-        ))}
+                <View style={{ flex: 1 }}>
+                  <View style={styles.featureTitleRow}>
+                    <Text
+                      style={[
+                        styles.featureTitle,
+                        { color: isDark ? "#FFFFFF" : DARK.text },
+                      ]}
+                    >
+                      {card.title}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.featureDesc,
+                      {
+                        color: isDark
+                          ? "rgba(255,255,255,0.7)"
+                          : DARK.textSub,
+                      },
+                    ]}
+                    numberOfLines={isExpanded ? undefined : 2}
+                  >
+                    {card.desc}
+                  </Text>
+                  {isExpanded && (
+                    <Text
+                      style={[
+                        styles.featureDesc,
+                        {
+                          marginTop: 6,
+                          color: isDark
+                            ? "rgba(255,255,255,0.8)"
+                            : DARK.text,
+                        },
+                      ]}
+                    >
+                      Ready to see this in action? Continue to start your plan and use these tools on your own numbers.
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
+            </Animated.View>
+          );
+        })}
 
         <View style={styles.s2Btns}>
           <Pressable onPress={onNext} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
             <LinearGradient
-              colors={[DARK.teal, Colors.primaryDark]}
+              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.primaryBtn}
             >
@@ -525,7 +560,7 @@ function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
                 },
               ]}
             >
-              Skip to app
+              Skip To App
             </Text>
           </Pressable>
         </View>
@@ -572,7 +607,7 @@ function Screen3({
               },
             ]}
           >
-            Let's see your
+            Let's See Your
           </Text>
           <Text style={[styles.s3TitleGreen, { color: DARK.teal }]}>
             debt-free date.
@@ -614,11 +649,11 @@ function Screen3({
             style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
           >
             <LinearGradient
-              colors={[DARK.teal, Colors.primaryDark]}
+              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.primaryBtn}
             >
-              <Text style={styles.primaryBtnText}>Add a Debt</Text>
+            <Text style={styles.primaryBtnText}>Add A Debt</Text>
             </LinearGradient>
           </Pressable>
 
@@ -634,7 +669,7 @@ function Screen3({
                 },
               ]}
             >
-              Skip — I'll add debts later
+              Skip. I'll Add Debts Later
             </Text>
           </Pressable>
         </View>
@@ -643,7 +678,7 @@ function Screen3({
   );
 }
 
-function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad }: any) {
+function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad, fmt }: any) {
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const checkAnim = useRef(new Animated.Value(0)).current;
   const dateAnim = useRef(new Animated.Value(0.2)).current;
@@ -674,19 +709,37 @@ function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad }: any) {
   const payoffDate = payoffResult?.payoffDate;
   const months = payoffResult?.totalMonths ?? 0;
   const interest = payoffResult?.totalInterestPaid ?? 0;
-  const withExtra = firstDebt
-    ? runStrategy(
-        [{ ...firstDebt, id: "extra", dateAdded: new Date().toISOString(), minimumPayment: firstDebt.minimumPayment + 100 }],
-        0,
-        "avalanche"
-      )
-    : null;
-  const interestSaved = withExtra
-    ? Math.max(0, interest - withExtra.totalInterestPaid)
-    : 0;
-  const monthsSaved = withExtra ? Math.max(0, months - withExtra.totalMonths) : 0;
+  const extraScenarios = firstDebt
+    ? [25, 50, 100].map((extra) => {
+        const result = runStrategy(
+          [
+            {
+              ...firstDebt,
+              id: `extra-${extra}`,
+              dateAdded: new Date().toISOString(),
+              minimumPayment: firstDebt.minimumPayment + extra,
+            },
+          ],
+          0,
+          "avalanche"
+        );
+        return {
+          extra,
+          interestSaved: Math.max(0, interest - result.totalInterestPaid),
+          monthsSaved: Math.max(0, months - result.totalMonths),
+        };
+      })
+    : [];
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
+
+  const formatExtraTiming = (savedMonths: number) => {
+    if (savedMonths <= 0) return "Same payoff time";
+    if (savedMonths === 1) return "Pay off about 1 month sooner";
+    if (savedMonths < 12) return `Pay off about ${savedMonths} months sooner`;
+    const years = Math.round(savedMonths / 12);
+    return `Pay off about ${years} year${years === 1 ? "" : "s"} sooner`;
+  };
 
   const revealCards = firstDebt
     ? [
@@ -697,12 +750,24 @@ function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad }: any) {
         },
         {
           icon: "flash",
-          text: `With $100 extra/mo: ${monthsSaved > 0 ? `free ${monthsToText(monthsSaved)} sooner` : "—"}, saves ${fmt(interestSaved)}`,
+          text:
+            extraScenarios.length > 0
+              ? [
+                  "What extra payments could do:",
+                  ...extraScenarios.map((s) => {
+                    const timing =
+                      s.monthsSaved > 0
+                        ? `${monthsToText(s.monthsSaved)} sooner`
+                        : "similar payoff time";
+                    return `• +$${s.extra}/mo: ${timing}, save ${fmt(s.interestSaved)} interest`;
+                  }),
+                ].join("\n")
+              : "See how different extra payments change your payoff date and interest savings.",
           color: DARK.teal,
         },
         {
           icon: "shield-checkmark",
-          text: "You're already ahead of most Americans tackling debt",
+          text: "Your plan updates as you add debts and adjust payments",
           color: "#9B59B6",
         },
       ]
@@ -818,18 +883,61 @@ function Screen4({ firstDebt, payoffResult, onEnter, topPad, botPad }: any) {
               <View style={[styles.s4CardIcon, { backgroundColor: card.color + "20" }]}>
                 <Ionicons name={card.icon as any} size={18} color={card.color} />
               </View>
-              <Text
-                style={[
-                  styles.s4CardText,
-                  {
-                    color: isDark
-                      ? "rgba(255,255,255,0.75)"
-                      : DARK.textSub,
-                  },
-                ]}
-              >
-                {card.text}
-              </Text>
+              {i === 1 && extraScenarios.length > 0 ? (
+                <View style={{ flex: 1, padding: 2 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: isDark ? "#FFFFFF" : DARK.text,
+                      marginBottom: 8,
+                    }}
+                  >
+                    What Extra Payments Could Do
+                  </Text>
+                  {extraScenarios.map((s, idx) => {
+                    return (
+                      <View
+                        key={s.extra}
+                        style={{ paddingVertical: idx === 0 ? 0 : 6, gap: 2 }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: DARK.teal,
+                          }}
+                        >
+                          +${s.extra}/mo
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            color: isDark
+                              ? "rgba(255,255,255,0.75)"
+                              : DARK.textSub,
+                          }}
+                        >
+                          {formatExtraTiming(s.monthsSaved)} · Save {fmt(s.interestSaved)} interest
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.s4CardText,
+                    {
+                      color: isDark
+                        ? "rgba(255,255,255,0.75)"
+                        : DARK.textSub,
+                    },
+                  ]}
+                >
+                  {card.text}
+                </Text>
+              )}
             </Animated.View>
           ))}
         </View>
@@ -952,13 +1060,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
   },
-  s1Stars: { alignItems: "center", gap: 8 },
-  starsRow: { flexDirection: "row", gap: 4 },
-  s1StarText: {
-    color: "#1A4530",
+  s1List: {
+    width: "100%",
+    gap: 10,
+    marginTop: 6,
+  },
+  s1ListRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  s1CheckDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: DARK.teal,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  s1ListText: {
+    flex: 1,
     fontSize: 14,
-    textAlign: "center",
-    fontStyle: "italic",
+    lineHeight: 20,
   },
   s1Btns: {
     width: "100%",

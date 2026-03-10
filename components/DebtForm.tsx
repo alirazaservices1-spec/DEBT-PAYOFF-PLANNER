@@ -322,7 +322,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                   <Ionicons name="alert-circle" size={18} color={Colors.danger} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.smartBannerLabel, { color: Colors.danger }]}>Urgent: Options Available</Text>
+                  <Text style={[styles.smartBannerLabel, { color: Colors.danger }]}>Recommended Options</Text>
                   <Text style={[styles.smartBannerText, { color: "#7B1A1A" }]}>
                     With ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt, you may qualify for programs that could meaningfully lower your balance. A quick review can show what might be possible.
                   </Text>
@@ -337,9 +337,14 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 <View style={[styles.smartBannerIcon, { backgroundColor: Colors.primary + "20" }]}>
                   <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
                 </View>
-                <Text style={styles.smartBannerText}>
-                  See if you could save on your debt — ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt may qualify for options with lower payments.
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.smartBannerLabel, { color: Colors.primaryDark }]}>
+                    See if you could save on your debt
+                  </Text>
+                  <Text style={styles.smartBannerText}>
+                    ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt may qualify for options with lower payments.
+                  </Text>
+                </View>
                 <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
               </Pressable>
             )
@@ -384,7 +389,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                     <Text
                       style={[
                         styles.dueChipText,
-                        { color: selected ? "#fff" : C.text },
+                        { color: selected ? "#05130A" : C.text },
                       ]}
                     >
                       {day}
@@ -409,7 +414,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 <Text
                   style={[
                     styles.dueChipText,
-                    { color: parseInt(dueDate, 10) === 31 ? "#fff" : C.text },
+                    { color: parseInt(dueDate, 10) === 31 ? "#05130A" : C.text },
                   ]}
                 >
                   Last
@@ -444,7 +449,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           style={({ pressed }) => [{ opacity: pressed || saving ? 0.8 : 1 }]}
         >
           <LinearGradient
-            colors={[Colors.primary, Colors.primaryDark]}
+            colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.saveBtn}
@@ -843,6 +848,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: "#1A3A2A",
     fontWeight: "500",
+    flexShrink: 1,
   },
   dueGrid: {
     flexDirection: "row",

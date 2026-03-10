@@ -81,7 +81,7 @@ export default function SettingsScreen() {
     try {
       await Share.share({
         title: "DebtFree – Payoff Planner",
-        message: "Track your debts and get debt-free with DebtFree. Free payoff planner with Snowball & Avalanche methods.",
+        message: "Track your debts and see payoff plans with DebtFree, including Snowball and Avalanche methods.",
         url: APP_STORE_URL,
       });
     } catch (_) {}

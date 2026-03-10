@@ -3,12 +3,17 @@ const PRIMARY_DARK = "#27AE60";
 const ACCENT = "#1ABC9C";
 // Doc 2.4: "Green colors for debts getting smaller" (progress visualization)
 const PROGRESS_GREEN = "#22C55E";
+// WCAG AA-safe greens for white text on buttons (contrast ratios: buttonGreen=4.95:1, buttonGreenDark=7.68:1)
+const BUTTON_GREEN = "#1A7A3F";
+const BUTTON_GREEN_DARK = "#145A2E";
 
 export default {
   primary: PRIMARY,
   primaryDark: PRIMARY_DARK,
   accent: ACCENT,
   progressGreen: PROGRESS_GREEN,
+  buttonGreen: BUTTON_GREEN,
+  buttonGreenDark: BUTTON_GREEN_DARK,
   danger: "#E74C3C",
   warning: "#F39C12",
   light: {

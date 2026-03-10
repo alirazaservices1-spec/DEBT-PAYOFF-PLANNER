@@ -23,8 +23,8 @@ function monthsToStr(m: number): string {
   const yrs = Math.floor(m / 12);
   const mos = Math.round(m % 12);
   if (yrs === 0) return `${mos} mo`;
-  if (mos === 0) return `${yrs} yr`;
-  return `${yrs} yr ${mos} mo`;
+  if (mos === 0) return `${yrs} ${yrs === 1 ? "yr" : "yrs"}`;
+  return `${yrs} ${yrs === 1 ? "yr" : "yrs"} ${mos} mo`;
 }
 
 function CalcInput({

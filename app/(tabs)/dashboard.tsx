@@ -460,7 +460,7 @@ export default function DashboardScreen() {
                       },
                     ]}
                   >
-                    <Text style={[styles.whatIfBtnText, { color: whatIfExtra === v ? "#fff" : C.textSecondary }]}>
+                    <Text style={[styles.whatIfBtnText, { color: whatIfExtra === v ? "#05130A" : C.textSecondary }]}>
                       {v === 0 ? "Min only" : `+$${v}`}
                     </Text>
                   </Pressable>
@@ -503,7 +503,7 @@ export default function DashboardScreen() {
                       },
                     ]}
                   >
-                    <Text style={[styles.whatIfBtnText, { color: whatIfLump === v ? "#fff" : C.textSecondary }]}>
+                    <Text style={[styles.whatIfBtnText, { color: whatIfLump === v ? "#05130A" : C.textSecondary }]}>
                       {v === 0 ? "None" : `$${v.toLocaleString()}`}
                     </Text>
                   </Pressable>
@@ -655,7 +655,7 @@ export default function DashboardScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.debtSelectText, { color: logDebtId === d.id ? "#fff" : C.text }]} numberOfLines={1}>
+                  <Text style={[styles.debtSelectText, { color: logDebtId === d.id ? "#05130A" : C.text }]} numberOfLines={1}>
                     {d.name}
                   </Text>
                 </Pressable>
@@ -674,7 +674,7 @@ export default function DashboardScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.typeChipText, { color: !logMissed ? "#fff" : C.text }]}>Payment Made</Text>
+                <Text style={[styles.typeChipText, { color: !logMissed ? "#05130A" : C.text }]}>Payment Made</Text>
               </Pressable>
               <Pressable
                 onPress={() => setLogMissed(true)}
@@ -686,7 +686,7 @@ export default function DashboardScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.typeChipText, { color: logMissed ? "#fff" : C.text }]}>Missed Payment</Text>
+                <Text style={[styles.typeChipText, { color: logMissed ? "#05130A" : C.text }]}>Missed Payment</Text>
               </Pressable>
             </View>
 
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.buttonGreenDark,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,

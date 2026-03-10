@@ -294,7 +294,7 @@ export default function DebtDetailScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <LinearGradient
-        colors={isDark ? [typeColor + "22", C.background] : [typeColor + "18", C.background]}
+        colors={isDark ? [typeColor + "44", C.background] : [typeColor + "18", C.background]}
         style={[
           styles.headerGrad,
           { paddingTop: insets.top + webTop + 8 },
@@ -316,7 +316,7 @@ export default function DebtDetailScreen() {
               <Text style={[styles.headerName, { color: C.text }]} numberOfLines={1}>
                 {debt.name}
               </Text>
-              <Text style={[styles.headerType, { color: typeColor }]}>
+              <Text style={[styles.headerType, { color: C.textSecondary }]}>
                 {debtTypeLabel(debt.debtType)}{debt.isSecured ? " • Secured" : ""}
               </Text>
             </View>
@@ -326,7 +326,11 @@ export default function DebtDetailScreen() {
             style={[styles.editBtn, { backgroundColor: C.surface + "CC" }]}
             hitSlop={8}
           >
-            <Ionicons name="create-outline" size={20} color={typeColor} />
+            <Ionicons
+              name="create-outline"
+              size={20}
+              color={isDark ? "#FFFFFF" : "#05130A"}
+            />
           </Pressable>
         </View>
 
@@ -343,7 +347,7 @@ export default function DebtDetailScreen() {
               <Text
                 style={[
                   styles.segTabText,
-                  { color: activeTab === tab ? "#fff" : C.textSecondary },
+                  { color: activeTab === tab ? "#05130A" : C.textSecondary },
                 ]}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -469,7 +473,7 @@ export default function DebtDetailScreen() {
             </View>
             <Pressable onPress={handleMarkPaid} style={({ pressed }) => [styles.paidConfirmBtnWrap, { opacity: pressed ? 0.9 : 1 }]}>
               <LinearGradient
-                colors={[Colors.primary, Colors.primaryDark]}
+                colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.paidConfirmBtn}
@@ -667,7 +671,7 @@ function TransactionsTab({
               tab === t && { backgroundColor: typeColor },
             ]}
           >
-            <Text style={[styles.subSegText, { color: tab === t ? "#fff" : C.textSecondary }]}>
+            <Text style={[styles.subSegText, { color: tab === t ? "#05130A" : C.textSecondary }]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
           </Pressable>
@@ -686,7 +690,7 @@ function TransactionsTab({
               end={{ x: 1, y: 0 }}
               style={styles.markPaidBtn}
             >
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Ionicons name="checkmark-circle" size={18} color="#05130A" />
               <Text style={styles.markPaidText}>Mark Payment as Paid</Text>
             </LinearGradient>
           </Pressable>
@@ -846,7 +850,7 @@ function DetailsTab({
           end={{ x: 1, y: 0 }}
           style={styles.editAllBtn}
         >
-          <Ionicons name="create" size={18} color="#fff" />
+          <Ionicons name="create" size={18} color="#05130A" />
           <Text style={styles.editAllText}>Edit All Details</Text>
         </LinearGradient>
       </Pressable>
@@ -879,9 +883,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -899,24 +903,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerName: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "700",
   },
   headerType: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
     marginTop: 1,
   },
   editBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
   segmentedWrap: {
     flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.08)",
     borderRadius: 12,
     padding: 3,
     marginBottom: 12,
@@ -924,11 +927,11 @@ const styles = StyleSheet.create({
   segTab: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 10,
   },
   segTabText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "600",
   },
   scrollContent: {
@@ -948,13 +951,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
   cardTitleRow: {
@@ -969,7 +972,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   payoffSub: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     marginTop: -4,
   },
@@ -995,7 +998,7 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   ringLabel: {
-    fontSize: 11,
+    fontSize: 13,
     marginTop: -2,
   },
   ringStats: {
@@ -1004,12 +1007,12 @@ const styles = StyleSheet.create({
   },
   ringStat: { gap: 2 },
   ringStatLabel: {
-    fontSize: 11,
+    fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   ringStatValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
   },
   ringStatDivider: {
@@ -1076,12 +1079,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   whatIfResultLabel: {
-    fontSize: 11,
+    fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   whatIfResultValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
   },
   whatIfResultDivider: {
@@ -1114,7 +1117,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   markPaidText: {
-    color: "#fff",
+    color: "#05130A",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -1213,7 +1216,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   editAllText: {
-    color: "#fff",
+    color: "#05130A",
     fontSize: 16,
     fontWeight: "700",
   },

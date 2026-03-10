@@ -253,12 +253,12 @@ export function formatCurrencyFull(amount: number): string {
 }
 
 export function monthsToText(months: number): string {
-  if (months < 1) return "< 1 month";
+  if (months < 1) return "< 1 mo";
   const y = Math.floor(months / 12);
   const m = months % 12;
-  if (y === 0) return `${m}mo`;
-  if (m === 0) return `${y}yr`;
-  return `${y}yr ${m}mo`;
+  if (y === 0) return `${m} mo`;
+  if (m === 0) return `${y} ${y === 1 ? "yr" : "yrs"}`;
+  return `${y} ${y === 1 ? "yr" : "yrs"} ${m} mo`;
 }
 
 export function debtTypeLabel(type: DebtType): string {

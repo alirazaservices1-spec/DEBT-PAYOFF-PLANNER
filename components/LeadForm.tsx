@@ -118,7 +118,7 @@ export function LeadForm({ visible, onClose, triggerType, prefilledDebtType, pre
             </Text>
             <Pressable
               onPress={handleClose}
-              style={[styles.submitBtn, { backgroundColor: Colors.primary, marginTop: 24 }]}
+              style={[styles.submitBtn, { backgroundColor: Colors.buttonGreen, marginTop: 24 }]}
             >
               <Text style={styles.submitBtnText}>Done</Text>
             </Pressable>
@@ -177,7 +177,7 @@ export function LeadForm({ visible, onClose, triggerType, prefilledDebtType, pre
                     onPress={() => setCallTime(t)}
                     style={[styles.segment, { backgroundColor: callTime === t ? Colors.primary : C.surfaceSecondary, borderColor: callTime === t ? Colors.primary : C.border }]}
                   >
-                    <Text style={[styles.segmentText, { color: callTime === t ? "#fff" : C.text }]}>{t}</Text>
+                    <Text style={[styles.segmentText, { color: callTime === t ? "#05130A" : C.text }]}>{t}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -215,7 +215,7 @@ export function LeadForm({ visible, onClose, triggerType, prefilledDebtType, pre
             <Pressable
               onPress={handleSubmit}
               disabled={submitting}
-              style={[styles.submitBtn, { backgroundColor: Colors.primary, opacity: submitting ? 0.7 : 1 }]}
+              style={[styles.submitBtn, { backgroundColor: Colors.buttonGreen, opacity: submitting ? 0.7 : 1 }]}
             >
               <Text style={styles.submitBtnText}>
                 {submitting ? "Submitting..." : "Get My Free Assessment"}

@@ -76,7 +76,7 @@ export function CTACards() {
       triggerType: "settlement",
       debtType: "Unsecured Debt",
       amount: totalUnsecuredBalance,
-      gradient: isUrgent ? [Colors.danger, "#C0392B"] : [Colors.primary, Colors.accent],
+      gradient: isUrgent ? [Colors.danger, "#C0392B"] : [Colors.buttonGreen, Colors.buttonGreenDark],
       url: "https://www.curadebt.com/debtpps",
     });
   }
@@ -116,7 +116,7 @@ export function CTACards() {
       debtType: "Business Debt",
       amount: totalBusinessBalance,
       // Use brand colors for better contrast in dark mode
-      gradient: [Colors.accent, Colors.primary],
+      gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
       url: "https://www.curadebt.com/biz",
     });
   }

@@ -97,7 +97,7 @@ export function NotificationBell() {
                         },
                       ]}
                     >
-                      <Text style={[styles.chipText, { color: active ? "#fff" : C.textSecondary }]}>
+                      <Text style={[styles.chipText, { color: active ? "#05130A" : C.textSecondary }]}>
                         {day === 1 ? "1 day before" : `${day} days before`}
                       </Text>
                     </Pressable>

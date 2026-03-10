@@ -327,7 +327,7 @@ function CalendarView({
                 </View>
               </View>
             ))}
-            <Pressable onPress={() => setSelected(null)} style={[calStyles.popupClose, { backgroundColor: Colors.primary }]}>
+            <Pressable onPress={() => setSelected(null)} style={[calStyles.popupClose, { backgroundColor: Colors.buttonGreen }]}>
               <Text style={calStyles.popupCloseText}>Close</Text>
             </Pressable>
           </View>
@@ -344,6 +344,7 @@ const calStyles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    marginTop: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
@@ -356,7 +357,7 @@ const calStyles = StyleSheet.create({
   dayNum: { fontSize: 13 },
   chips: { gap: 2, marginTop: 2 },
   chip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
-  chipText: { fontSize: 9, fontWeight: "700", color: "#fff" },
+  chipText: { fontSize: 9, fontWeight: "700", color: "#05130A" },
   moreText: { fontSize: 9 },
   legend: { flexDirection: "row", gap: 16, justifyContent: "center", padding: 12, borderRadius: 10, borderWidth: 1, margin: 8 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -497,7 +498,7 @@ export default function PlanScreen() {
 
       <Pressable
         onPress={() => setCalendarVisible(true)}
-        style={[styles.calFab, { backgroundColor: Colors.primary }]}
+        style={[styles.calFab, { backgroundColor: Colors.buttonGreen }]}
       >
         <Ionicons name="calendar" size={22} color="#fff" />
         <Text style={styles.calFabText}>Calendar</Text>
@@ -510,7 +511,7 @@ export default function PlanScreen() {
         onRequestClose={() => setCalendarVisible(false)}
       >
         <View style={[styles.calModal, { backgroundColor: C.background }]}>
-          <View style={[styles.calModalHeader, { borderBottomColor: C.border, paddingTop: insets.top + 16 }]}>
+          <View style={[styles.calModalHeader, { borderBottomColor: C.border, paddingTop: 20 }]}>
             <Text style={[styles.calModalTitle, { color: C.text }]}>Payment Calendar</Text>
             <Pressable onPress={() => setCalendarVisible(false)} hitSlop={12}>
               <Ionicons name="close" size={24} color={C.textSecondary} />
@@ -568,7 +569,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   calModalTitle: { fontSize: 20, fontWeight: "700" },

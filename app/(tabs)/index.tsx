@@ -406,6 +406,7 @@ export default function DebtsScreen() {
         keyExtractor={(d) => d.id}
         ListHeaderComponent={listHeader}
         contentInsetAdjustmentBehavior="automatic"
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.listContent,
           debts.length === 0 && styles.emptyListContent,
@@ -435,7 +436,7 @@ export default function DebtsScreen() {
             </Text>
             <Pressable onPress={openAdd}>
               <LinearGradient
-                colors={[Colors.primary, Colors.primaryDark]}
+                colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
                 style={styles.emptyBtn}
               >
                 <Ionicons name="add" size={18} color="#fff" />
@@ -460,7 +461,7 @@ export default function DebtsScreen() {
         hitSlop={8}
       >
         <LinearGradient
-          colors={[Colors.primary, Colors.primaryDark]}
+          colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
           style={styles.fabGradient}
         >
           <Ionicons name="add" size={28} color="#fff" />
