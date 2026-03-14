@@ -9,10 +9,12 @@ import {
   useColorScheme,
   Platform,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useCurrency } from "@/context/CurrencyContext";
+import { RecommendationBar } from "@/components/RecommendationBar";
 
 function parseNum(s: string): number {
   return parseFloat(s.replace(/,/g, "")) || 0;
@@ -358,6 +360,18 @@ export default function CalculatorsScreen() {
           },
         ]}
       >
+        <View style={styles.headerBrand}>
+          <ExpoImage
+            source={require("@/assets/images/iconApp.png")}
+            style={styles.headerBrandIcon}
+            contentFit="contain"
+            transition={0}
+            cachePolicy="memory-disk"
+          />
+          <Text style={[styles.headerBrandName, { color: C.textSecondary }]}>
+            DebtPath: Payoff Planner
+          </Text>
+        </View>
         <Text style={[styles.headerTitle, { color: C.text }]}>Calculators</Text>
         <Text style={[styles.headerSub, { color: C.textSecondary }]}>
           Real-time debt & loan tools
@@ -370,6 +384,7 @@ export default function CalculatorsScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        <RecommendationBar />
         <PayoffCalculator C={C} fmt={fmt} />
         <MonthlyPaymentCalculator C={C} fmt={fmt} />
         <RefinanceCalculator C={C} fmt={fmt} />
@@ -385,6 +400,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
+  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
   headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
   headerSub: { fontSize: 16, marginTop: 2 },
   scroll: { padding: 16, gap: 16 },

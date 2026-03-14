@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "DebtFree",
+    "name": "DebtPath: Payoff Planner",
     "slug": "debtfree-payoff-planner",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/iconApp.png",
     "scheme": "debtfree",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/iconApp.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D1F12"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false,
@@ -33,11 +33,23 @@
       [
         "expo-router",
         {
-          "origin": "https://a69fc40a-5bac-44ff-b163-7d5abf7e6377-00-7eg8r5xe052k.worf.replit.dev"
+          "origin": "https://68f4f190-227d-4c19-8ff5-702fa0b333b4-00-2mkhn5fes20l2.janeway.replit.dev"
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/iconApp.png",
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0D1F12",
+            "image": "./assets/images/iconApp.png"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

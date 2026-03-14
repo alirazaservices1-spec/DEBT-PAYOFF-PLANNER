@@ -22,7 +22,10 @@ export interface Debt {
   isSecured: boolean;
   dueDate: number;
   dateAdded: string;
+  taxRate?: number;
   order?: number;
+  /** When tax debt: true = on IRS/state payment plan (APR/min/due apply). False/undefined = not in plan; excluded from payoff strategy sim unless plan. */
+  taxPaymentPlan?: boolean;
 }
 
 export interface DebtMonthSnapshot {
@@ -65,12 +68,35 @@ function calculateMonthlyInterest(balance: number, apr: number): number {
   return balance * (apr / 100 / 12);
 }
 
+/**
+ * Debts included in avalanche/snowball/custom simulation.
+ * - Tax debt is separate from payoff strategy unless explicitly on a payment plan:
+ *   only included when taxPaymentPlan === true AND minimumPayment > 0.
+ * - Any non-tax debt with $0 minimum would stall the sim — exclude.
+ */
+export function debtsEligibleForStrategy(debts: Debt[]): Debt[] {
+  return debts.filter((d) => {
+    if (d.debtType === "taxDebt") {
+      return d.taxPaymentPlan === true && d.minimumPayment > 0;
+    }
+    if (d.minimumPayment <= 0) return false;
+    return true;
+  });
+}
+
+/** True if this tax debt is excluded from strategy (no plan or no min payment). */
+export function isTaxDebtExcludedFromStrategy(d: Debt): boolean {
+  if (d.debtType !== "taxDebt") return false;
+  return !(d.taxPaymentPlan === true && d.minimumPayment > 0);
+}
+
 export function runStrategy(
   debts: Debt[],
   extraPayment: number,
   strategy: Strategy,
   customOrder?: string[]
 ): StrategyResult {
+  debts = debtsEligibleForStrategy(debts);
   if (debts.length === 0) {
     return {
       snapshots: [],
@@ -85,7 +111,11 @@ export function runStrategy(
   if (strategy === "snowball") {
     sortedDebts = [...debts].sort((a, b) => a.balance - b.balance);
   } else if (strategy === "avalanche") {
-    sortedDebts = [...debts].sort((a, b) => b.apr - a.apr);
+    // Tie-break same APR so order is stable and avalanche ≠ snowball when rates differ
+    sortedDebts = [...debts].sort((a, b) => {
+      if (b.apr !== a.apr) return b.apr - a.apr;
+      return a.balance - b.balance;
+    });
   } else {
     if (customOrder && customOrder.length > 0) {
       sortedDebts = customOrder
@@ -122,7 +152,7 @@ export function runStrategy(
 
     month++;
     const date = new Date(startDate);
-    date.setMonth(date.getMonth() + month);
+    date.setMonth(date.getMonth() + (month - 1));
 
     let remainingExtra = extraPayment;
     const breakdown: DebtMonthSnapshot[] = [];

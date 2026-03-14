@@ -1,0 +1,54 @@
+You are working on a React Native app called DebtPath. Open the Main Dashboard screen file (DashboardScreen.js or similar).
+
+There is a bug on the dashboard: directly below the green summary banner and above the 
+"PERSONALIZED RECOMMENDATIONS" section, there is a blank white card/view rendering 
+on screen. It appears as an empty rounded rectangle with no content inside it.
+
+Find and fix this by doing the following:
+
+STEP 1 — FIND THE EMPTY COMPONENT:
+Search the dashboard JSX for any of these patterns that could be rendering the blank card:
+- A <View> or <Card> component with no children
+- A FlatList or ScrollView rendering an empty first item
+- A conditional component that is rendering its container but not its content
+- A placeholder <View> left behind after removing the "Add Debt Prompt" card
+- A carousel/FlatList for recommendations that is rendering an empty first slide
+- Any component wrapped in a white card style (backgroundColor: '#fff', borderRadius, 
+  elevation/shadow) that has no visible children
+
+STEP 2 — IDENTIFY THE CAUSE:
+Check these three most likely causes in this order:
+
+Cause A — Empty "Add Debt" Prompt Card:
+If you previously added an "Is this all of it?" card with a dismissed state, check if 
+the card container View is still rendering even when dismissed = true. 
+Fix: Wrap the entire card (including its outer container View) in:
+  {!dismissed && ( ... entire card JSX ... )}
+Make sure the outer wrapper View is INSIDE the condition, not outside it.
+
+Cause B — Recommendation Carousel Empty First Slot:
+If the horizontal FlatList/ScrollView for recommendations is rendering but the first 
+item is empty (no data yet), the card shell is showing with no content.
+Fix: Add a check before rendering the carousel:
+  {recommendations.length > 0 && ( ... carousel JSX ... )}
+This hides the entire carousel section if there are no recommendations to show.
+
+Cause C — Leftover Placeholder View:
+If a placeholder <View> or <Card> was added as a layout spacer or TODO placeholder, 
+find it and delete it entirely.
+
+STEP 3 — APPLY THE FIX:
+Once you identify the cause, apply the appropriate fix from Step 2.
+After the fix, the layout between the green banner and the "PERSONALIZED RECOMMENDATIONS" 
+label should have NO empty white space or blank cards.
+
+STEP 4 — VERIFY THE LAYOUT ORDER:
+After the fix, confirm the vertical layout of the dashboard reads in this exact order 
+with no blank elements between them:
+1. Green Summary Banner (Principal Paid, Debt-Free Date, Total Balance)
+2. Recommendation Carousel (only if recommendations exist)
+3. "PERSONALIZED RECOMMENDATIONS" label
+4. Recommendation Cards (horizontal swipeable)
+5. Debt list cards
+
+Do not change any other part of the screen, navigation, or data logic.

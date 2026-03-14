@@ -85,6 +85,13 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        const od = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (od) setOnboardingDoneState(true);
+      } finally {
+        setLoaded(true);
+      }
+
+      try {
         const [dRaw, pRaw] = await Promise.all([
           secureGetItem(DEBTS_KEY),
           secureGetItem(PAYMENTS_KEY),
@@ -105,12 +112,11 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
             await secureSetItem(PAYMENTS_KEY, legacy);
           }
         }
-        const [e, s, co, ls, od] = await Promise.all([
+        const [e, s, co, ls] = await Promise.all([
           AsyncStorage.getItem(EXTRA_PAYMENT_KEY),
           AsyncStorage.getItem(SELECTED_STRATEGY_KEY),
           AsyncStorage.getItem(CUSTOM_ORDER_KEY),
           AsyncStorage.getItem(LEAD_SUBMITTED_KEY),
-          AsyncStorage.getItem(ONBOARDING_KEY),
         ]);
         if (d) setDebts(JSON.parse(d));
         if (p) setPayments(JSON.parse(p));
@@ -118,10 +124,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         if (s) setSelectedStrategyState(s as Strategy);
         if (co) setCustomOrderState(JSON.parse(co));
         if (ls) setLeadSubmittedAtState(ls);
-        if (od) setOnboardingDoneState(true);
-      } finally {
-        setLoaded(true);
-      }
+      } catch (_) {}
     })();
   }, []);
 
@@ -195,7 +198,8 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       };
       const updated = [...debts, newDebt];
       setDebts(updated);
-      await secureSetItem(DEBTS_KEY, JSON.stringify(updated));
+      // Persist in background so UI (modal close, list update) isn’t blocked
+      secureSetItem(DEBTS_KEY, JSON.stringify(updated)).catch(() => {});
     },
     [debts]
   );
@@ -206,7 +210,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         d.id === id ? { ...d, ...partial } : d
       );
       setDebts(updated);
-      await secureSetItem(DEBTS_KEY, JSON.stringify(updated));
+      secureSetItem(DEBTS_KEY, JSON.stringify(updated)).catch(() => {});
     },
     [debts]
   );

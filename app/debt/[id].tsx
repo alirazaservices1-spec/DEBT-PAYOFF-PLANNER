@@ -50,7 +50,8 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 const { width: SCREEN_W } = Dimensions.get("window");
 // Chart fits inside card: scroll 32 + card 32 + Y label ~48 + gap 4 = 116
 const CHART_W = Math.max(180, SCREEN_W - 116);
-const CHART_H = 140;
+const CHART_H = 180;
+const INTEREST_LINE_COLOR = "#F59E0B";
 
 const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   creditCard: "#3498DB",
@@ -102,61 +103,102 @@ function buildLinePath(pts: { x: number; y: number }[]): string {
   return d;
 }
 
-function BalanceChart({
+function AmortizationChart({
   snapshots,
+  extraSnapshots,
   initialBalance,
   color,
 }: {
   snapshots: MonthlySnapshot[];
+  extraSnapshots?: MonthlySnapshot[];
   initialBalance: number;
   color: string;
 }) {
   if (snapshots.length < 2) return null;
-  const maxBalance = initialBalance;
+
   const padTop = 16;
-  const padBottom = 24;
-  const padX = 0;
+  const padBottom = 26;
   const usableH = CHART_H - padTop - padBottom;
+  const floor = padTop + usableH;
+  const n = snapshots.length;
 
-  const allPts = [
-    { x: padX, y: padTop },
-    ...snapshots.map((s, i) => ({
-      x: padX + ((i + 1) / snapshots.length) * (CHART_W - padX),
-      y: padTop + (1 - s.totalBalance / maxBalance) * usableH,
-    })),
-  ];
+  const allX = [0, ...snapshots.map((_, i) => ((i + 1) / n) * CHART_W)];
+  const allBal = [initialBalance, ...snapshots.map((s) => Math.max(0, s.totalBalance))];
+  const allInt = [0, ...snapshots.map((s) => Math.max(0, s.totalInterestPaid))];
 
-  const linePath = buildLinePath(allPts);
-  const areaPath = buildAreaPath(allPts, CHART_W, CHART_H - padBottom);
+  const maxY = Math.max(initialBalance, ...allBal.map((b, i) => b + allInt[i]), 1);
 
-  const labelStep = Math.max(1, Math.floor(snapshots.length / 4));
+  const balTopY = allBal.map((b) => padTop + (1 - b / maxY) * usableH);
+  const stackTopY = allBal.map((b, i) => padTop + (1 - (b + allInt[i]) / maxY) * usableH);
+
+  function bezierCurve(xs: number[], ys: number[]): string {
+    if (xs.length < 2) return "";
+    let d = `M ${xs[0]} ${ys[0]}`;
+    for (let i = 1; i < xs.length; i++) {
+      const cpX = (xs[i - 1] + xs[i]) / 2;
+      d += ` C ${cpX} ${ys[i - 1]}, ${cpX} ${ys[i]}, ${xs[i]} ${ys[i]}`;
+    }
+    return d;
+  }
+
+  const balanceAreaPath = bezierCurve(allX, balTopY) + ` L ${allX[allX.length - 1]} ${floor} L ${allX[0]} ${floor} Z`;
+
+  let interestPath = bezierCurve(allX, stackTopY);
+  for (let i = allX.length - 1; i >= 0; i--) {
+    if (i === allX.length - 1) {
+      interestPath += ` L ${allX[i]} ${balTopY[i]}`;
+    } else {
+      const cpX = (allX[i + 1] + allX[i]) / 2;
+      interestPath += ` C ${cpX} ${balTopY[i + 1]}, ${cpX} ${balTopY[i]}, ${allX[i]} ${balTopY[i]}`;
+    }
+  }
+  interestPath += " Z";
+
+  const balanceLine = bezierCurve(allX, balTopY);
+
+  let extraLine: string | null = null;
+  if (extraSnapshots && extraSnapshots.length > 1) {
+    const en = extraSnapshots.length;
+    const eX = [0, ...extraSnapshots.map((_, i) => ((i + 1) / en) * CHART_W)];
+    const eBal = [initialBalance, ...extraSnapshots.map((s) => Math.max(0, s.totalBalance))];
+    const eTopY = eBal.map((b) => padTop + (1 - b / maxY) * usableH);
+    extraLine = bezierCurve(eX, eTopY);
+  }
+
+  const labelStep = Math.max(1, Math.floor(n / 4));
   const labels = snapshots
-    .filter((_, i) => i % labelStep === 0 || i === snapshots.length - 1)
-    .map((s, _) => ({
-      x: padX + ((snapshots.indexOf(s) + 1) / snapshots.length) * (CHART_W - padX),
+    .filter((_, i) => i % labelStep === 0 || i === n - 1)
+    .map((s) => ({
+      x: ((snapshots.indexOf(s) + 1) / n) * CHART_W,
       label: `${MONTH_NAMES[s.date.getMonth()]} '${String(s.date.getFullYear()).slice(2)}`,
     }));
 
   return (
     <Svg width={CHART_W} height={CHART_H}>
       <Defs>
-        <SvgLinearGradient id={`grad_${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0.35" />
-          <Stop offset="1" stopColor={color} stopOpacity="0.04" />
+        <SvgLinearGradient id={`grad_bal_${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.65" />
+          <Stop offset="1" stopColor={color} stopOpacity="0.3" />
+        </SvgLinearGradient>
+        <SvgLinearGradient id="grad_int_amber" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={INTEREST_LINE_COLOR} stopOpacity="0.72" />
+          <Stop offset="1" stopColor={INTEREST_LINE_COLOR} stopOpacity="0.38" />
         </SvgLinearGradient>
       </Defs>
-      <Path d={areaPath} fill={`url(#grad_${color.replace("#", "")})`} />
-      <Path d={linePath} stroke={color} strokeWidth={2.5} fill="none" />
-      {allPts.map((p, i) =>
-        i % Math.max(1, Math.floor(allPts.length / 8)) === 0 ? (
-          <Circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
-        ) : null
+      <Path d={interestPath} fill="url(#grad_int_amber)" />
+      <Path d={balanceAreaPath} fill={`url(#grad_bal_${color.replace("#", "")})`} />
+      <Path d={balanceLine} stroke={color} strokeWidth={2.5} fill="none" />
+      {extraLine && (
+        <Path d={extraLine} stroke="#fff" strokeWidth={4} fill="none" opacity={0.5} />
+      )}
+      {extraLine && (
+        <Path d={extraLine} stroke={color} strokeWidth={2.5} fill="none" strokeDasharray="6,3" />
       )}
       {labels.map((l, i) => (
         <SvgText
           key={i}
-          x={l.x}
-          y={CHART_H - 4}
+          x={Math.min(Math.max(l.x, 16), CHART_W - 16)}
+          y={CHART_H - 6}
           fontSize={9}
           fill="rgba(120,140,130,0.8)"
           textAnchor="middle"
@@ -256,6 +298,22 @@ export default function DebtDetailScreen() {
   const totalMonths = singleResult?.totalMonths ?? 0;
   const totalInterest = singleResult?.totalInterestPaid ?? 0;
   const snapshots = singleResult?.snapshots ?? [];
+
+  const effectiveApr = useMemo(() => {
+    if (!debt.taxRate || debt.taxRate <= 0) return debt.apr;
+    return debt.apr * (1 - debt.taxRate / 100);
+  }, [debt.apr, debt.taxRate]);
+
+  const taxAdjustedResult = useMemo(() => {
+    if (!debt.taxRate || debt.taxRate <= 0) return null;
+    const adjusted = { ...debt, apr: effectiveApr };
+    return runStrategy([adjusted], 0, "avalanche");
+  }, [debt, effectiveApr]);
+
+  const interestSavingFromTax = useMemo(() => {
+    if (!taxAdjustedResult) return 0;
+    return Math.max(0, totalInterest - taxAdjustedResult.totalInterestPaid);
+  }, [totalInterest, taxAdjustedResult]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -385,6 +443,9 @@ export default function DebtDetailScreen() {
             setWhatIfInput={setWhatIfInput}
             whatIfResult={whatIfResult}
             singleResult={singleResult}
+            effectiveApr={effectiveApr}
+            taxAdjustedResult={taxAdjustedResult}
+            interestSavingFromTax={interestSavingFromTax}
           />
         )}
 
@@ -496,6 +557,7 @@ function ProgressTab({
   payoffDate, totalMonths, totalInterest, snapshots,
   whatIfExtra, setWhatIfExtra, whatIfInput, setWhatIfInput,
   whatIfResult, singleResult,
+  effectiveApr, taxAdjustedResult, interestSavingFromTax,
 }: any) {
   const { fmt } = useCurrency();
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -506,28 +568,83 @@ function ProgressTab({
     ? Math.max(0, (singleResult?.totalMonths ?? 0) - whatIfResult.totalMonths)
     : 0;
 
+  const displayDate = whatIfResult && whatIfExtra > 0 ? whatIfResult.payoffDate : payoffDate;
+  const displayMonths = whatIfResult && whatIfExtra > 0 ? whatIfResult.totalMonths : totalMonths;
+
+  const dateOpacity = useSharedValue(1);
+  const dateAnimStyle = useAnimatedStyle(() => ({ opacity: dateOpacity.value }));
+  useEffect(() => {
+    dateOpacity.value = 0;
+    dateOpacity.value = withTiming(1, { duration: 300 });
+  }, [whatIfExtra]);
+
+  const RING_SIZE = 160;
+  const RING_SW = 16;
+  const ringR = (RING_SIZE - RING_SW) / 2;
+  const ringCX = RING_SIZE / 2;
+  const ringCY = RING_SIZE / 2;
+  const ringCirc = 2 * Math.PI * ringR;
+  const ringTotal = totalPaid + debt.balance + totalInterest;
+  const paidFrac = ringTotal > 0 ? totalPaid / ringTotal : 0;
+  const remainFrac = ringTotal > 0 ? debt.balance / ringTotal : 1;
+  const interestFrac = ringTotal > 0 ? totalInterest / ringTotal : 0;
+  const paidDash = paidFrac * ringCirc;
+  const remainDash = remainFrac * ringCirc;
+  const interestDash = interestFrac * ringCirc;
+
   return (
     <View style={styles.tabContent}>
       <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.border }]}>
         <Text style={[styles.cardLabel, { color: C.textSecondary }]}>Debt-Free Date</Text>
-        <Text style={[styles.payoffDateLarge, { color: C.text }]}>
-          {MONTH_NAMES[payoffDate.getMonth()]} {payoffDate.getFullYear()}
-        </Text>
-        <Text style={[styles.payoffSub, { color: typeColor }]}>
-          {monthsToText(totalMonths)} from today
-        </Text>
+        <Animated.View style={dateAnimStyle}>
+          <Text style={[styles.payoffDateLarge, { color: C.text }]}>
+            {MONTH_NAMES[displayDate.getMonth()]} {displayDate.getFullYear()}
+          </Text>
+          <Text style={[styles.payoffSub, { color: typeColor }]}>
+            {monthsToText(displayMonths)} from today
+          </Text>
+        </Animated.View>
       </View>
 
       <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.border }]}>
         <View style={styles.ringAndStats}>
           <View style={styles.ringWrap}>
-            <ProgressRing
-              size={160}
-              strokeWidth={16}
-              progress={progress}
-              color={Colors.progressGreen}
-              trackColor={Colors.progressGreen + "20"}
-            />
+            <View style={{ width: RING_SIZE, height: RING_SIZE }}>
+              <Svg width={RING_SIZE} height={RING_SIZE} style={StyleSheet.absoluteFill}>
+                <Circle cx={ringCX} cy={ringCY} r={ringR} stroke={isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"} strokeWidth={RING_SW} fill="none" />
+                <Circle
+                  cx={ringCX} cy={ringCY} r={ringR}
+                  stroke={isDark ? "rgba(255,255,255,0.18)" : "#D1D5DB"}
+                  strokeWidth={RING_SW}
+                  fill="none"
+                  strokeDasharray={`${interestDash} ${ringCirc}`}
+                  strokeDashoffset={-(paidDash + remainDash)}
+                  rotation="-90"
+                  origin={`${ringCX}, ${ringCY}`}
+                />
+                <Circle
+                  cx={ringCX} cy={ringCY} r={ringR}
+                  stroke={isDark ? "rgba(255,255,255,0.18)" : "#D1D5DB"}
+                  strokeWidth={RING_SW}
+                  fill="none"
+                  strokeDasharray={`${remainDash} ${ringCirc}`}
+                  strokeDashoffset={-paidDash}
+                  rotation="-90"
+                  origin={`${ringCX}, ${ringCY}`}
+                />
+                <Circle
+                  cx={ringCX} cy={ringCY} r={ringR}
+                  stroke={Colors.progressGreen}
+                  strokeWidth={RING_SW}
+                  fill="none"
+                  strokeDasharray={`${paidDash} ${ringCirc}`}
+                  strokeDashoffset={0}
+                  rotation="-90"
+                  origin={`${ringCX}, ${ringCY}`}
+                  strokeLinecap="round"
+                />
+              </Svg>
+            </View>
             <View style={styles.ringCenter}>
               <Text
                 style={[styles.ringPct, { color: Colors.progressGreen }]}
@@ -543,7 +660,7 @@ function ProgressTab({
 
           <View style={styles.ringStats}>
             <View style={styles.ringStat}>
-              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Principal Paid</Text>
+              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Principal Paid (Since Added)</Text>
               <Text style={[styles.ringStatValue, { color: Colors.progressGreen }]}>
                 {fmt(totalPaid)}
               </Text>
@@ -551,14 +668,14 @@ function ProgressTab({
             <View style={[styles.ringStatDivider, { backgroundColor: C.border }]} />
             <View style={styles.ringStat}>
               <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Remaining</Text>
-              <Text style={[styles.ringStatValue, { color: Colors.danger }]}>
+              <Text style={[styles.ringStatValue, { color: "#333333" }]}>
                 {fmt(debt.balance)}
               </Text>
             </View>
             <View style={[styles.ringStatDivider, { backgroundColor: C.border }]} />
             <View style={styles.ringStat}>
-              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
-              <Text style={[styles.ringStatValue, { color: Colors.warning }]}>
+              <Text style={[styles.ringStatLabel, { color: C.textSecondary }]}>Projected Interest</Text>
+              <Text style={[styles.ringStatValue, { color: "#8DA9C4" }]}>
                 {fmt(totalInterest)}
               </Text>
             </View>
@@ -568,19 +685,53 @@ function ProgressTab({
 
       {snapshots.length > 2 && (
         <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Text style={[styles.cardTitle, { color: C.text }]}>Balance Over Time</Text>
+          <View style={styles.cardTitleRow}>
+            <Text style={[styles.cardTitle, { color: C.text }]}>Principal vs. Interest</Text>
+          </View>
+          <View style={styles.chartLegend}>
+            <View style={styles.chartLegendItem}>
+              <View style={[styles.chartLegendSwatch, { backgroundColor: typeColor + "99" }]} />
+              <Text style={[styles.chartLegendLabel, { color: C.textSecondary }]}>Principal Remaining</Text>
+            </View>
+            <View style={styles.chartLegendItem}>
+              <View style={[styles.chartLegendSwatch, { backgroundColor: INTEREST_LINE_COLOR + "99" }]} />
+              <Text style={[styles.chartLegendLabel, { color: C.textSecondary }]}>Interest Accrued</Text>
+            </View>
+          </View>
           <View style={styles.chartWrap}>
             <View style={styles.chartYLabel}>
               <Text style={[styles.chartAxisText, { color: C.textSecondary }]}>
-                {fmt(debt.balance)}
+                {fmt(Math.max(debt.balance, totalInterest))}
               </Text>
               <Text style={[styles.chartAxisText, { color: C.textSecondary }]}>$0</Text>
             </View>
-            <BalanceChart
+            <AmortizationChart
               snapshots={snapshots}
+              extraSnapshots={whatIfResult && whatIfExtra > 0 ? whatIfResult.snapshots : undefined}
               initialBalance={debt.balance}
               color={typeColor}
             />
+          </View>
+          <View style={[styles.chartSummaryRow, { borderTopColor: C.border }]}>
+            <View style={styles.chartSummaryItem}>
+              <Text style={[styles.chartSummaryLabel, { color: C.textSecondary }]}>Total Interest Cost</Text>
+              <Text style={[styles.chartSummaryValue, { color: INTEREST_LINE_COLOR }]}>
+                {fmt(totalInterest)}
+              </Text>
+            </View>
+            <View style={[styles.chartSummaryDivider, { backgroundColor: C.border }]} />
+            <View style={styles.chartSummaryItem}>
+              <Text style={[styles.chartSummaryLabel, { color: C.textSecondary }]}>Interest Saved</Text>
+              {whatIfExtra > 0 && interestSaved > 0 ? (
+                <Text style={[styles.chartSummaryValue, { color: typeColor }]}>
+                  {fmt(interestSaved)}
+                </Text>
+              ) : (
+                <Text style={[styles.chartSummaryHint, { color: C.textSecondary }]}>
+                  Add extra below
+                </Text>
+              )}
+            </View>
           </View>
         </View>
       )}
@@ -649,6 +800,55 @@ function ProgressTab({
           </View>
         )}
       </View>
+
+      {debt.taxRate && debt.taxRate > 0 && taxAdjustedResult && (
+        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <View style={styles.cardTitleRow}>
+            <Ionicons name="receipt-outline" size={16} color="#1A7A45" />
+            <Text style={[styles.cardTitle, { color: C.text }]}>Tax Benefit Impact</Text>
+          </View>
+          <Text style={[styles.taxImpactSubtitle, { color: C.textSecondary }]}>
+            At a {debt.taxRate}% tax rate, your effective cost of this debt is lower because interest may be deductible.
+          </Text>
+          <View style={[styles.taxImpactGrid, { borderTopColor: C.border }]}>
+            <View style={styles.taxImpactStat}>
+              <Text style={[styles.taxImpactLabel, { color: C.textSecondary }]}>Stated APR</Text>
+              <Text style={[styles.taxImpactValue, { color: C.text }]}>{debt.apr}%</Text>
+            </View>
+            <View style={[styles.taxImpactDivider, { backgroundColor: C.border }]} />
+            <View style={styles.taxImpactStat}>
+              <Text style={[styles.taxImpactLabel, { color: C.textSecondary }]}>Effective APR</Text>
+              <Text style={[styles.taxImpactValue, { color: "#1A7A45" }]}>{effectiveApr.toFixed(2)}%</Text>
+            </View>
+            <View style={[styles.taxImpactDivider, { backgroundColor: C.border }]} />
+            <View style={styles.taxImpactStat}>
+              <Text style={[styles.taxImpactLabel, { color: C.textSecondary }]}>Interest Saving</Text>
+              <Text style={[styles.taxImpactValue, { color: "#1A7A45" }]}>{fmt(interestSavingFromTax)}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {debt.debtType === "taxDebt" ? (
+        <View style={[styles.taxNoticeBanner, { backgroundColor: "#F39C1215", borderColor: "#F39C1240" }]}>
+          <View style={styles.taxNoticeBannerRow}>
+            <Text style={styles.taxNoticeBannerIcon}>🏛️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.taxNoticeBannerTitle, { color: "#7C5A00" }]}>IRS / Tax Debt Account</Text>
+              <Text style={[styles.taxNoticeBannerBody, { color: "#7C5A00" }]}>
+                Tax debts may qualify for an IRS installment plan or Fresh Start program. Consolidation loans typically do not apply.
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : debt.apr > 15 ? (
+        <View style={styles.affiliateBanner}>
+          {/* Phase 2: wire onPress to consolidation loan affiliate URL */}
+          <Text style={styles.affiliateBannerText}>
+            {"💡 Paying " + debt.apr + "% APR? Tap here to see if you can lower it."}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -690,7 +890,7 @@ function TransactionsTab({
               end={{ x: 1, y: 0 }}
               style={styles.markPaidBtn}
             >
-              <Ionicons name="checkmark-circle" size={18} color="#05130A" />
+              <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
               <Text style={styles.markPaidText}>Mark Payment as Paid</Text>
             </LinearGradient>
           </Pressable>
@@ -799,8 +999,12 @@ function DetailsTab({
       rows: [
         { label: "Current Balance", value: fmtFull(debt.balance) },
         { label: "Annual Percentage Rate", value: `${debt.apr}%` },
+        ...(debt.taxRate && debt.taxRate > 0 ? [
+          { label: "Tax Rate", value: `${debt.taxRate}%` },
+          { label: "Effective APR (after tax)", value: `${(debt.apr * (1 - debt.taxRate / 100)).toFixed(2)}%` },
+        ] : []),
         { label: "Monthly Interest", value: fmtFull(debt.balance * (debt.apr / 100 / 12)) },
-        { label: "Total Interest Paid to Date", value: fmtFull(totalInterest) },
+        { label: "Projected Interest", value: fmtFull(totalInterest) },
       ],
     },
     {
@@ -1032,6 +1236,59 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "500",
   },
+  chartLegend: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: -4,
+  },
+  chartLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  chartLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  chartLegendSwatch: {
+    width: 14,
+    height: 10,
+    borderRadius: 3,
+  },
+  chartLegendLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  chartSummaryRow: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    marginTop: 2,
+  },
+  chartSummaryItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  chartSummaryDivider: {
+    width: StyleSheet.hairlineWidth,
+  },
+  chartSummaryLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    fontWeight: "600",
+  },
+  chartSummaryValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  chartSummaryHint: {
+    fontSize: 12,
+    fontStyle: "italic",
+    opacity: 0.6,
+  },
   whatIfSub: { fontSize: 13, marginTop: -4 },
   whatIfInputRow: {
     flexDirection: "row",
@@ -1090,6 +1347,68 @@ const styles = StyleSheet.create({
   whatIfResultDivider: {
     width: StyleSheet.hairlineWidth,
   },
+  affiliateBanner: {
+    backgroundColor: "#F0F7FF",
+    borderRadius: 8,
+    padding: 12,
+  },
+  affiliateBannerText: {
+    fontSize: 13,
+    color: "#1A4A7A",
+    lineHeight: 18,
+  },
+  taxImpactSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  taxImpactGrid: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+  },
+  taxImpactStat: {
+    flex: 1,
+    alignItems: "center",
+    gap: 3,
+  },
+  taxImpactDivider: {
+    width: StyleSheet.hairlineWidth,
+  },
+  taxImpactLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  taxImpactValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  taxNoticeBanner: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+  },
+  taxNoticeBannerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  taxNoticeBannerIcon: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  taxNoticeBannerTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  taxNoticeBannerBody: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   subSegmented: {
     flexDirection: "row",
     borderRadius: 12,
@@ -1117,7 +1436,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   markPaidText: {
-    color: "#05130A",
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "700",
   },

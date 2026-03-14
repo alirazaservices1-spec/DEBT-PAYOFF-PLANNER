@@ -38,7 +38,7 @@ export default function PrivacyScreen() {
         </Text>
 
         <Text style={[styles.paragraph, { color: C.text }]}>
-          DebtFree – Payoff Planner & Tracker ("we", "our", or "the app") is committed to protecting your privacy. This policy describes how we collect, use, and safeguard your information.
+          DebtPath: Payoff Planner ("we", "our", or "the app") is committed to protecting your privacy. This policy describes how we collect, use, and safeguard your information.
         </Text>
 
         <Text style={[styles.heading, { color: C.text }]}>Information We Collect</Text>

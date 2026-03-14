@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -19,7 +20,9 @@ import {
   monthsToText,
   MonthlySnapshot,
   Debt,
+  debtsEligibleForStrategy,
 } from "@/lib/calculations";
+import { RecommendationBar } from "@/components/RecommendationBar";
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -32,6 +35,17 @@ const DEBT_COLORS = [
 
 function formatMonth(date: Date): string {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/** Readable date for “follow this month” — plan is month-based (pay during this month). */
+function formatMonthHeading(date: Date): string {
+  return `${FULL_MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 function AmortizationRow({
@@ -67,8 +81,12 @@ function AmortizationRow({
         ]}
       >
         <View style={styles.monthLeft}>
-          <Text style={[styles.monthNum, { color: C.textSecondary }]}>Mo {snapshot.month}</Text>
-          <Text style={[styles.monthDate, { color: C.text }]}>{formatMonth(snapshot.date)}</Text>
+          <Text style={[styles.monthDate, { color: C.text }]}>
+            Month {snapshot.month}: {formatMonthHeading(snapshot.date)}
+          </Text>
+          <Text style={[styles.monthFollowLabel, { color: C.textSecondary }]}>
+            Tap to see how much to pay toward each debt this month →
+          </Text>
           {hasPaidOff && (
             <View style={styles.paidOffBadge}>
               <Ionicons name="checkmark-circle" size={12} color={Colors.progressGreen} />
@@ -84,8 +102,8 @@ function AmortizationRow({
         </View>
         <View style={styles.monthRight}>
           <Text style={[styles.monthBalance, { color: C.text }]}>{fmt(snapshot.totalBalance)}</Text>
-          <Text style={[styles.monthInterest, { color: Colors.danger }]}>
-            {fmt(snapshot.totalInterestPaid)} Total Interest Paid to Date
+          <Text style={[styles.monthInterest, { color: C.textSecondary }]}>
+            {fmt(snapshot.totalInterestPaid)} Cumulative Interest
           </Text>
         </View>
         <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={C.textSecondary} />
@@ -93,6 +111,9 @@ function AmortizationRow({
 
       {expanded && (
         <View style={[styles.breakdown, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
+          <Text style={[styles.breakdownScheduleTitle, { color: C.text }]}>
+            Pay:
+          </Text>
           {snapshot.debtBreakdown.map((b) => {
             const debt = debts.find((d) => d.id === b.debtId);
             if (!debt) return null;
@@ -100,19 +121,29 @@ function AmortizationRow({
             return (
               <View key={b.debtId} style={[styles.breakdownRow, { borderBottomColor: C.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.breakdownName, { color: isPaidOff ? Colors.progressGreen : C.text }]}>
-                    {debt.name}{isPaidOff ? " ✓" : ""}
+                  <Text style={[styles.breakdownPayLine, { color: C.text }]} numberOfLines={2}>
+                    {isPaidOff ? (
+                      <Text style={{ color: Colors.progressGreen }}>✓ {debt.name} — paid off</Text>
+                    ) : (
+                      <>
+                        <Text style={{ fontWeight: "800", color: Colors.primary }}>
+                          {fmtFull(b.payment)}
+                        </Text>
+                        <Text style={{ color: C.text }}> to </Text>
+                        <Text style={{ fontWeight: "700", color: C.text }}>{debt.name}</Text>
+                        <Text style={{ color: C.text }}> on the {ordinal(debt.dueDate)}</Text>
+                      </>
+                    )}
                   </Text>
                   <View style={styles.breakdownStats}>
                     <Text style={[styles.breakdownStat, { color: C.textSecondary }]}>Interest: {fmtFull(b.interest)}</Text>
                     <Text style={[styles.breakdownStat, { color: C.textSecondary }]}>Principal: {fmtFull(b.principal)}</Text>
+                    {!isPaidOff && (
+                      <Text style={[styles.breakdownStat, { color: C.textSecondary }]}>
+                        Remaining after: {fmt(b.balance)}
+                      </Text>
+                    )}
                   </View>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={[styles.breakdownPayment, { color: C.text }]}>{fmtFull(b.payment)}</Text>
-                  <Text style={[styles.breakdownBalance, { color: isPaidOff ? Colors.progressGreen : C.textSecondary }]}>
-                    {isPaidOff ? `Paid off ${debt.name}` : fmt(b.balance)}
-                  </Text>
                 </View>
               </View>
             );
@@ -167,6 +198,7 @@ function CalendarView({
     });
 
     debts.forEach((d) => {
+      if (d.debtType === "taxDebt" && d.minimumPayment <= 0) return;
       const day = d.dueDate;
       if (!day || day < 1 || day > 31) return;
       const dueDate = new Date(viewYear, viewMonth, day);
@@ -406,7 +438,8 @@ export default function PlanScreen() {
   const { activeResult, debts, selectedStrategy, payments, logPayment } = useDebts();
   const { fmt, fmtFull } = useCurrency();
 
-  const [expandedMonths, setExpandedMonths] = useState<Set<number>>(new Set([1]));
+  // All sections closed by default; tap a row to see how much to pay each debt that month
+  const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set());
   const [calendarVisible, setCalendarVisible] = useState(false);
 
   const toggleMonth = (month: number) => {
@@ -421,11 +454,25 @@ export default function PlanScreen() {
   const webTopPad = Platform.OS === "web" ? 67 : 0;
   const { snapshots, totalInterestPaid, totalMonths, totalPaid } = activeResult;
   const stratLabel = selectedStrategy === "avalanche" ? "Avalanche" : selectedStrategy === "snowball" ? "Snowball" : "Custom";
+  const eligibleDebts = debtsEligibleForStrategy(debts);
+  const excludedCount = debts.length - eligibleDebts.length;
 
   if (debts.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: C.background }]}>
         <View style={[styles.header, { paddingTop: Platform.OS === "web" ? webTopPad : insets.top + 8, backgroundColor: C.background, borderBottomColor: C.border }]}>
+          <View style={styles.headerBrand}>
+            <ExpoImage
+              source={require("@/assets/images/iconApp.png")}
+              style={styles.headerBrandIcon}
+              contentFit="contain"
+              transition={0}
+              cachePolicy="memory-disk"
+            />
+            <Text style={[styles.headerBrandName, { color: C.textSecondary }]}>
+              DebtPath: Payoff Planner
+            </Text>
+          </View>
           <Text style={[styles.headerTitle, { color: C.text }]}>Payoff Plan</Text>
         </View>
         <View style={styles.emptyWrap}>
@@ -445,6 +492,18 @@ export default function PlanScreen() {
     <View style={[styles.container, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: Platform.OS === "web" ? webTopPad : insets.top + 8, backgroundColor: C.background, borderBottomColor: C.border }]}>
         <View>
+          <View style={styles.headerBrand}>
+            <ExpoImage
+              source={require("@/assets/images/iconApp.png")}
+              style={styles.headerBrandIcon}
+              contentFit="contain"
+              transition={0}
+              cachePolicy="memory-disk"
+            />
+            <Text style={[styles.headerBrandName, { color: C.textSecondary }]}>
+              DebtPath: Payoff Planner
+            </Text>
+          </View>
           <Text style={[styles.headerTitle, { color: C.text }]}>Payoff Plan</Text>
           <Text style={[styles.headerSub, { color: C.textSecondary }]}>
             {stratLabel} • {monthsToText(totalMonths)}
@@ -452,15 +511,17 @@ export default function PlanScreen() {
         </View>
       </View>
 
+      <RecommendationBar />
+
       <View style={[styles.summaryRow, { backgroundColor: C.surface, borderBottomColor: C.border }]}>
         <View style={styles.summaryStat}>
-          <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>Total Paid</Text>
+          <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>Total Projected Payoff</Text>
           <Text style={[styles.summaryValue, { color: C.text }]}>{fmt(totalPaid)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: C.border }]} />
         <View style={styles.summaryStat}>
-          <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>Total Interest Paid to Date</Text>
-          <Text style={[styles.summaryValue, { color: Colors.danger }]}>{fmt(totalInterestPaid)}</Text>
+          <Text style={[styles.summaryLabel, { color: C.textSecondary }]}>Total Projected Interest</Text>
+          <Text style={[styles.summaryValue, { color: C.text }]}>{fmt(totalInterestPaid)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: C.border }]} />
         <View style={styles.summaryStat}>
@@ -468,6 +529,15 @@ export default function PlanScreen() {
           <Text style={[styles.summaryValue, { color: Colors.primary }]}>{totalMonths}</Text>
         </View>
       </View>
+
+      {excludedCount > 0 && (
+        <View style={[styles.excludedBanner, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
+          <Ionicons name="information-circle-outline" size={16} color={C.textSecondary} />
+          <Text style={[styles.excludedBannerText, { color: C.textSecondary }]}>
+            {excludedCount} debt{excludedCount !== 1 ? "s" : ""} not in this plan (e.g. tax debt with no payment plan or $0 minimum). Tap a month to see amounts for included debts.
+          </Text>
+        </View>
+      )}
 
       <View style={[styles.colHeader, { backgroundColor: C.surfaceSecondary, borderBottomColor: C.border }]}>
         <Text style={[styles.colHeaderText, { color: C.textSecondary }]}>Month</Text>
@@ -497,7 +567,11 @@ export default function PlanScreen() {
       />
 
       <Pressable
-        onPress={() => setCalendarVisible(true)}
+        onPress={() => {
+          {/* TODO: Integrate react-native-calendar-events to sync due dates to
+           Apple Calendar / Google Calendar with payment reminders */}
+          setCalendarVisible(true);
+        }}
         style={[styles.calFab, { backgroundColor: Colors.buttonGreen }]}
       >
         <Ionicons name="calendar" size={22} color="#fff" />
@@ -544,6 +618,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
+  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
   headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
   headerSub: { fontSize: 16, marginTop: 2 },
   calFab: {
@@ -579,9 +656,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   summaryStat: { flex: 1, alignItems: "center" },
-  summaryLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 },
+  summaryLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" },
   summaryValue: { fontSize: 17, fontWeight: "700", marginTop: 3 },
   summaryDivider: { width: StyleSheet.hairlineWidth },
+  excludedBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  excludedBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   colHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -607,6 +697,7 @@ const styles = StyleSheet.create({
   monthLeft: { flex: 1, gap: 2 },
   monthNum: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
   monthDate: { fontSize: 15, fontWeight: "600" },
+  monthFollowLabel: { fontSize: 11, marginTop: 4, lineHeight: 14 },
   paidOffBadge: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   paidOffText: { fontSize: 13, fontWeight: "600" },
   monthRight: { alignItems: "flex-end" },
@@ -618,6 +709,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     marginBottom: 2,
+    paddingBottom: 4,
+  },
+  breakdownScheduleTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  breakdownPayLine: {
+    fontSize: 15,
+    lineHeight: 22,
   },
   breakdownRow: {
     flexDirection: "row",

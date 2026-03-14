@@ -5,15 +5,22 @@ import {
   StyleSheet,
   Pressable,
   useColorScheme,
+  ScrollView,
+  Dimensions,
 } from "react-native";
+
 import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
+import { withAppUtmParams } from "@/lib/utm";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
 import { approximateDebtRange } from "@/lib/calculations";
 import { useCurrency } from "@/context/CurrencyContext";
 import { LeadForm } from "./LeadForm";
+
+const SCREEN_W = Dimensions.get("window").width;
+const CARD_W = Math.min(SCREEN_W - 48, 340);
 
 interface CTACardData {
   id: string;
@@ -48,6 +55,7 @@ export function CTACards() {
   const [leadFormVisible, setLeadFormVisible] = useState(false);
   const [activeCTA, setActiveCTA] = useState<CTACardData | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const isUrgent = totalUnsecuredBalance >= 24000;
 
@@ -76,7 +84,7 @@ export function CTACards() {
       triggerType: "settlement",
       debtType: "Unsecured Debt",
       amount: totalUnsecuredBalance,
-      gradient: isUrgent ? [Colors.danger, "#C0392B"] : [Colors.buttonGreen, Colors.buttonGreenDark],
+      gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
       url: "https://www.curadebt.com/debtpps",
     });
   }
@@ -125,9 +133,9 @@ export function CTACards() {
     const highDebt = debts.find((d) => d.apr > 10);
     cards.push({
       id: "highApr",
-      title: "High Interest Rate?",
-      body: `You have debt at about ${highDebt?.apr}% APR. See if you qualify for a lower‑rate consolidation loan and become debt‑free faster.`,
-      ctaLabel: "Check Consolidation Options",
+      title: "Lower Interest Rate Loan",
+      body: `You have debt at ${highDebt?.apr}% APR. See if refinancing at a lower rate could help you pay off your debt faster.`,
+      ctaLabel: "Learn More",
       icon: "trending-down",
       triggerType: "highApr",
       debtType: "High Interest Debt",
@@ -141,13 +149,28 @@ export function CTACards() {
     cards.push({
       id: "multipleCards",
       title: "Simplify Your Payments",
-      body: `You have ${creditCardCount} credit card debts with ${fmt(totalMinimums)}/mo in minimums. See consolidation options that could lower your rate and payment.`,
-      ctaLabel: "Explore Consolidation",
+      body: `You have ${creditCardCount} credit card debts with ${fmt(totalMinimums)}/mo in minimums. See if a lower interest rate loan could reduce your monthly payment and help you pay off faster.`,
+      ctaLabel: "See Lower Rate Options",
       icon: "layers",
       triggerType: "multipleCards",
       debtType: "Credit Card",
       amount: totalUnsecuredBalance,
       gradient: ["#3498DB", "#2980B9"],
+    });
+  }
+
+  if (totalUnsecuredBalance >= 3000) {
+    cards.push({
+      id: "debtRelief",
+      title: "Debt Relief Program",
+      body: `Debt negotiation may be an alternative path — a certified specialist could work with your creditors to potentially lower what you owe and create a manageable repayment plan.`,
+      ctaLabel: "Learn More",
+      icon: "shield-checkmark",
+      triggerType: "settlement",
+      debtType: "Unsecured Debt",
+      amount: totalUnsecuredBalance,
+      gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
+      url: "https://www.curadebt.com/debtpps",
     });
   }
 
@@ -161,7 +184,7 @@ export function CTACards() {
       triggerType: "missed",
       debtType: "Delinquent Debt",
       amount: totalUnsecuredBalance,
-      gradient: [Colors.danger, "#C0392B"],
+      gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
     });
   }
 
@@ -170,7 +193,7 @@ export function CTACards() {
 
   const openLead = (card: CTACardData) => {
     if (card.url) {
-      Linking.openURL(card.url).catch(() => {
+      Linking.openURL(withAppUtmParams(card.url)).catch(() => {
         // Ignore linking errors for now
       });
       return;
@@ -195,16 +218,44 @@ export function CTACards() {
             Personalized Recommendations
           </Text>
         </View>
-        {visible.map((card) => (
-          <CTACard
-            key={card.id}
-            card={card}
-            isDark={isDark}
-            C={C}
-            onPress={() => openLead(card)}
-            onDismiss={() => setDismissed((d) => [...d, card.id])}
-          />
-        ))}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={CARD_W + 12}
+          snapToAlignment="start"
+          contentContainerStyle={styles.carousel}
+          style={styles.carouselScroll}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_W + 12));
+            setActiveIndex(Math.max(0, Math.min(index, visible.length - 1)));
+          }}
+        >
+          {visible.map((card) => (
+            <CTACard
+              key={card.id}
+              card={card}
+              isDark={isDark}
+              C={C}
+              onPress={() => openLead(card)}
+              onDismiss={() => setDismissed((d) => [...d, card.id])}
+            />
+          ))}
+        </ScrollView>
+        <View style={styles.dots}>
+          {visible.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: i === activeIndex ? Colors.primary : C.textSecondary + "50",
+                  width: i === activeIndex ? 16 : 6,
+                },
+              ]}
+            />
+          ))}
+        </View>
       </View>
 
       <LeadForm
@@ -273,8 +324,27 @@ function CTACard({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: 10,
     paddingTop: 4,
+  },
+  carouselScroll: {
+    marginHorizontal: -4,
+  },
+  carousel: {
+    paddingHorizontal: 4,
+    gap: 12,
+    paddingBottom: 2,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 5,
+    paddingTop: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   sectionTitleRow: {
     flexDirection: "row",
@@ -305,6 +375,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   card: {
+    width: CARD_W,
     borderRadius: 16,
     padding: 18,
     gap: 10,

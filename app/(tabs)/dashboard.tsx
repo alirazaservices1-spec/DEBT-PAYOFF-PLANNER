@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -78,13 +79,13 @@ export default function DashboardScreen() {
     activeResult,
     avalancheResult,
     extraPayment,
+    setExtraPayment,
     payments,
     logPayment,
   } = useDebts();
   const { fmt } = useCurrency();
 
-  const [whatIfExtra, setWhatIfExtra] = useState(extraPayment);
-  const [whatIfLump, setWhatIfLump] = useState(0);
+  const [whatIfCollapsed, setWhatIfCollapsed] = useState(false);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [logDebtId, setLogDebtId] = useState<string>(debts[0]?.id ?? "");
   const [logAmount, setLogAmount] = useState("");
@@ -94,17 +95,10 @@ export default function DashboardScreen() {
   const paidOff = Math.max(0, originalBalance.current - totalBalance);
   const progress = originalBalance.current > 0 ? paidOff / originalBalance.current : 0;
 
-  const whatIfResult = runStrategy(debts, whatIfExtra, "avalanche");
-  const whatIfLumpResult = whatIfLump > 0
-    ? runStrategy(
-        debts.map((d) => ({ ...d, balance: Math.max(0, d.balance - whatIfLump / debts.length) })),
-        extraPayment,
-        "avalanche"
-      )
-    : null;
+  const baselineResult = useMemo(() => runStrategy(debts, 0, "avalanche"), [debts]);
 
-  const interestSaved = Math.max(0, avalancheResult.totalInterestPaid - whatIfResult.totalInterestPaid);
-  const monthsSaved = Math.max(0, avalancheResult.totalMonths - whatIfResult.totalMonths);
+  const interestSaved = Math.max(0, baselineResult.totalInterestPaid - avalancheResult.totalInterestPaid);
+  const monthsSaved = Math.max(0, baselineResult.totalMonths - avalancheResult.totalMonths);
 
   const payoffDate = activeResult.payoffDate;
   const days = daysUntil(payoffDate);
@@ -211,14 +205,14 @@ export default function DashboardScreen() {
             </div>
 
             <div class="section">
-              <h2>Total Interest Paid to Date</h2>
+              <h2>Projected Interest</h2>
               <div class="row">
                 <span class="label">At current strategy</span>
                 <span class="value">${fmt(activeResult.totalInterestPaid)}</span>
               </div>
               <div class="row">
-                <span class="label">With extra payment (${fmt(whatIfExtra)}/mo)</span>
-                <span class="value">${fmt(whatIfResult.totalInterestPaid)}</span>
+                <span class="label">With extra payment (${fmt(extraPayment)}/mo)</span>
+                <span class="value">${fmt(avalancheResult.totalInterestPaid)}</span>
               </div>
               <div class="row">
                 <span class="label">Interest saved</span>
@@ -269,6 +263,18 @@ export default function DashboardScreen() {
         ]}
       >
         <View>
+          <View style={styles.headerBrand}>
+            <ExpoImage
+              source={require("@/assets/images/iconApp.png")}
+              style={styles.headerBrandIcon}
+              contentFit="contain"
+              transition={0}
+              cachePolicy="memory-disk"
+            />
+            <Text style={[styles.headerBrandName, { color: C.textSecondary }]}>
+              DebtPath: Payoff Planner
+            </Text>
+          </View>
           <Text style={[styles.headerTitle, { color: C.text }]}>Dashboard</Text>
           <Text style={[styles.headerSub, { color: C.textSecondary }]}>
             Your path to debt freedom
@@ -303,6 +309,7 @@ export default function DashboardScreen() {
       >
         {debts.length > 0 ? (
           <>
+            {/* WCAG AA Required: Contrast ratio must be 4.5:1 minimum. Verify with https://webaim.org/resources/contrastchecker/ */}
             <LinearGradient
               colors={isDark ? ["#142819", "#0D1C10"] : ["#E8F8EF", "#D0F0DE"]}
               style={styles.heroCard}
@@ -383,10 +390,10 @@ export default function DashboardScreen() {
                 isDark={isDark}
               />
               <StatCard
-                label="Total Interest Paid to Date"
+                label="Projected Interest"
                 value={fmt(activeResult.totalInterestPaid)}
                 sub="at current strategy"
-                color={Colors.danger}
+                color={C.textSecondary}
                 icon="trending-up"
                 C={C}
                 isDark={isDark}
@@ -417,7 +424,7 @@ export default function DashboardScreen() {
                     strokeWidth={8}
                     progress={principalRatio}
                     color={Colors.progressGreen}
-                    trackColor={Colors.danger + "30"}
+                    trackColor={"#44444430"}
                   />
                   <Text style={[styles.ringLabel, { color: C.textSecondary }]}>Principal</Text>
                 </View>
@@ -429,7 +436,7 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                   <View style={styles.ringLegendItem}>
-                    <View style={[styles.ringLegendDot, { backgroundColor: Colors.danger }]} />
+                    <View style={[styles.ringLegendDot, { backgroundColor: "#444444" }]} />
                     <Text style={[styles.ringLegendText, { color: C.text }]}>
                       Interest: {fmt(monthlyInterest)}/mo
                     </Text>
@@ -438,94 +445,90 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
-              <View style={styles.sectionHeader}>
+            <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border, gap: whatIfCollapsed ? 0 : 12 }]}>
+              <Pressable
+                onPress={() => { setWhatIfCollapsed(c => !c); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={styles.whatIfHeader}
+              >
                 <Ionicons name="bulb" size={18} color={Colors.warning} />
-                <Text style={[styles.sectionTitle, { color: C.text }]}>What-If Scenarios</Text>
-              </View>
+                <Text style={[styles.sectionTitle, { color: C.text, flex: 1 }]}>What-If Scenarios</Text>
+                {extraPayment > 0 && !whatIfCollapsed && (
+                  <View style={[styles.whatIfActivePill, { backgroundColor: Colors.primary + "18", borderColor: Colors.primary + "40" }]}>
+                    <Text style={[styles.whatIfActivePillText, { color: Colors.primary }]}>+{fmt(extraPayment)}/mo</Text>
+                  </View>
+                )}
+                <Ionicons
+                  name={whatIfCollapsed ? "chevron-down" : "chevron-up"}
+                  size={18}
+                  color={C.textSecondary}
+                />
+              </Pressable>
 
-              <Text style={[styles.whatIfLabel, { color: C.textSecondary }]}>
-                Extra monthly payment
-              </Text>
-              <View style={styles.whatIfQuickBtns}>
-                {[0, 50, 100, 200, 500].map((v) => (
-                  <Pressable
-                    key={v}
-                    onPress={() => setWhatIfExtra(v)}
-                    style={[
-                      styles.whatIfBtn,
-                      {
-                        backgroundColor: whatIfExtra === v ? Colors.primary : C.surfaceSecondary,
-                        borderColor: whatIfExtra === v ? Colors.primary : C.border,
-                      },
-                    ]}
+              {!whatIfCollapsed && (
+                <>
+                  <Text style={[styles.whatIfLabel, { color: C.textSecondary }]}>
+                    Extra monthly payment — applies globally to all tabs
+                  </Text>
+
+                  <View style={[styles.whatIfTrack, { backgroundColor: C.border }]}>
+                    <View
+                      style={[
+                        styles.whatIfTrackFill,
+                        {
+                          width: `${Math.min(100, (extraPayment / 500) * 100)}%`,
+                          backgroundColor: Colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.whatIfPresetRow}
                   >
-                    <Text style={[styles.whatIfBtnText, { color: whatIfExtra === v ? "#05130A" : C.textSecondary }]}>
-                      {v === 0 ? "Min only" : `+$${v}`}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+                    {[0, 50, 100, 200, 500].map((v) => (
+                      <Pressable
+                        key={v}
+                        onPress={() => { setExtraPayment(v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        style={[
+                          styles.whatIfBtn,
+                          {
+                            backgroundColor: extraPayment === v ? Colors.primary : C.surfaceSecondary,
+                            borderColor: extraPayment === v ? Colors.primary : C.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.whatIfBtnText, { color: extraPayment === v ? "#05130A" : C.textSecondary }]}>
+                          {v === 0 ? "Min only" : `+$${v}`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
 
-              {whatIfExtra > 0 && (
-                <View style={[styles.whatIfResult, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}>
-                  <View style={styles.whatIfResultStat}>
-                    <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Saves</Text>
-                    <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
-                      {fmt(interestSaved)}
-                    </Text>
-                    <Text style={[styles.whatIfResultSub, { color: C.textSecondary }]}>in interest</Text>
+                  <View style={[styles.whatIfResult, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}>
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Debt-Free</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {formatPayoffDate(activeResult.payoffDate)}
+                      </Text>
+                    </View>
+                    <View style={[styles.whatIfDivider, { backgroundColor: Colors.primary + "30" }]} />
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Interest Saved</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {extraPayment > 0 ? fmt(interestSaved) : "—"}
+                      </Text>
+                    </View>
+                    <View style={[styles.whatIfDivider, { backgroundColor: Colors.primary + "30" }]} />
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Sooner</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {extraPayment > 0 && monthsSaved > 0 ? `${monthsSaved}mo` : "—"}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={[styles.whatIfDivider, { backgroundColor: Colors.primary + "30" }]} />
-                  <View style={styles.whatIfResultStat}>
-                    <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Earlier</Text>
-                    <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
-                      {monthsToText(monthsSaved)}
-                    </Text>
-                    <Text style={[styles.whatIfResultSub, { color: C.textSecondary }]}>sooner</Text>
-                  </View>
-                </View>
-              )}
-
-              <Text style={[styles.whatIfLabel, { color: C.textSecondary, marginTop: 12 }]}>
-                Lump sum windfall
-              </Text>
-              <View style={styles.whatIfQuickBtns}>
-                {[0, 500, 1000, 2500, 5000].map((v) => (
-                  <Pressable
-                    key={v}
-                    onPress={() => setWhatIfLump(v)}
-                    style={[
-                      styles.whatIfBtn,
-                      {
-                        backgroundColor: whatIfLump === v ? Colors.accent : C.surfaceSecondary,
-                        borderColor: whatIfLump === v ? Colors.accent : C.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.whatIfBtnText, { color: whatIfLump === v ? "#05130A" : C.textSecondary }]}>
-                      {v === 0 ? "None" : `$${v.toLocaleString()}`}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {whatIfLump > 0 && whatIfLumpResult && (
-                <View style={[styles.whatIfResult, { backgroundColor: Colors.accent + "10", borderColor: Colors.accent + "30" }]}>
-                  <View style={styles.whatIfResultStat}>
-                    <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>New Payoff</Text>
-                    <Text style={[styles.whatIfResultValue, { color: Colors.accent }]}>
-                      {monthsToText(whatIfLumpResult.totalMonths)}
-                    </Text>
-                  </View>
-                  <View style={[styles.whatIfDivider, { backgroundColor: Colors.accent + "30" }]} />
-                  <View style={styles.whatIfResultStat}>
-                    <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Interest</Text>
-                    <Text style={[styles.whatIfResultValue, { color: Colors.accent }]}>
-                      {fmt(whatIfLumpResult.totalInterestPaid)}
-                    </Text>
-                  </View>
-                </View>
+                </>
               )}
             </View>
 
@@ -725,6 +728,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
+  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
   headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
   headerSub: { fontSize: 16, marginTop: 2 },
   logBtn: {
@@ -814,9 +820,30 @@ const styles = StyleSheet.create({
   ringLegendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   ringLegendDot: { width: 10, height: 10, borderRadius: 5 },
   ringLegendText: { fontSize: 14 },
-  whatIfLabel: { fontSize: 15, fontWeight: "500" },
-  whatIfQuickBtns: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  whatIfBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  whatIfLabel: { fontSize: 14, fontWeight: "500" },
+  whatIfHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  whatIfActivePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  whatIfActivePillText: { fontSize: 12, fontWeight: "700" },
+  whatIfTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  whatIfTrackFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  whatIfPresetRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  whatIfBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
   whatIfBtnText: { fontSize: 14, fontWeight: "500" },
   whatIfResult: {
     flexDirection: "row",

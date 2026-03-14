@@ -21,6 +21,7 @@ import Colors from "@/constants/colors";
 import { useDebts } from "@/context/DebtContext";
 import { useThemePreference, type ThemePreference } from "@/context/ThemeContext";
 import { useCurrency, SUPPORTED_CURRENCIES } from "@/context/CurrencyContext";
+import { DEMO_DEBTS } from "@/constants/demoData";
 
 const APP_VERSION = "1.0.0";
 // Replace with your App Store ID once the app is published (e.g. id1234567890)
@@ -33,7 +34,7 @@ export default function SettingsScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const C = isDark ? Colors.dark : Colors.light;
-  const { clearAllData } = useDebts();
+  const { clearAllData, addDebt, debts } = useDebts();
   const { themePreference, setThemePreference } = useThemePreference();
   const { currency, setCurrency } = useCurrency();
   const [deleting, setDeleting] = useState(false);
@@ -80,11 +81,33 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await Share.share({
-        title: "DebtFree – Payoff Planner",
-        message: "Track your debts and see payoff plans with DebtFree, including Snowball and Avalanche methods.",
+        title: "DebtPath: Payoff Planner",
+        message: "Track your debts and see payoff plans with DebtPath: Payoff Planner, including Snowball and Avalanche methods.",
         url: APP_STORE_URL,
       });
     } catch (_) {}
+  };
+
+  const handleLoadDemoData = () => {
+    const warningMsg = debts.length > 0
+      ? "This will add sample debts to your existing list. You can delete them anytime."
+      : "This will add 4 sample debts including an IRS Payment Plan so you can explore the app.";
+    Alert.alert(
+      "Load Sample Data",
+      warningMsg,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Load Samples",
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            for (const d of DEMO_DEBTS) {
+              await addDebt(d);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDeleteAllData = () => {
@@ -287,6 +310,22 @@ export default function SettingsScreen() {
 
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Pressable
+            onPress={handleLoadDemoData}
+            style={[styles.row, styles.rowLast]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: Colors.primary + "18" }]}>
+              <Ionicons name="flask-outline" size={20} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: C.text, flex: 0 }]}>Load Sample Data</Text>
+              <Text style={[styles.rowSub, { color: C.textSecondary }]}>Adds 4 demo debts including an IRS Payment Plan</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+          </Pressable>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <Pressable
             onPress={handleDeleteAllData}
             disabled={deleting}
             style={[styles.row, styles.rowLast]}
@@ -349,6 +388,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowLabel: { flex: 1, fontSize: 16, fontWeight: "500" },
+  rowSub: { fontSize: 13, marginTop: 1 },
   rowValue: { fontSize: 15 },
   dropdownBackdrop: {
     flex: 1,

@@ -31,9 +31,9 @@ export default {
     cardShadow: "rgba(46,204,113,0.14)",
   },
   dark: {
-    // Keep dark theme but increase contrast for readability
-    text: "#F5FFF9",
-    textSecondary: "#D4EDE0",
+    // White/light text on dark backgrounds — no grey-on-black
+    text: "#FFFFFF",
+    textSecondary: "#E5E5E5",
     background: "#050A07",
     surface: "#0D1710",
     surfaceSecondary: "#152219",

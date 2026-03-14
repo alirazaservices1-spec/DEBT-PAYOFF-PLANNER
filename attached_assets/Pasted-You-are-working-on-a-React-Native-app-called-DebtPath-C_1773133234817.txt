@@ -1,0 +1,77 @@
+You are working on a React Native app called DebtPath. Create a new file called 
+MonetizationRules.js (or .ts if TypeScript) in the utils/ or services/ folder.
+
+This file must export a single function: getRecommendations(debts, screen)
+- `debts` is an array of debt objects: { id, name, balance, apr, category, debtFreeDate }
+- `screen` is a string: "dashboard" | "debtDetail" | "strategy" | "calc"
+- Returns an array of recommendation objects to display, or an empty array.
+
+Implement these exact rules:
+
+Rule 1 — TAX RELIEF:
+IF any debt has category === "IRS / Tax Debt"
+AND screen === "debtDetail"
+THEN return: {
+  id: "tax_relief",
+  icon: "⚖️",
+  header: "Owe the IRS?",
+  body: "See if you qualify for the Fresh Start Initiative or an Offer in Compromise.",
+  affiliateKey: "TAX_RELIEF"
+}
+
+Rule 2 — BUSINESS DEBT RELIEF:
+IF any debt has category === "Business Loan" OR category === "Merchant Cash Advance"
+AND screen === "debtDetail"
+THEN return: {
+  id: "business_relief",
+  icon: "🏢",
+  header: "Business Debt Relief",
+  body: "Business debt dragging your cash flow down? Explore commercial debt restructuring.",
+  affiliateKey: "BUSINESS_RELIEF"
+}
+
+Rule 3 — DEBT RELIEF CAROUSEL:
+IF sum of all unsecured debt balances > 10000
+AND screen === "dashboard"
+THEN return: {
+  id: "debt_relief",
+  icon: "✨",
+  header: "Faster Payoff Option",
+  body: "With over $10,000 in debt, you may qualify for programs that reduce your principal.",
+  affiliateKey: "DEBT_RELIEF"
+}
+
+Rule 4 — CONSOLIDATION LOAN:
+IF any debt has apr > 15
+AND (screen === "debtDetail" OR screen === "calc")
+THEN return: {
+  id: "consolidation",
+  icon: "💡",
+  header: "Smart Insight: Lower Your Interest",
+  body: "You're paying [APR]% on this balance. See if you qualify to cut that rate in half.",
+  affiliateKey: "CONSOLIDATION"
+}
+
+Rule 5 — STRATEGY SCREEN DEBT RELIEF:
+IF calculated debtFreeDate is more than 5 years from today
+AND screen === "strategy"
+THEN return: {
+  id: "strategy_relief",
+  icon: "🔑",
+  header: "Struggling to find a strategy?",
+  body: "Debt Relief might be your fastest path to zero.",
+  affiliateKey: "DEBT_RELIEF"
+}
+
+Add a RESOURCE_CENTER export — an array of all four affiliate categories for the 
+Settings screen:
+export const RESOURCE_CENTER = [
+  { label: "Lower My Interest", sublabel: "Consolidation Loans", affiliateKey: "CONSOLIDATION" },
+  { label: "Reduce My Balance", sublabel: "Debt Relief Programs", affiliateKey: "DEBT_RELIEF" },
+  { label: "Help with Business Debt", sublabel: "Commercial Restructuring", affiliateKey: "BUSINESS_RELIEF" },
+  { label: "Help with IRS Debt", sublabel: "Tax Relief Programs", affiliateKey: "TAX_RELIEF" },
+]
+
+Add a comment at the top of the file:
+// All affiliate URLs should be mapped via affiliateKey in a separate config file.
+// Never hardcode URLs in this rules engine.

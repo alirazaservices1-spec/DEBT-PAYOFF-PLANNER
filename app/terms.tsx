@@ -38,7 +38,7 @@ export default function TermsScreen() {
         </Text>
 
         <Text style={[styles.paragraph, { color: C.text }]}>
-          Welcome to DebtFree – Payoff Planner & Tracker. By using this app, you agree to these Terms of Service.
+          Welcome to DebtPath: Payoff Planner. By using this app, you agree to these Terms of Service.
         </Text>
 
         <Text style={[styles.heading, { color: C.text }]}>Use of the App</Text>

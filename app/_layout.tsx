@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -17,12 +17,18 @@ function AppNavigator() {
   const { onboardingDone } = useDebts();
   const router = useRouter();
   const segments = useSegments();
+  const navigationHandled = useRef(false);
 
   useEffect(() => {
+    if (navigationHandled.current) return;
+    navigationHandled.current = true;
+
     const inOnboarding = segments[0] === "onboarding";
     if (!onboardingDone && !inOnboarding) {
       router.replace("/onboarding");
     }
+
+    SplashScreen.hideAsync();
   }, [onboardingDone, segments]);
 
   return (
@@ -30,7 +36,7 @@ function AppNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="onboarding"
-        options={{ headerShown: false, gestureEnabled: false, animation: "fade" }}
+        options={{ headerShown: false, gestureEnabled: false, animation: "none" }}
       />
       <Stack.Screen
         name="debt/[id]"
@@ -57,10 +63,6 @@ function AppNavigator() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

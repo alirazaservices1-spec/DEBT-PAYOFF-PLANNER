@@ -11,13 +11,13 @@ import {
   Animated,
   Modal,
 } from "react-native";
-import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { Debt, DebtType, debtTypeLabel, debtTypeIcon, isSecuredByType, isBusinessDebtType } from "@/lib/calculations";
+import { useDebts } from "@/context/DebtContext";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 const PERSONAL_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
@@ -60,6 +60,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
   const isDark = scheme === "dark";
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
+  const { debts } = useDebts();
 
   const [name, setName] = useState(initial?.name ?? "");
   const [balance, setBalance] = useState(
@@ -78,17 +79,22 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
   const [dueDate, setDueDate] = useState(
     initial?.dueDate ? initial.dueDate.toString() : "1"
   );
+  const [taxPaymentPlan, setTaxPaymentPlan] = useState(
+    initial?.taxPaymentPlan === true || (initial?.debtType === "taxDebt" && (initial?.minimumPayment ?? 0) > 0)
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const dueDateInputRef = useRef<TextInput | null>(null);
 
   const selectedType = ALL_DEBT_TYPES.find((t) => t.key === debtType)!;
 
   const handleTypeSelect = (type: DebtType) => {
     setDebtType(type);
     setIsSecured(isSecuredByType(type));
+    if (type !== "taxDebt") setTaxPaymentPlan(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -102,17 +108,25 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
     ]).start();
   };
 
+  const isTaxDebt = debtType === "taxDebt";
+  const showAprMinDue = !isTaxDebt || taxPaymentPlan;
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = "Creditor name is required";
+    if (!name.trim()) errs.name = "Nickname is required";
     const b = parseFloat(balance);
     if (isNaN(b) || b <= 0) errs.balance = "Enter a valid balance greater than $0";
-    const a = parseFloat(apr);
-    if (isNaN(a) || a < 0 || a > 100) errs.apr = "APR must be between 0% and 100%";
-    const m = parseFloat(minPayment);
-    if (isNaN(m) || m < 0) errs.minPayment = "Enter a valid minimum payment";
-    const dd = parseInt(dueDate);
-    if (isNaN(dd) || dd < 1 || dd > 31) errs.dueDate = "Due date must be between 1 and 31";
+    if (showAprMinDue) {
+      const a = parseFloat(apr);
+      if (isNaN(a) || a < 0 || a > 100)
+        errs.apr = "APR must be between 0% and 100%. Please estimate if unsure.";
+      const m = minPayment.trim() === "" ? NaN : parseFloat(minPayment);
+      if (isNaN(m) || m < 0)
+        errs.minPayment =
+          "Please enter your minimum payment. If you are not currently making minimum payments, enter $0.";
+      const dd = parseInt(dueDate);
+      if (isNaN(dd) || dd < 1 || dd > 31) errs.dueDate = "Due date must be between 1 and 31";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -128,17 +142,21 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
       await onSave({
         name: name.trim(),
         balance: parseFloat(balance),
-        apr: parseFloat(apr),
-        minimumPayment: parseFloat(minPayment),
+        apr: showAprMinDue && apr ? parseFloat(apr) : 0,
+        minimumPayment: showAprMinDue ? (minPayment.trim() !== "" ? parseFloat(minPayment) : 0) : 0,
         debtType,
         isSecured,
-        dueDate: parseInt(dueDate),
+        dueDate: showAprMinDue && dueDate ? parseInt(dueDate) : 1,
+        taxRate: undefined,
+        taxPaymentPlan: isTaxDebt ? taxPaymentPlan : undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {
       setSaving(false);
     }
   };
+
+  const isFormIncomplete = !balance || parseFloat(balance) <= 0;
 
   const inputBase = {
     backgroundColor: "transparent",
@@ -156,9 +174,21 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           <Ionicons name="close" size={24} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>
-          {title ?? "Debt Details"}
+          {title ?? (initial?.id ? "Edit Debt" : debts.length === 0 ? "Add Your First Debt" : "Add A Debt")}
         </Text>
-        <View style={{ width: 44 }} />
+        <Pressable
+          onPress={handleSave}
+          disabled={saving}
+          style={({ pressed }) => [
+            styles.headerSaveBtn,
+            { opacity: pressed || saving ? 0.7 : 1 },
+          ]}
+          hitSlop={12}
+        >
+          <Text style={[styles.headerSaveBtnText, { color: Colors.primary }]}>
+            {saving ? "…" : initial?.id ? "Save" : "Save"}
+          </Text>
+        </Pressable>
       </View>
 
       {headerExtra && (
@@ -187,7 +217,14 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
             },
           ]}
         >
-          <FormField label="Category *" error={errors.debtType} C={C}>
+          {errors.apr && (
+            <View style={[styles.errorSummary, { marginBottom: 12 }]}>
+              <Text style={styles.errorSummaryText}>
+                APR must be between 0% and 100%
+              </Text>
+            </View>
+          )}
+          <FormField label="Category" error={errors.debtType} C={C}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -213,48 +250,16 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
             </Pressable>
           </FormField>
 
-          {debtType === "taxDebt" && (
-            <Pressable
-              onPress={() => Linking.openURL("https://www.curadebt.com/taxpps")}
-              style={[styles.smartBanner, { backgroundColor: "#FFF8E7", borderColor: "#F39C12" }]}
-            >
-              <View style={[styles.smartBannerIcon, { backgroundColor: "#F39C1220" }]}>
-                <Ionicons name="receipt-outline" size={18} color="#F39C12" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.smartBannerLabel, { color: "#7D5300" }]}>Tax Debt Relief Options</Text>
-                <Text style={[styles.smartBannerText, { color: "#4A3200" }]}>
-                  See if you could qualify for IRS programs that may reduce what you owe. A specialist can walk you through your options.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#F39C12" />
-            </Pressable>
-          )}
-
-          {isBusinessDebtType(debtType) && (
-            <Pressable
-              onPress={() => Linking.openURL("https://www.curadebt.com/biz")}
-              style={[styles.smartBanner, { backgroundColor: "#EAF6FF", borderColor: "#2980B9" }]}
-            >
-              <View style={[styles.smartBannerIcon, { backgroundColor: "#2980B920" }]}>
-                <Ionicons name="briefcase-outline" size={18} color="#2980B9" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.smartBannerLabel, { color: "#14527A" }]}>Business Debt Solutions</Text>
-                <Text style={[styles.smartBannerText, { color: "#0A3350" }]}>
-                  See options tailored to business owners that can reduce payments and improve cash flow
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#2980B9" />
-            </Pressable>
-          )}
-
-          <FormField label="Nickname *" error={errors.name} C={C}>
+          <FormField label="Nickname" error={errors.name} C={C}>
             <TextInput
               style={[styles.input, inputBase, errors.name && styles.inputError]}
               value={name}
               onChangeText={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: "" })); }}
-              placeholder="e.g. Chase Sapphire, Student Aid"
+              placeholder={
+                isTaxDebt
+                  ? "e.g. IRS (Federal), State tax"
+                  : "e.g. Chase Sapphire, Student Aid"
+              }
               placeholderTextColor={C.textSecondary + "99"}
               autoCapitalize="words"
               returnKeyType="next"
@@ -262,41 +267,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
             />
           </FormField>
 
-          <FormField label="Annual Percentage Rate *" suffix="%" error={errors.apr} C={C}>
-            <TextInput
-              style={[styles.input, styles.inputWithSuffix, inputBase, errors.apr && styles.inputError]}
-              value={apr}
-              onChangeText={(v) => {
-                setApr(formatCurrencyInput(v));
-                if (errors.apr) setErrors((e) => ({ ...e, apr: "" }));
-              }}
-              placeholder="18.99"
-                  placeholderTextColor={C.textSecondary + "99"}
-              keyboardType="decimal-pad"
-              returnKeyType="next"
-              onFocus={() => Haptics.selectionAsync()}
-            />
-          </FormField>
-
-          {parseFloat(apr) >= 18 && !isBusinessDebtType(debtType) && debtType !== "taxDebt" && (
-            <Pressable
-              onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
-              style={[styles.smartBanner, { backgroundColor: "#EDFAF1", borderColor: Colors.primary }]}
-            >
-              <View style={[styles.smartBannerIcon, { backgroundColor: Colors.primary + "20" }]}>
-                <Ionicons name="trending-down" size={18} color={Colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.smartBannerLabel, { color: Colors.primaryDark }]}>See if you could save on your debt</Text>
-                <Text style={styles.smartBannerText}>
-                  See if you can lower your {parseFloat(apr).toFixed(1)}% rate with a personal loan and pay off debt faster.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
-            </Pressable>
-          )}
-
-          <FormField label="Current balance *" prefix="$" error={errors.balance} C={C}>
+          <FormField label="Current Balance" prefix="$" error={errors.balance} C={C}>
             <TextInput
               style={[styles.input, styles.inputWithPrefix, inputBase, errors.balance && styles.inputError]}
               value={balance}
@@ -305,123 +276,111 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 if (errors.balance) setErrors((e) => ({ ...e, balance: "" }));
               }}
               placeholder="5,000"
-                  placeholderTextColor={C.textSecondary + "99"}
+              placeholderTextColor={C.textSecondary + "99"}
               keyboardType="decimal-pad"
               returnKeyType="next"
               onFocus={() => Haptics.selectionAsync()}
             />
           </FormField>
 
-          {parseFloat(balance) >= 10000 && !isSecured && debtType !== "studentLoan" && !isBusinessDebtType(debtType) && debtType !== "taxDebt" && (
-            parseFloat(balance) >= 24000 ? (
-              <Pressable
-                onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
-                style={[styles.smartBanner, { backgroundColor: "#FEF0F0", borderColor: Colors.danger }]}
-              >
-                <View style={[styles.smartBannerIcon, { backgroundColor: Colors.danger + "20" }]}>
-                  <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.smartBannerLabel, { color: Colors.danger }]}>Recommended Options</Text>
-                  <Text style={[styles.smartBannerText, { color: "#7B1A1A" }]}>
-                    With ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt, you may qualify for programs that could meaningfully lower your balance. A quick review can show what might be possible.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.danger} />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => Linking.openURL("https://www.curadebt.com/debtpps")}
-                style={[styles.smartBanner, { backgroundColor: "#EDFAF1", borderColor: Colors.primary }]}
-              >
-                <View style={[styles.smartBannerIcon, { backgroundColor: Colors.primary + "20" }]}>
-                  <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.smartBannerLabel, { color: Colors.primaryDark }]}>
-                    See if you could save on your debt
-                  </Text>
-                  <Text style={styles.smartBannerText}>
-                    ${parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 0 })} in debt may qualify for options with lower payments.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
-              </Pressable>
-            )
+          {isTaxDebt && (
+            <View style={[styles.taxPlanRow, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.taxPlanLabel, { color: C.text }]}>On IRS or state payment plan</Text>
+                <Text style={[styles.taxPlanHint, { color: C.textSecondary }]}>
+                  Monthly payment, interest rate, and due date are optional unless you’re on an installment plan—then enter what the agency gave you.
+                </Text>
+              </View>
+              <Switch
+                value={taxPaymentPlan}
+                onValueChange={(v) => {
+                  setTaxPaymentPlan(v);
+                  Haptics.selectionAsync();
+                }}
+                trackColor={{ false: C.border, true: Colors.primary + "88" }}
+                thumbColor={taxPaymentPlan ? Colors.primary : "#f4f3f4"}
+              />
+            </View>
           )}
 
-          <FormField label="Minimum payment *" prefix="$" error={errors.minPayment} C={C}>
-            <TextInput
-              style={[styles.input, styles.inputWithPrefix, inputBase, errors.minPayment && styles.inputError]}
-              value={minPayment}
-              onChangeText={(v) => {
-                setMinPayment(formatCurrencyInput(v));
-                if (errors.minPayment) setErrors((e) => ({ ...e, minPayment: "" }));
-              }}
-              placeholder="150"
+          {showAprMinDue && (
+            <>
+              {isTaxDebt && (
+                <Text style={[styles.taxPlanSectionHint, { color: C.textSecondary }]}>
+                  Payment plan details (from IRS/state):
+                </Text>
+              )}
+              <FormField label="Interest Rate (APR)" suffix="%" error={errors.apr} C={C}>
+                <TextInput
+                  style={[styles.input, styles.inputWithSuffix, inputBase, errors.apr && styles.inputError]}
+                  value={apr}
+                  onChangeText={(v) => {
+                    setApr(formatCurrencyInput(v));
+                    if (errors.apr) setErrors((e) => ({ ...e, apr: "" }));
+                  }}
+                  placeholder="18.99"
                   placeholderTextColor={C.textSecondary + "99"}
-              keyboardType="decimal-pad"
-              returnKeyType="next"
-              onFocus={() => Haptics.selectionAsync()}
-            />
-          </FormField>
+                  keyboardType="decimal-pad"
+                  returnKeyType="next"
+                  onFocus={() => Haptics.selectionAsync()}
+                />
+              </FormField>
 
-          <FormField label="Day of the month *" error={errors.dueDate} C={C}>
-            <View style={styles.dueGrid}>
-              {Array.from({ length: 30 }, (_, i) => i + 1).map((day) => {
-                const selected = parseInt(dueDate, 10) === day;
-                return (
-                  <Pressable
-                    key={day}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setDueDate(String(day));
-                      if (errors.dueDate) setErrors((e) => ({ ...e, dueDate: "" }));
-                    }}
-                    style={[
-                      styles.dueChip,
-                      {
-                        backgroundColor: selected ? Colors.primary : C.surfaceSecondary,
-                        borderColor: selected ? Colors.primary : C.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dueChipText,
-                        { color: selected ? "#05130A" : C.text },
-                      ]}
-                    >
-                      {day}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setDueDate("31");
-                  if (errors.dueDate) setErrors((e) => ({ ...e, dueDate: "" }));
-                }}
-                style={[
-                  styles.dueChip,
-                  {
-                    backgroundColor: parseInt(dueDate, 10) === 31 ? Colors.primary : C.surfaceSecondary,
-                    borderColor: parseInt(dueDate, 10) === 31 ? Colors.primary : C.border,
-                  },
-                ]}
-              >
-                <Text
+              <FormField label="Minimum Payment" prefix="$" error={errors.minPayment} C={C}>
+                <TextInput
+                  style={[styles.input, styles.inputWithPrefix, inputBase, errors.minPayment && styles.inputError]}
+                  value={minPayment}
+                  onChangeText={(v) => {
+                    setMinPayment(formatCurrencyInput(v));
+                    if (errors.minPayment) setErrors((e) => ({ ...e, minPayment: "" }));
+                  }}
+                  placeholder="150"
+                  placeholderTextColor={C.textSecondary + "99"}
+                  keyboardType="decimal-pad"
+                  returnKeyType="next"
+                  onFocus={() => Haptics.selectionAsync()}
+                />
+              </FormField>
+
+              <FormField label="Due Date" hint="Day 1–31" error={errors.dueDate} C={C}>
+                <View
                   style={[
-                    styles.dueChipText,
-                    { color: parseInt(dueDate, 10) === 31 ? "#05130A" : C.text },
+                    styles.dueDateInput,
+                    {
+                      backgroundColor: C.surfaceSecondary,
+                      borderColor: errors.dueDate ? Colors.danger : C.border,
+                    },
                   ]}
                 >
-                  Last
-                </Text>
-              </Pressable>
-            </View>
-          </FormField>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      dueDateInputRef.current?.focus();
+                    }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="calendar-outline" size={18} color={C.textSecondary} />
+                  </Pressable>
+                  <TextInput
+                    style={[styles.input, inputBase, { flex: 1, marginLeft: 8 }]}
+                    ref={dueDateInputRef}
+                    value={dueDate}
+                    onChangeText={(v) => {
+                      const digits = v.replace(/[^0-9]/g, "").slice(0, 2);
+                      setDueDate(digits);
+                      if (errors.dueDate) setErrors((e) => ({ ...e, dueDate: "" }));
+                    }}
+                    placeholder="1"
+                    placeholderTextColor={C.textSecondary + "99"}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    onFocus={() => Haptics.selectionAsync()}
+                  />
+                  <Text style={[styles.dueDateHint, { color: C.textSecondary }]}>of the month</Text>
+                </View>
+              </FormField>
+            </>
+          )}
         </Animated.View>
       </KeyboardAwareScrollViewCompat>
 
@@ -435,18 +394,17 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           },
         ]}
       >
-        {Object.keys(errors).length > 0 && (
+        {errors.apr && (
           <View style={styles.errorSummary}>
-            <Ionicons name="alert-circle" size={14} color={Colors.danger} />
             <Text style={styles.errorSummaryText}>
-              {Object.values(errors).find(Boolean)}
+              APR must be between 0% and 100%
             </Text>
           </View>
         )}
         <Pressable
           onPress={handleSave}
           disabled={saving}
-          style={({ pressed }) => [{ opacity: pressed || saving ? 0.8 : 1 }]}
+          style={({ pressed }) => [{ opacity: pressed || saving ? 0.85 : 1 }]}
         >
           <LinearGradient
             colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
@@ -454,16 +412,9 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
             end={{ x: 1, y: 0 }}
             style={styles.saveBtn}
           >
-            {saving ? (
-              <Text style={styles.saveBtnText}>Saving…</Text>
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.saveBtnText}>
-                  {initial?.id ? "Save Changes" : "Add Debt"}
-                </Text>
-              </>
-            )}
+            <Text style={styles.saveBtnText}>
+              {saving ? "Saving…" : initial?.id ? "Save Changes" : "Save Debt"}
+            </Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -628,6 +579,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.3,
   },
+  headerSaveBtn: {
+    minWidth: 44,
+    height: 44,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: 4,
+  },
+  headerSaveBtnText: {
+    fontSize: 17,
+    fontWeight: "600",
+  },
   headerExtra: {
     paddingVertical: 8,
     alignItems: "center",
@@ -651,8 +613,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 13,
     fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.4,
     marginBottom: 10,
   },
   typeGrid: {
@@ -684,8 +645,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 14,
     fontWeight: "500",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
     flex: 1,
   },
   fieldHint: {
@@ -810,8 +770,7 @@ const styles = StyleSheet.create({
   categorySectionLabel: {
     fontSize: 12,
     fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.4,
   },
   typeChipIcon: {
     width: 22,
@@ -820,55 +779,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  smartBanner: {
+  dueDateInput: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    padding: 12,
-    marginHorizontal: 16,
-  },
-  smartBannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  smartBannerLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  smartBannerText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#1A3A2A",
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-  dueGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: 10,
-    rowGap: 8,
-    marginTop: 4,
-    justifyContent: "flex-start",
-  },
-  dueChip: {
-    width: 40,
-    height: 32,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
     borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    gap: 4,
   },
-  dueChipText: {
+  dueDateHint: {
     fontSize: 14,
+    fontWeight: "500",
+  },
+  taxPlanRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  taxPlanLabel: {
+    fontSize: 16,
     fontWeight: "600",
+  },
+  taxPlanHint: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  taxPlanSectionHint: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginHorizontal: 16,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  taxHintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 10,
+    marginHorizontal: 16,
+    marginTop: -4,
+  },
+  taxHintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
   },
   footer: {
     paddingHorizontal: 20,

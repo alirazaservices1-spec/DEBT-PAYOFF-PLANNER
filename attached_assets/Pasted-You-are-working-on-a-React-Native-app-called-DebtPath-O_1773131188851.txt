@@ -1,0 +1,39 @@
+You are working on a React Native app called DebtPath. Open the Strategy selection 
+screen. Make ONLY the following changes:
+
+1. CRITICAL MATH FIX: Find the debt payoff calculation functions for Avalanche and 
+   Snowball strategies. Verify and fix the logic so that:
+   - Avalanche (sort by highest APR first) ALWAYS produces a lower totalInterestPaid 
+     value than Snowball (sort by lowest balance first).
+   - If the current algorithm produces equal or incorrect totals, fix the sorting 
+     comparator. Avalanche: sort debts descending by APR. Snowball: sort ascending 
+     by balance.
+   Add a console.warn() if at any point Snowball interest < Avalanche interest, 
+   so this can be caught in testing.
+
+2. MENU RESTRUCTURE: Remove the "OTHER APPROACHES" section header entirely. 
+   Delete the separate "Custom" strategy card. 
+   Render ONE flat scrollable list of exactly four equal strategy cards in this order:
+   1. Snowball — subtext: "Pay smallest balance first for quick wins."
+   2. Avalanche — subtext: "Pay highest APR first to save the most money."
+   3. Highest Payment First — subtext: "Free up monthly cash flow fastest."
+   4. Tsunami (Custom Order) — subtext: "Drag and drop debts to tackle what 
+      stresses you most."
+
+3. WINNER BADGES: After calculating totals for all strategies, dynamically render:
+   - A green pill badge "🏆 Saves Most Money" on whichever strategy has the 
+     lowest totalInterestPaid.
+   - A badge "⚡️ Fastest Payoff" on whichever strategy has the earliest 
+     debtFreeDate.
+   These must be computed at render time from real data, never hardcoded.
+
+4. TEXT COLORS: Find all red-colored interest or dollar amount text inside 
+   strategy cards. Change their color to #444444 (neutral dark grey).
+
+5. TSUNAMI INTERACTION: Find the Tsunami (Custom Order) card. Add an onPress 
+   handler that toggles an expanded view directly below the card. When expanded, 
+   render the user's debt list with ≡ drag handles on the right side of each row. 
+   Use react-native-draggable-flatlist (check if already installed; if not, add 
+   a TODO comment). The custom order must be saved to state/AsyncStorage on reorder.
+
+Do not change the active strategy selection logic or navigation.
