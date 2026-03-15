@@ -87,11 +87,6 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       try {
         const od = await AsyncStorage.getItem(ONBOARDING_KEY);
         if (od) setOnboardingDoneState(true);
-      } finally {
-        setLoaded(true);
-      }
-
-      try {
         const [dRaw, pRaw] = await Promise.all([
           secureGetItem(DEBTS_KEY),
           secureGetItem(PAYMENTS_KEY),
@@ -124,7 +119,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         if (s) setSelectedStrategyState(s as Strategy);
         if (co) setCustomOrderState(JSON.parse(co));
         if (ls) setLeadSubmittedAtState(ls);
-      } catch (_) {}
+      } catch (_) {
+        // Swallow storage errors — app should still render with empty state
+      } finally {
+        // Only mark context as loaded after debts + payments (and related prefs) are hydrated.
+        setLoaded(true);
+      }
     })();
   }, []);
 

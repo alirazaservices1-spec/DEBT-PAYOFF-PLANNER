@@ -10,6 +10,8 @@ import {
   Modal,
   Alert,
   Dimensions,
+  ActivityIndicator,
+  Animated as RNAnimated,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,8 +34,13 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { soundManager } from "@/utils/SoundManager";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useGame } from "@/context/GameContext";
+import { useStreakReminder } from "@/context/StreakReminderContext";
+import { useGoal } from "@/context/GoalContext";
 import {
   Debt,
   DebtType,
@@ -46,6 +53,10 @@ import {
 import { ProgressRing } from "@/components/ProgressRing";
 import { DebtForm } from "@/components/DebtForm";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import {
+  usePaymentEffects,
+  PaymentEffectsOverlay,
+} from "@/components/PaymentSuccessEffects";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 // Chart fits inside card: scroll 32 + card 32 + Y label ~48 + gap 4 = 116
@@ -58,7 +69,7 @@ const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   personalLoan: "#9B59B6",
   studentLoan: "#E67E22",
   medical: "#E74C3C",
-  auto: "#1ABC9C",
+  auto: "#1F4E8C",
   taxDebt: "#F39C12",
   businessDebt: "#34495E",
   other: "#95A5A6",
@@ -218,6 +229,12 @@ export default function DebtDetailScreen() {
   const insets = useSafeAreaInsets();
   const { debts, payments, updateDebt, deleteDebt, logPayment } = useDebts();
   const { fmt, fmtFull } = useCurrency();
+  const { awardXp, recordPaymentForStreak, triggerDex, triggerFlamePulse, grantBonusXp } = useGame();
+  const {
+    btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
+  } = usePaymentEffects();
+  const { cancelTonightsReminder } = useStreakReminder();
+  const { addGoalProgress } = useGoal();
 
   const debt = useMemo(() => debts.find((d) => d.id === id), [debts, id]);
 
@@ -286,7 +303,20 @@ export default function DebtDetailScreen() {
     return result;
   }, [debt]);
 
+  // While the debts context is still hydrating, avoid flashing "Debt not found" —
+  // show a lightweight loader instead so the screen doesn't appear broken.
   if (!debt) {
+    if (!debts || debts.length === 0) {
+      return (
+        <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={[styles.notFound, { color: C.textSecondary, marginTop: 8 }]}>
+            Loading your debt details...
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <Text style={[styles.notFound, { color: C.textSecondary }]}>Debt not found</Text>
@@ -336,15 +366,44 @@ export default function DebtDetailScreen() {
 
   const handleMarkPaid = async () => {
     const amount = parseFloat(markPaidAmount) || debt.minimumPayment;
-    await logPayment({
-      debtId: debt.id,
-      amount,
-      date: new Date().toISOString(),
-      isMissed: false,
-    });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setMarkPaidVisible(false);
-    setMarkPaidAmount("");
+    const isPayingOff = amount >= debt.balance;
+    const debtName = debt.name;
+
+    await runPayment(
+      async () => {
+        await logPayment({ debtId: debt.id, amount, date: new Date().toISOString(), isMissed: false });
+        awardXp("LOG_PAYMENT");
+        if (isPayingOff) awardXp("PAY_OFF_DEBT", { debtName });
+        recordPaymentForStreak();
+        cancelTonightsReminder();
+        const milestoneHit = await addGoalProgress(amount);
+        if (milestoneHit !== null) awardXp("HIT_MILESTONE");
+        return { milestoneHit: milestoneHit ?? null };
+      },
+      {
+        onBonus: () => grantBonusXp(50),
+        onFlamePulse: () => triggerFlamePulse(),
+        onDex: (isBonus) => {
+          if (isPayingOff) {
+            triggerDex("celebrating", 5000);
+          } else if (isBonus) {
+            triggerDex("surprised", 450);
+            setTimeout(() => triggerDex("celebrating", 3000), 450);
+          } else {
+            triggerDex("happy");
+          }
+        },
+        onClose: () => {
+          setMarkPaidVisible(false);
+          setMarkPaidAmount("");
+        },
+        onSuccessAfterSheetClosed: (_isBonus, milestoneHit) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          soundManager.play("payment_logged");
+          if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+        },
+      }
+    );
   };
 
   const webTop = Platform.OS === "web" ? 67 : 0;
@@ -405,7 +464,7 @@ export default function DebtDetailScreen() {
               <Text
                 style={[
                   styles.segTabText,
-                  { color: activeTab === tab ? "#05130A" : C.textSecondary },
+                  { color: activeTab === tab ? "#fff" : C.textSecondary },
                 ]}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -532,22 +591,48 @@ export default function DebtDetailScreen() {
                 autoFocus
               />
             </View>
-            <Pressable onPress={handleMarkPaid} style={({ pressed }) => [styles.paidConfirmBtnWrap, { opacity: pressed ? 0.9 : 1 }]}>
+            <Pressable
+              onPress={handleMarkPaid}
+              disabled={btnState !== "idle"}
+              style={({ pressed }) => [styles.paidConfirmBtnWrap, { opacity: pressed ? 0.9 : 1 }]}
+            >
               <LinearGradient
-                colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
+                colors={btnState === "success" ? ["#1E7A45", "#155e33"] : [Colors.buttonGreen, Colors.buttonGreenDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.paidConfirmBtn}
               >
-                <View style={styles.paidConfirmBtnContent}>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.paidConfirmText}>Mark as Paid</Text>
-                </View>
+                <RNAnimated.View
+                  style={[
+                    styles.paidConfirmBtnContent,
+                    btnState === "success" ? { transform: [{ scale: btnScale }] } : undefined,
+                  ]}
+                >
+                  {btnState === "loading" ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : btnState === "success" ? (
+                    <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                  ) : (
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  )}
+                  <Text style={styles.paidConfirmText}>
+                    {btnState === "loading" ? "Saving..." : btnState === "success" ? "Saved!" : "Mark as Paid"}
+                  </Text>
+                </RNAnimated.View>
               </LinearGradient>
             </Pressable>
           </View>
         </View>
       </Modal>
+
+      <PaymentEffectsOverlay
+        xpFloatActive={xpFloatActive}
+        xpAmount={xpAmount}
+        xpY={xpY}
+        xpOpacity={xpOpacity}
+        xpScale={xpScale}
+        bonusActive={bonusActive}
+      />
     </View>
   );
 }
@@ -871,7 +956,7 @@ function TransactionsTab({
               tab === t && { backgroundColor: typeColor },
             ]}
           >
-            <Text style={[styles.subSegText, { color: tab === t ? "#05130A" : C.textSecondary }]}>
+            <Text style={[styles.subSegText, { color: tab === t ? "#fff" : C.textSecondary }]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
           </Pressable>
@@ -1054,7 +1139,7 @@ function DetailsTab({
           end={{ x: 1, y: 0 }}
           style={styles.editAllBtn}
         >
-          <Ionicons name="create" size={18} color="#05130A" />
+          <Ionicons name="create" size={18} color="#fff" />
           <Text style={styles.editAllText}>Edit All Details</Text>
         </LinearGradient>
       </Pressable>
@@ -1108,11 +1193,11 @@ const styles = StyleSheet.create({
   },
   headerName: {
     fontSize: 19,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   headerType: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     marginTop: 1,
   },
   editBtn: {
@@ -1136,7 +1221,7 @@ const styles = StyleSheet.create({
   },
   segTabText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   scrollContent: {
     padding: 16,
@@ -1156,13 +1241,13 @@ const styles = StyleSheet.create({
   },
   cardLabel: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   cardTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   cardTitleRow: {
     flexDirection: "row",
@@ -1171,13 +1256,13 @@ const styles = StyleSheet.create({
   },
   payoffDateLarge: {
     fontSize: 34,
-    fontWeight: "800",
+    fontFamily: Fonts.extraBold, fontWeight: "800",
     letterSpacing: -1,
     marginTop: 4,
   },
   payoffSub: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     marginTop: -4,
   },
   ringAndStats: {
@@ -1198,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   ringPct: {
     fontSize: 26,
-    fontWeight: "800",
+    fontFamily: Fonts.extraBold, fontWeight: "800",
     letterSpacing: -1,
   },
   ringLabel: {
@@ -1217,7 +1302,7 @@ const styles = StyleSheet.create({
   },
   ringStatValue: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   ringStatDivider: {
     height: StyleSheet.hairlineWidth,
@@ -1278,11 +1363,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.3,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   chartSummaryValue: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   chartSummaryHint: {
     fontSize: 12,
@@ -1297,7 +1382,7 @@ const styles = StyleSheet.create({
   },
   whatIfPrefix: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   whatIfInput: {
     flex: 1,
@@ -1306,7 +1391,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 11 : 9,
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   whatIfSuffix: { fontSize: 13 },
   whatIfQuickRow: {
@@ -1322,7 +1407,7 @@ const styles = StyleSheet.create({
   },
   whatIfQuickText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   whatIfResult: {
     flexDirection: "row",
@@ -1342,7 +1427,7 @@ const styles = StyleSheet.create({
   },
   whatIfResultValue: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   whatIfResultDivider: {
     width: StyleSheet.hairlineWidth,
@@ -1379,12 +1464,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.3,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     textAlign: "center",
   },
   taxImpactValue: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   taxNoticeBanner: {
     borderRadius: 10,
@@ -1402,7 +1487,7 @@ const styles = StyleSheet.create({
   },
   taxNoticeBannerTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     marginBottom: 2,
   },
   taxNoticeBannerBody: {
@@ -1424,7 +1509,7 @@ const styles = StyleSheet.create({
   },
   subSegText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   markPaidBtn: {
     flexDirection: "row",
@@ -1438,7 +1523,7 @@ const styles = StyleSheet.create({
   markPaidText: {
     color: "#ffffff",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   timelineContainer: {
     gap: 0,
@@ -1482,11 +1567,11 @@ const styles = StyleSheet.create({
   },
   timelineDate: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   timelineAmount: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   timelineBadge: {
     alignSelf: "flex-start",
@@ -1496,7 +1581,7 @@ const styles = StyleSheet.create({
   },
   timelineBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   timelineBalAfter: {
     fontSize: 12,
@@ -1522,7 +1607,7 @@ const styles = StyleSheet.create({
   },
   detailsValue: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     maxWidth: "55%",
     textAlign: "right",
   },
@@ -1535,9 +1620,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   editAllText: {
-    color: "#05130A",
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   deleteBtn: {
     flexDirection: "row",
@@ -1550,7 +1635,7 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   paidModal: {
     flex: 1,
@@ -1571,12 +1656,12 @@ const styles = StyleSheet.create({
   paidModalTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textAlign: "center",
   },
   paidModalSave: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   paidModalBody: {
     flex: 1,
@@ -1595,7 +1680,7 @@ const styles = StyleSheet.create({
   },
   paidModalDebtName: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textAlign: "center",
     marginBottom: 4,
   },
@@ -1621,14 +1706,14 @@ const styles = StyleSheet.create({
   },
   paidInputPrefix: {
     fontSize: 24,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     marginRight: 4,
   },
   paidInput: {
     flex: 1,
     paddingVertical: 14,
     fontSize: 26,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textAlign: "center",
   },
   paidConfirmBtnWrap: {
@@ -1654,7 +1739,7 @@ const styles = StyleSheet.create({
   paidConfirmText: {
     color: "#fff",
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textAlign: "center",
   },
 });

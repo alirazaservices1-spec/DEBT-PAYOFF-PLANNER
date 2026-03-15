@@ -256,6 +256,12 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
+  // Serve generated sound files before any proxy so they work in dev AND prod
+  app.use(
+    "/assets/sounds",
+    express.static(path.resolve(process.cwd(), "assets", "sounds")),
+  );
+
   if (process.env.NODE_ENV === "development") {
     configureExpoDev(app);
   } else {

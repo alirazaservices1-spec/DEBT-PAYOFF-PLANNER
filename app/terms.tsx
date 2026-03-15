@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 
 export default function TermsScreen() {
   const router = useRouter();
@@ -80,11 +81,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "600" },
+  headerTitle: { fontSize: 17, fontFamily: Fonts.semiBold, fontWeight: "600" },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingTop: 16 },
   updated: { fontSize: 13, marginBottom: 16 },
-  heading: { fontSize: 16, fontWeight: "700", marginTop: 20, marginBottom: 8 },
+  heading: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700", marginTop: 20, marginBottom: 8 },
   paragraph: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
-  bold: { fontWeight: "600" },
+  bold: { fontFamily: Fonts.semiBold, fontWeight: "600" },
 });

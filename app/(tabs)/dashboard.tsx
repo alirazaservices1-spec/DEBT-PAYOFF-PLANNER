@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useLocalSearchParams } from "expo-router";
 import {
   View,
   Text,
@@ -10,6 +11,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
+  Animated as RNAnimated,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +26,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
@@ -31,8 +35,23 @@ import {
 } from "@/lib/calculations";
 import { ProgressRing } from "@/components/ProgressRing";
 import { CTACards } from "@/components/CTACards";
+import { XPProgressBar } from "@/components/XPProgressBar";
+import { DexCard } from "@/components/DexCard";
+import { StreakWidget } from "@/components/StreakWidget";
+import { ImpactCounter } from "@/components/ImpactCounter";
+import { PayoffDateWidget } from "@/components/PayoffDateWidget";
+import { InterestSavingsBar } from "@/components/InterestSavingsBar";
+import { useGame } from "@/context/GameContext";
+import { useStreakReminder } from "@/context/StreakReminderContext";
+import { useGoal } from "@/context/GoalContext";
+import { useDesignBriefNotifications } from "@/context/DesignBriefNotificationsContext";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { soundManager } from "@/utils/SoundManager";
+import {
+  usePaymentEffects,
+  PaymentEffectsOverlay,
+} from "@/components/PaymentSuccessEffects";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
@@ -84,12 +103,27 @@ export default function DashboardScreen() {
     logPayment,
   } = useDebts();
   const { fmt } = useCurrency();
+  const { triggerDex, triggerDexWithMessage, awardXp, recordPaymentForStreak, grantBonusXp, triggerFlamePulse } = useGame();
+  const {
+    btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
+  } = usePaymentEffects();
+  const { cancelTonightsReminder } = useStreakReminder();
+  const { addGoalProgress } = useGoal();
+  const { schedulePayoffDateMoved } = useDesignBriefNotifications();
+  const { openLog } = useLocalSearchParams<{ openLog?: string }>();
 
   const [whatIfCollapsed, setWhatIfCollapsed] = useState(false);
   const [logModalVisible, setLogModalVisible] = useState(false);
+  const [paymentLogSeq, setPaymentLogSeq] = useState(0);
   const [logDebtId, setLogDebtId] = useState<string>(debts[0]?.id ?? "");
   const [logAmount, setLogAmount] = useState("");
   const [logMissed, setLogMissed] = useState(false);
+
+  useEffect(() => {
+    if (openLog === "1") {
+      setLogModalVisible(true);
+    }
+  }, [openLog]);
 
   const originalBalance = useRef(totalBalance + payments.filter(p => !p.isMissed).reduce((s, p) => s + p.amount, 0));
   const paidOff = Math.max(0, originalBalance.current - totalBalance);
@@ -99,6 +133,18 @@ export default function DashboardScreen() {
 
   const interestSaved = Math.max(0, baselineResult.totalInterestPaid - avalancheResult.totalInterestPaid);
   const monthsSaved = Math.max(0, baselineResult.totalMonths - avalancheResult.totalMonths);
+
+  const extraThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return payments
+      .filter((p) => !p.isMissed && new Date(p.date) >= monthStart)
+      .reduce((sum, p) => {
+        const debt = debts.find((d) => d.id === p.debtId);
+        const minPay = debt?.minimumPayment ?? 0;
+        return sum + Math.max(0, p.amount - minPay);
+      }, 0);
+  }, [payments, debts]);
 
   const payoffDate = activeResult.payoffDate;
   const days = daysUntil(payoffDate);
@@ -114,18 +160,95 @@ export default function DashboardScreen() {
 
   const webTopPad = Platform.OS === "web" ? 67 : 0;
 
+  // Track payoff date changes to trigger Dex message and payoff-date-moved notification
+  const prevPayoffDateRef = useRef<string>(payoffDate.toISOString().split("T")[0]);
+  useEffect(() => {
+    const curr = payoffDate.toISOString().split("T")[0];
+    const prev = prevPayoffDateRef.current;
+    if (curr !== prev) {
+      const oldD = new Date(prev);
+      const newD = payoffDate;
+      const daysMoved = Math.round((oldD.getTime() - newD.getTime()) / 86_400_000);
+      if (daysMoved > 0) {
+        const monthsAhead = Math.round(daysMoved / 30);
+        const msg = daysMoved >= 30
+          ? `Your debt-free date just moved up ${daysMoved} days — that is over a month reclaimed! 🎉`
+          : `Your debt-free date just moved up ${daysMoved} day${daysMoved > 1 ? "s" : ""}! 📅`;
+        triggerDexWithMessage("happy", msg, 6000);
+        if (monthsAhead > 0) {
+          schedulePayoffDateMoved(payoffDate, monthsAhead).catch(() => {});
+        }
+        if (daysMoved >= 30) {
+          setTimeout(() => triggerDexWithMessage("celebrating", "You are making real progress — keep the momentum going! 🔥", 5000), 6500);
+        }
+      }
+      prevPayoffDateRef.current = curr;
+    }
+  }, [payoffDate, triggerDexWithMessage, schedulePayoffDateMoved]);
+
+  const handleMilestone = (amount: number) => {
+    soundManager.play("milestone");
+    triggerFlamePulse();
+    const milestoneLabels: Record<number, string> = {
+      50:   "You just crossed $50 saved! Every dollar counts. 🌱",
+      100:  "You just crossed $100 saved! That's a car payment you kept. 🚗",
+      250:  "You just crossed $250 saved! That's a dinner out every month. 🍽️",
+      500:  "You just crossed $500 saved! That's real money back in your pocket. 💚",
+      1000: "You just crossed $1,000 saved! You are absolutely crushing debt! 🏆",
+    };
+    triggerDexWithMessage("celebrating", milestoneLabels[amount] ?? `You just crossed $${amount} saved!`, 7000);
+  };
+
   const handleLogPayment = async () => {
     if (!logDebtId || !logAmount) return;
-    await logPayment({
-      debtId: logDebtId,
-      amount: parseFloat(logAmount) || 0,
-      date: new Date().toISOString(),
-      isMissed: logMissed,
-    });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLogModalVisible(false);
-    setLogAmount("");
-    setLogMissed(false);
+    const amount = parseFloat(logAmount) || 0;
+
+    if (logMissed) {
+      await logPayment({ debtId: logDebtId, amount, date: new Date().toISOString(), isMissed: true });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLogModalVisible(false);
+      setLogAmount("");
+      setLogMissed(false);
+      return;
+    }
+
+    await runPayment(
+      async () => {
+        await logPayment({ debtId: logDebtId, amount, date: new Date().toISOString(), isMissed: false });
+        awardXp("LOG_PAYMENT");
+        recordPaymentForStreak();
+        cancelTonightsReminder();
+        const milestoneHit = await addGoalProgress(amount);
+        if (milestoneHit !== null) awardXp("HIT_MILESTONE");
+        return { milestoneHit: milestoneHit ?? null };
+      },
+      {
+        onBonus: () => {
+          grantBonusXp(50);
+          soundManager.play("xp_earned");
+        },
+        onFlamePulse: () => triggerFlamePulse(),
+        onDex: (isBonus) => {
+          if (isBonus) {
+            triggerDex("surprised", 450);
+            setTimeout(() => triggerDex("celebrating", 3000), 450);
+          } else {
+            triggerDex("happy");
+          }
+        },
+        onClose: () => {
+          setLogModalVisible(false);
+          setLogAmount("");
+          setLogMissed(false);
+          setPaymentLogSeq((s) => s + 1);
+        },
+        onSuccessAfterSheetClosed: (isBonus, milestoneHit) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          soundManager.play("payment_logged");
+          if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+        },
+      }
+    );
   };
 
   const handleExportSummary = async () => {
@@ -303,15 +426,41 @@ export default function DashboardScreen() {
         contentContainerStyle={[
           styles.scroll,
           Platform.OS === "web" && { paddingBottom: 34 },
-          debts.length === 0 && { flexGrow: 1, justifyContent: "center" },
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Priority 1: Dex greeting */}
+        <DexCard />
+
+        {/* Priority 2-3: Streak flame + XP bar side by side */}
+        <View style={styles.xpStreakRow}>
+          <StreakWidget style={styles.xpStreakItem} />
+          <XPProgressBar style={styles.xpStreakItem} />
+        </View>
+
+        {/* Priority 4: Payoff date + impact counter (compact) */}
+        <ImpactCounter compact />
+
+        {/* Priority 5: LOG PAYMENT TODAY — most prominent element */}
+        {debts.length > 0 && (
+          <Pressable
+            onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }}
+            style={styles.logPayBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Log a payment today"
+          >
+            <Ionicons name="flash" size={18} color="#FFFFFF" />
+            <Text style={styles.logPayBtnText}>LOG PAYMENT TODAY</Text>
+          </Pressable>
+        )}
+
+        {/* Interest savings bar — grows with every payment */}
+        {interestSaved > 0 && <InterestSavingsBar interestSaved={interestSaved} onMilestone={handleMilestone} />}
         {debts.length > 0 ? (
           <>
             {/* WCAG AA Required: Contrast ratio must be 4.5:1 minimum. Verify with https://webaim.org/resources/contrastchecker/ */}
             <LinearGradient
-              colors={isDark ? ["#142819", "#0D1C10"] : ["#E8F8EF", "#D0F0DE"]}
+              colors={isDark ? ["#1A1C1F", "#0E0F11"] : ["#EBF7F0", "#D6EFE2"]}
               style={styles.heroCard}
             >
               <View style={styles.heroTop}>
@@ -326,10 +475,12 @@ export default function DashboardScreen() {
                     {fmt(totalBalance)}
                   </Text>
                   <View style={styles.heroMeta}>
-                    <Ionicons name="calendar" size={13} color={Colors.primary} />
-                    <Text style={[styles.heroMetaText, { color: C.textSecondary }]}>
-                      Debt-free {formatPayoffDate(payoffDate)} • {days.toLocaleString()} days
-                    </Text>
+                    <PayoffDateWidget
+                      currentDate={payoffDate}
+                      baselineDate={baselineResult.payoffDate}
+                      hasExtraPayment={extraPayment > 0 || extraThisMonth > 0}
+                      paymentTrigger={paymentLogSeq}
+                    />
                   </View>
                 </View>
 
@@ -339,7 +490,7 @@ export default function DashboardScreen() {
                     strokeWidth={10}
                     progress={progress}
                     color={Colors.progressGreen}
-                    trackColor={isDark ? "rgba(46,204,113,0.22)" : "rgba(46,204,113,0.2)"}
+                    trackColor={isDark ? "rgba(31,78,140,0.22)" : "rgba(46,204,113,0.2)"}
                   />
                   <View style={styles.heroRingCenter}>
                     <Text
@@ -499,7 +650,7 @@ export default function DashboardScreen() {
                           },
                         ]}
                       >
-                        <Text style={[styles.whatIfBtnText, { color: extraPayment === v ? "#05130A" : C.textSecondary }]}>
+                        <Text style={[styles.whatIfBtnText, { color: extraPayment === v ? "#fff" : C.textSecondary }]}>
                           {v === 0 ? "Min only" : `+$${v}`}
                         </Text>
                       </Pressable>
@@ -563,8 +714,8 @@ export default function DashboardScreen() {
 
             <View style={styles.comingSoonWrap}>
             <LinearGradient
-              colors={isDark ? ["#0D2818", "#0A1F12"] : ["#E8F8EE", "#D4F0E0"]}
-              style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(46,204,113,0.35)" : "rgba(46,204,113,0.45)" }]}
+              colors={isDark ? ["#1E2023", "#161719"] : ["#EBF7F0", "#D6EFE2"]}
+              style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(31,78,140,0.30)" : "rgba(31,78,140,0.35)" }]}
             >
                 <View style={styles.comingSoonBadge}>
                   <Ionicons name="rocket-outline" size={14} color="#fff" />
@@ -609,20 +760,54 @@ export default function DashboardScreen() {
             </View>
           </>
         ) : (
-          <View style={styles.emptyDash}>
+          <>
+            {/* Zero-state balance card */}
             <LinearGradient
-              colors={[Colors.primary + "20", Colors.primary + "05"]}
-              style={styles.emptyDashIcon}
+              colors={isDark ? ["#1A1C1F", "#0E0F11"] : ["#EBF7F0", "#D6EFE2"]}
+              style={styles.heroCard}
             >
-              <Ionicons name="speedometer-outline" size={56} color={Colors.primary} />
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.heroLabel, { color: C.textSecondary }]}>Total Remaining</Text>
+                  <Text style={[styles.heroBalance, { color: C.text }]}>{fmt(0)}</Text>
+                  <View style={styles.heroMeta}>
+                    <Ionicons name="add-circle-outline" size={13} color={Colors.primary} />
+                    <Text style={[styles.heroMetaText, { color: C.textSecondary }]}>
+                      Add a debt to track your payoff journey
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.heroRing}>
+                  <ProgressRing
+                    size={100}
+                    strokeWidth={10}
+                    progress={0}
+                    color={Colors.progressGreen}
+                    trackColor={isDark ? "rgba(31,78,140,0.22)" : "rgba(46,204,113,0.2)"}
+                  />
+                  <View style={styles.heroRingCenter}>
+                    <Text style={[styles.heroRingPct, { color: Colors.progressGreen }]}>0%</Text>
+                    <Text style={[styles.heroRingLabel, { color: C.textSecondary }]}>paid</Text>
+                  </View>
+                </View>
+              </View>
             </LinearGradient>
-            <Text style={[styles.emptyDashTitle, { color: C.text }]}>
-              Add debts to see your dashboard
-            </Text>
-            <Text style={[styles.emptyDashBody, { color: C.textSecondary }]}>
-              Head to the Debts tab to add your accounts. Your progress, payoff date, and personalized options will appear here.
-            </Text>
-          </View>
+
+            <View style={styles.emptyDash}>
+              <LinearGradient
+                colors={[Colors.primary + "20", Colors.primary + "05"]}
+                style={styles.emptyDashIcon}
+              >
+                <Ionicons name="speedometer-outline" size={56} color={Colors.primary} />
+              </LinearGradient>
+              <Text style={[styles.emptyDashTitle, { color: C.text }]}>
+                Add debts to see your dashboard
+              </Text>
+              <Text style={[styles.emptyDashBody, { color: C.textSecondary }]}>
+                Head to the Debts tab to add your accounts. Your progress, payoff date, and personalized options will appear here.
+              </Text>
+            </View>
+          </>
         )}
       </ScrollView>
 
@@ -638,8 +823,22 @@ export default function DashboardScreen() {
               <Ionicons name="close" size={24} color={C.textSecondary} />
             </Pressable>
             <Text style={[styles.logModalTitle, { color: C.text }]}>Log Payment</Text>
-            <Pressable onPress={handleLogPayment} style={styles.logModalHeaderBtn}>
-              <Text style={[styles.logModalSave, { color: Colors.primary }]}>Save</Text>
+            <Pressable
+              onPress={handleLogPayment}
+              style={styles.logModalHeaderBtn}
+              disabled={btnState !== "idle"}
+            >
+              {btnState === "idle" && (
+                <Text style={[styles.logModalSave, { color: Colors.primary }]}>Save</Text>
+              )}
+              {btnState === "loading" && (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              )}
+              {btnState === "success" && (
+                <RNAnimated.View style={{ transform: [{ scale: btnScale }] }}>
+                  <Ionicons name="checkmark-circle" size={24} color="#1E7A45" />
+                </RNAnimated.View>
+              )}
             </Pressable>
           </View>
 
@@ -658,7 +857,7 @@ export default function DashboardScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.debtSelectText, { color: logDebtId === d.id ? "#05130A" : C.text }]} numberOfLines={1}>
+                  <Text style={[styles.debtSelectText, { color: logDebtId === d.id ? "#fff" : C.text }]} numberOfLines={1}>
                     {d.name}
                   </Text>
                 </Pressable>
@@ -677,7 +876,7 @@ export default function DashboardScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.typeChipText, { color: !logMissed ? "#05130A" : C.text }]}>Payment Made</Text>
+                <Text style={[styles.typeChipText, { color: !logMissed ? "#fff" : C.text }]}>Payment Made</Text>
               </Pressable>
               <Pressable
                 onPress={() => setLogMissed(true)}
@@ -689,7 +888,7 @@ export default function DashboardScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.typeChipText, { color: logMissed ? "#05130A" : C.text }]}>Missed Payment</Text>
+                <Text style={[styles.typeChipText, { color: logMissed ? "#fff" : C.text }]}>Missed Payment</Text>
               </Pressable>
             </View>
 
@@ -709,12 +908,32 @@ export default function DashboardScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <PaymentEffectsOverlay
+        xpFloatActive={xpFloatActive}
+        xpAmount={xpAmount}
+        xpY={xpY}
+        xpOpacity={xpOpacity}
+        xpScale={xpScale}
+        bonusActive={bonusActive}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  xpStreakRow: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    gap: 10,
+  },
+  xpStreakItem: {
+    flex: 1,
+    marginHorizontal: 0,
+    marginBottom: 0,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -730,9 +949,9 @@ const styles = StyleSheet.create({
   },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
-  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
-  headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
-  headerSub: { fontSize: 16, marginTop: 2 },
+  headerBrandName: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
+  headerTitle: { fontSize: 28, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.5 },
+  headerSub: { fontSize: 16, fontFamily: Fonts.regular, marginTop: 2 },
   logBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -742,7 +961,31 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  logBtnText: { fontSize: 14, fontWeight: "600" },
+  logBtnText: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  logPayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#1F4E8C",
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    shadowColor: "#1E7A45",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  logPayBtnText: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.6,
+  },
   scroll: { padding: 16, gap: 14 },
   heroCard: {
     borderRadius: 20,
@@ -754,10 +997,10 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   heroTop: { flexDirection: "row", alignItems: "center", gap: 16 },
-  heroLabel: { fontSize: 14, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
-  heroBalance: { fontSize: 36, fontWeight: "800", letterSpacing: -1, marginTop: 4 },
-  heroMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
-  heroMetaText: { fontSize: 14 },
+  heroLabel: { fontSize: 11, fontFamily: Fonts.bold, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 },
+  heroBalance: { fontSize: 38, fontFamily: Fonts.mono, fontWeight: "500", letterSpacing: -1, marginTop: 4 },
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
+  heroMetaText: { fontSize: 14, fontFamily: Fonts.regular },
   heroRing: { position: "relative", alignItems: "center", justifyContent: "center" },
   heroRingCenter: {
     position: "absolute",
@@ -765,8 +1008,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     maxWidth: "75%",
   },
-  heroRingPct: { fontSize: 20, fontWeight: "800" },
-  heroRingLabel: { fontSize: 13, marginTop: -2 },
+  heroRingPct: { fontSize: 20, fontFamily: Fonts.mono, fontWeight: "500" },
+  heroRingLabel: { fontSize: 12, fontFamily: Fonts.regular, marginTop: -2 },
   progressBar: {
     height: 6,
     borderRadius: 3,
@@ -799,9 +1042,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
-  statValue: { fontSize: 18, fontWeight: "700" },
-  statSub: { fontSize: 13 },
+  statLabel: { fontSize: 11, fontFamily: Fonts.bold, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  statValue: { fontSize: 18, fontFamily: Fonts.mono, fontWeight: "500" },
+  statSub: { fontSize: 12, fontFamily: Fonts.regular },
   section: {
     borderRadius: 16,
     borderWidth: 1,
@@ -813,7 +1056,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: "700" },
+  sectionTitle: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700" },
   ringRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   ringLabel: { fontSize: 13, marginTop: 4 },
   ringLegend: { flex: 1, gap: 8 },
@@ -828,7 +1071,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  whatIfActivePillText: { fontSize: 12, fontWeight: "700" },
+  whatIfActivePillText: { fontSize: 12, fontFamily: Fonts.bold, fontWeight: "700" },
   whatIfTrack: {
     height: 5,
     borderRadius: 3,
@@ -854,7 +1097,7 @@ const styles = StyleSheet.create({
   },
   whatIfResultStat: { flex: 1, alignItems: "center" },
   whatIfResultLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
-  whatIfResultValue: { fontSize: 20, fontWeight: "800", marginTop: 2 },
+  whatIfResultValue: { fontSize: 20, fontFamily: Fonts.mono, fontWeight: "500", marginTop: 2 },
   whatIfResultSub: { fontSize: 13, marginTop: 2 },
   whatIfDivider: { width: StyleSheet.hairlineWidth },
   paymentRow: {
@@ -865,9 +1108,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   paymentDot: { width: 8, height: 8, borderRadius: 4 },
-  paymentName: { fontSize: 14, fontWeight: "600" },
+  paymentName: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
   paymentDate: { fontSize: 14, marginTop: 1 },
-  paymentAmount: { fontSize: 15, fontWeight: "700" },
+  paymentAmount: { fontSize: 15, fontFamily: Fonts.mono, fontWeight: "500" },
   emptyDash: { alignItems: "center", paddingVertical: 48, gap: 16, paddingHorizontal: 32 },
   comingSoonWrap: { marginTop: 4 },
   comingSoonCard: {
@@ -895,7 +1138,7 @@ const styles = StyleSheet.create({
   comingSoonBadgeText: {
     color: "#fff",
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.3,
   },
   comingSoonCardHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
@@ -914,7 +1157,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   comingSoonTitleWrap: { flex: 1 },
-  comingSoonCardTitle: { fontSize: 19, fontWeight: "800", letterSpacing: -0.3 },
+  comingSoonCardTitle: { fontSize: 19, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.3 },
   comingSoonCardSub: { fontSize: 14, lineHeight: 20, marginTop: 2 },
   comingSoonPills: {
     flexDirection: "row",
@@ -929,7 +1172,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
   },
-  comingSoonPillLabel: { fontSize: 14, fontWeight: "600" },
+  comingSoonPillLabel: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
   emptyDashIcon: {
     width: 120,
     height: 120,
@@ -937,7 +1180,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyDashTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  emptyDashTitle: { fontSize: 20, fontFamily: Fonts.bold, fontWeight: "700", textAlign: "center" },
   emptyDashBody: { fontSize: 15, textAlign: "center", lineHeight: 22 },
   logModal: { flex: 1 },
   logModalHeader: {
@@ -949,22 +1192,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   logModalHeaderBtn: { minWidth: 44, alignItems: "center", justifyContent: "center" },
-  logModalTitle: { flex: 1, fontSize: 18, fontWeight: "700", textAlign: "center" },
-  logModalSave: { fontSize: 16, fontWeight: "600" },
+  logModalTitle: { flex: 1, fontSize: 18, fontFamily: Fonts.bold, fontWeight: "700", textAlign: "center" },
+  logModalSave: { fontSize: 16, fontFamily: Fonts.semiBold, fontWeight: "600" },
   logModalContent: { padding: 24, gap: 16 },
   logModalLabel: { fontSize: 13, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
   debtSelectRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   debtSelectChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, maxWidth: "48%", alignItems: "center", justifyContent: "center" },
-  debtSelectText: { fontSize: 14, fontWeight: "600", textAlign: "center" },
+  debtSelectText: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },
   typeRow: { flexDirection: "row", gap: 10 },
   typeChip: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  typeChipText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
+  typeChipText: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },
   logInput: {
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
 });

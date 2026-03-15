@@ -24,6 +24,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 const TAB_CONFIG = [
@@ -52,20 +53,20 @@ const TAB_CONFIG = [
     sfSelected: "calendar.fill",
   },
   {
-    name: "calculators",
-    label: "Calc",
-    icon: "calculator-outline" as const,
-    iconActive: "calculator" as const,
-    sfDefault: "function",
-    sfSelected: "function",
-  },
-  {
     name: "dashboard",
     label: "Tracking",
     icon: "stats-chart-outline" as const,
     iconActive: "stats-chart" as const,
     sfDefault: "gauge.medium",
     sfSelected: "gauge.medium",
+  },
+  {
+    name: "more",
+    label: "More",
+    icon: "grid-outline" as const,
+    iconActive: "grid" as const,
+    sfDefault: "square.grid.2x2",
+    sfSelected: "square.grid.2x2.fill",
   },
 ];
 
@@ -100,15 +101,25 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const tabBarWidth = width - 32;
   const tabWidth = tabBarWidth / TAB_CONFIG.length;
 
-  const activeIndex = useSharedValue(state.index);
+  // Routes that belong under the "More" tab — they keep the More button highlighted
+  const MORE_ROUTES = ["more", "goal", "calculators"];
+  const currentRouteName = state.routes[state.index]?.name ?? "";
+  const moreTabIndex = TAB_CONFIG.findIndex((t) => t.name === "more");
+
+  // Effective index for pill animation: map sub-routes to the More tab position
+  const effectiveIndex = MORE_ROUTES.includes(currentRouteName)
+    ? moreTabIndex
+    : state.index;
+
+  const activeIndex = useSharedValue(effectiveIndex);
 
   useEffect(() => {
-    activeIndex.value = withSpring(state.index, {
+    activeIndex.value = withSpring(effectiveIndex, {
       damping: 20,
       stiffness: 200,
       mass: 0.6,
     });
-  }, [state.index]);
+  }, [effectiveIndex]);
 
   const pillStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: activeIndex.value * tabWidth }],
@@ -125,20 +136,20 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           left: 16,
           right: 16,
           borderColor: isDark
-            ? "rgba(46,204,113,0.22)"
-            : "rgba(46,204,113,0.18)",
+            ? "rgba(31,78,140,0.35)"
+            : "rgba(31,78,140,0.20)",
         },
       ]}
     >
       <BlurView
-        intensity={isDark ? 80 : 80}
+        intensity={isDark ? 85 : 80}
         tint={isDark ? "dark" : "light"}
         style={[
           styles.tabBarBlur,
           {
             backgroundColor: isDark
-              ? "rgba(5,10,15,0.45)"
-              : "rgba(255,255,255,0.75)",
+              ? "rgba(22,23,25,0.75)"
+              : "rgba(255,255,255,0.82)",
           },
         ]}
       >
@@ -156,8 +167,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               styles.pillInner,
             {
               backgroundColor: isDark
-                ? "rgba(46,204,113,0.28)"
-                : "rgba(46,204,113,0.22)",
+                ? "rgba(31,78,140,0.35)"
+                : "rgba(31,78,140,0.14)",
             },
             ]}
           />
@@ -165,7 +176,10 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
         <View style={styles.tabRow}>
           {TAB_CONFIG.map((tab, index) => {
-            const isActive = state.index === index;
+            const isActive =
+              tab.name === "more"
+                ? MORE_ROUTES.includes(currentRouteName)
+                : state.index === index;
             return (
               <TabItem
                 key={tab.name}
@@ -290,9 +304,9 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: "hidden",
     borderWidth: 1.5,
-    shadowColor: Colors.primary,
+    shadowColor: Colors.blue,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.28,
     shadowRadius: 24,
     elevation: 20,
   },
@@ -333,14 +347,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   tabLabel: {
-    fontSize: 12,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    fontFamily: Fonts.bold,
   },
   activeDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.blue,
     marginTop: 1,
   },
 });

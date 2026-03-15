@@ -30,9 +30,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { useNotifications } from "@/context/NotificationContext";
+import { useGame } from "@/context/GameContext";
 import {
   Debt,
   DebtType,
@@ -51,7 +53,7 @@ const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   personalLoan: "#9B59B6",
   studentLoan: "#E67E22",
   medical: "#E74C3C",
-  auto: "#1ABC9C",
+  auto: "#1F4E8C",
   taxDebt: "#F39C12",
   businessDebt: "#2C3E50",
   collectionAccount: "#C0392B",
@@ -107,7 +109,7 @@ function SmartMatchCarousel({
             {
               width: cardW,
               backgroundColor: C.surface,
-              borderColor: isDark ? "rgba(46,204,113,0.22)" : "rgba(46,204,113,0.35)",
+              borderColor: isDark ? "rgba(31,78,140,0.22)" : "rgba(31,78,140,0.30)",
             },
           ]}
         >
@@ -167,7 +169,7 @@ function SmartLinkBar({
         styles.smartLink,
         {
           backgroundColor: isDark ? "rgba(46,204,113,0.08)" : "rgba(46,204,113,0.07)",
-          borderColor: isDark ? "rgba(46,204,113,0.22)" : "rgba(46,204,113,0.3)",
+          borderColor: isDark ? "rgba(31,78,140,0.22)" : "rgba(46,204,113,0.3)",
           opacity: pressed ? 0.8 : 1,
         },
       ]}
@@ -396,6 +398,7 @@ export default function DebtsScreen() {
   const principalPaid = payments.reduce((s, p) => s + (p.isMissed ? 0 : p.amount), 0);
   const { fmt } = useCurrency();
   const { setDebts } = useNotifications();
+  const { triggerFirstDebtCelebration } = useGame();
 
   useEffect(() => {
     setDebts(debts.map((d) => ({ id: d.id, name: d.name, minimumPayment: d.minimumPayment, dueDate: d.dueDate })));
@@ -458,6 +461,7 @@ export default function DebtsScreen() {
 
   const handleSave = async (data: Omit<Debt, "id" | "dateAdded">) => {
     await addDebt(data);
+    triggerFirstDebtCelebration();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setFormVisible(false);
   };
@@ -500,7 +504,8 @@ export default function DebtsScreen() {
               }}
               style={[styles.addPromptBtn, { backgroundColor: Colors.primary }]}
             >
-              <Text style={styles.addPromptBtnText}>{"➕ Add Another Debt"}</Text>
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.addPromptBtnText}>Add Another Debt</Text>
             </Pressable>
           </View>
         )}
@@ -519,7 +524,7 @@ export default function DebtsScreen() {
             {"Sorting Strategy: " + strategyDisplayName(selectedStrategy)}
           </Text>
           <View style={{ backgroundColor: "#2E7D32", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8 }}>
-            <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>Change ›</Text>
+            <Text style={{ color: "#FFFFFF", fontSize: 12, fontFamily: Fonts.bold, fontWeight: "700" }}>Change ›</Text>
           </View>
         </Pressable>
 
@@ -598,7 +603,7 @@ export default function DebtsScreen() {
                 strokeWidth={5}
                 progress={pctPaid / 100}
                 color={Colors.progressGreen}
-                trackColor={isDark ? "rgba(46,204,113,0.18)" : "rgba(46,204,113,0.2)"}
+                trackColor={isDark ? "rgba(31,78,140,0.18)" : "rgba(46,204,113,0.2)"}
               />
               <View style={styles.headerRingCenter}>
                 <Text style={[styles.headerRingPct, { color: Colors.progressGreen }]}>
@@ -733,7 +738,7 @@ const styles = StyleSheet.create({
   },
   headerBrandName: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -744,12 +749,13 @@ const styles = StyleSheet.create({
   },
   headerBalanceLabel: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     marginBottom: 2,
   },
   headerBalance: {
     fontSize: 22,
-    fontWeight: "800",
+    fontFamily: Fonts.mono,
+    fontWeight: "500",
     letterSpacing: -0.5,
   },
   headerRingWrap: {
@@ -767,12 +773,13 @@ const styles = StyleSheet.create({
   },
   headerRingPct: {
     fontSize: 12,
-    fontWeight: "800",
+    fontFamily: Fonts.mono,
+    fontWeight: "500",
     lineHeight: 14,
   },
   headerRingLabel: {
     fontSize: 9,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   headerSub: {
     fontSize: 12,
@@ -796,7 +803,7 @@ const styles = StyleSheet.create({
   },
   carouselLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 8,
@@ -822,12 +829,12 @@ const styles = StyleSheet.create({
   },
   smBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.3,
   },
   smHeadline: {
     fontSize: 16,
-    fontWeight: "800",
+    fontFamily: Fonts.extraBold, fontWeight: "800",
     lineHeight: 21,
     marginBottom: 6,
   },
@@ -843,9 +850,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   smCTAText: {
-    color: "#05130A",
+    color: "#fff",
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   recCard: {
     width: 220,
@@ -860,7 +867,7 @@ const styles = StyleSheet.create({
   },
   recHeadline: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     lineHeight: 18,
   },
   recBody: {
@@ -876,9 +883,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   recCTAText: {
-    color: "#05130A",
+    color: "#fff",
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   smartLink: {
     flexDirection: "row",
@@ -903,7 +910,7 @@ const styles = StyleSheet.create({
   },
   smartLinkCTA: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     color: Colors.primary,
     flexShrink: 0,
   },
@@ -930,7 +937,7 @@ const styles = StyleSheet.create({
   fabLabel: {
     color: "#fff",
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.2,
   },
   listContent: {
@@ -998,12 +1005,12 @@ const styles = StyleSheet.create({
   },
   govBadgeText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     color: "#7C5A00",
   },
   debtName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   debtTypeBadge: {
     fontSize: 13,
@@ -1012,11 +1019,13 @@ const styles = StyleSheet.create({
   debtBalanceWrap: { alignItems: "flex-end" },
   debtBalance: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: Fonts.mono,
+    fontWeight: "500",
   },
   debtApr: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.mono,
+    fontWeight: "400",
     marginTop: 2,
   },
   debtCardDivider: {
@@ -1046,7 +1055,7 @@ const styles = StyleSheet.create({
   },
   debtStatValue: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   empty: {
     alignItems: "center",
@@ -1063,7 +1072,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   emptyBody: {
     fontSize: 15,
@@ -1082,7 +1091,7 @@ const styles = StyleSheet.create({
   emptyBtnText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   addPromptCard: {
     borderRadius: 16,
@@ -1097,7 +1106,7 @@ const styles = StyleSheet.create({
   },
   addPromptTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     marginBottom: 4,
   },
   addPromptBody: {
@@ -1105,15 +1114,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   addPromptBtn: {
-    borderRadius: 12,
-    paddingVertical: 12,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   addPromptBtnText: {
-    color: "#05130A",
+    color: "#fff",
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   recoCarousel: {
     marginTop: 4,
@@ -1147,7 +1159,7 @@ const styles = StyleSheet.create({
   },
   strategySheetTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     marginBottom: 4,
   },
   strategyOption: {
@@ -1161,6 +1173,6 @@ const styles = StyleSheet.create({
   },
   strategyOptionText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
 });

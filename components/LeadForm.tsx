@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { apiRequest } from "@/lib/query-client";
 
@@ -177,7 +178,7 @@ export function LeadForm({ visible, onClose, triggerType, prefilledDebtType, pre
                     onPress={() => setCallTime(t)}
                     style={[styles.segment, { backgroundColor: callTime === t ? Colors.primary : C.surfaceSecondary, borderColor: callTime === t ? Colors.primary : C.border }]}
                   >
-                    <Text style={[styles.segmentText, { color: callTime === t ? "#05130A" : C.text }]}>{t}</Text>
+                    <Text style={[styles.segmentText, { color: callTime === t ? "#fff" : C.text }]}>{t}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -262,7 +263,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 17, fontWeight: "600" },
+  headerTitle: { fontSize: 17, fontFamily: Fonts.semiBold, fontWeight: "600" },
   closeBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   scroll: { padding: 20, gap: 14 },
   sectionNote: { fontSize: 14, textAlign: "center", marginBottom: 4 },
@@ -280,12 +281,12 @@ const styles = StyleSheet.create({
   consentText: { flex: 1, fontSize: 15, lineHeight: 21 },
   disclaimer: { fontSize: 12, lineHeight: 18, textAlign: "center" },
   privacyLinkWrap: { alignSelf: "center", paddingVertical: 8 },
-  privacyLink: { fontSize: 14, fontWeight: "600" },
+  privacyLink: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
   submitBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  submitBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  submitBtnText: { color: "#fff", fontSize: 17, fontFamily: Fonts.bold, fontWeight: "700" },
   success: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
   successIcon: { width: 100, height: 100, borderRadius: 50, alignItems: "center", justifyContent: "center" },
-  successTitle: { fontSize: 28, fontWeight: "700", textAlign: "center" },
+  successTitle: { fontSize: 28, fontFamily: Fonts.bold, fontWeight: "700", textAlign: "center" },
   successBody: { fontSize: 16, lineHeight: 24, textAlign: "center" },
   statePicker2: { flex: 1 },
   stateRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },

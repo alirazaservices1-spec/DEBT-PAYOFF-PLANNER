@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { withAppUtmParams } from "@/lib/utm";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { approximateDebtRange } from "@/lib/calculations";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     flex: 1,
@@ -371,7 +372,7 @@ const styles = StyleSheet.create({
   forYouBadgeText: {
     color: "#fff",
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.3,
   },
   card: {
@@ -405,7 +406,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     paddingRight: 24,
   },
   cardBody: {
@@ -427,7 +428,7 @@ const styles = StyleSheet.create({
   ctaBtnText: {
     color: "#fff",
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   disclaimer: {
     fontSize: 12,

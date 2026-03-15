@@ -1,0 +1,512 @@
+DebtPath
+Visual, Animation & Sound Design Brief
+Designer and Animator Reference — Companion to Phase 2 Strategy
+1. Design Philosophy
+Everything in DebtPath must answer one question: does this make the person feel capable and in motion, or does it make them feel judged and stuck?
+
+Debt is emotionally loaded. Most finance apps feel clinical, punitive, or cold. DebtPath must feel like a game where the user is winning - even on hard days. The visual and sound language must encode this at every level.
+
+The single most important design rule: Every interaction that moves the user closer to their goal - even logging a minimum payment, even skipping one soda - must feel like winning. Never neutral. Never nothing. Always: you just did something good.
+
+1a. Primary Goal: Stick to the Plan (No Extra Money Required)
+The primary win condition for most users is simply making their minimum payment on time, every time. This prevents late fees, stops interest from compounding faster, and protects their credit score. Design must celebrate this just as enthusiastically as extra payments.
+
+	•	'Plan payment made' is a full XP event, Dex celebration, and streak maintenance action
+	•	Users who cannot afford even $0.50 extra must never feel like second-class users
+	•	The app celebrates consistency above all - 90 days of on-time payments is a bigger deal than one large lump payment
+
+1b. Secondary Goal: Even $0.50/Day Extra Makes a Dramatic Difference
+At 22% APR on a $6,000 balance with $150/month minimum: adding just $0.50/day ($15/month extra) cuts 6 months and $340 in interest. Adding $1/day saves 10+ months. Adding $3/day is transformational.
+
+The visual and copy design must make this math visceral and real - not an abstract percentage, but:
+	•	'That coffee you skipped just moved your debt-free date from March 2027 to October 2026.'
+	•	'You just saved $43 in interest this month. Dex is doing the math dance.'
+	•	'$0.50 a day for 12 months = $892 less in total interest paid.'
+
+The $0.50/day impact calculator should always be visible in the app with real numbers from the user's actual balance and APR. Not hypothetical - personalized to them. Update it every time they log even the smallest extra payment.
+
+2. Color System
+The palette is built around four primary emotions: warmth (orange), trust (blue), growth (green), and achievement (gold). Every color choice must reinforce one of these four signals.
+
+Color Name
+Hex
+When and How to Use
+Dex Orange
+#E8600A
+Streak flame, Dex mascot, celebration moments, urgency (streak at risk). The primary emotional color of the app. Warm, energizing, not aggressive.
+Trust Blue
+#1F4E8C
+XP bars, level indicators, primary action buttons, navigation. Signals stability and progress. Never use for warnings.
+Freedom Green
+#1E7A45
+Interest saved, extra payment wins, debt-free date, positive financial outcomes. Reserved exclusively for good news.
+Achievement Gold
+#D4A017
+Milestone badges, trophies, streak shields, level-up moments. Aspirational. Use sparingly so it retains impact.
+Warm Fill
+#FFF0E5
+Orange-tinted background for streak and Dex sections. Never use as full-screen background.
+Trust Fill
+#EEF4FB
+Blue-tinted background for XP and progress sections.
+Freedom Fill
+#EBF7F0
+Green-tinted background for interest-saved and win sections.
+Risk Red
+#E24B4A
+Streak at risk ONLY. Never use for debt balance display, payment due notices, or any educational content. Limit to 2 screens maximum.
+
+Color Rules
+	•	Never show debt balance in red - use neutral dark gray. Red is reserved for streak emergencies only.
+	•	Never use red for 'payment due' dates - use orange or blue instead.
+	•	Interest saved always displays in green - every dollar saved is a win.
+	•	Minimum contrast ratio: 4.5:1 for all text. Test every color combination.
+
+3. Typography
+
+Use Case
+Font Category
+Recommended Font
+Notes
+App title / celebration headers
+Rounded display font
+Nunito ExtraBold or Poppins ExtraBold (800 weight)
+Large, warm, energetic. Never use for instructional text.
+Dashboard numbers (streak count, XP, debt balance)
+Monospaced or tabular
+JetBrains Mono Medium or SF Mono
+Numbers must never shift width when they change. Monospaced prevents layout jitter.
+Body copy and Dex dialog
+Rounded sans
+Nunito Regular or Quicksand Regular
+Approachable, never corporate. Avoid Inter/Roboto - too clinical.
+Buttons and CTAs
+Rounded sans bold
+Nunito Bold (700 weight)
+Clear, scannable at a glance.
+Legal and footnotes
+System sans
+System default at 11px
+Keep tiny text minimal and unobtrusive.
+
+Font recommendation: Nunito as the primary font system. It has rounded letterforms that feel warm and game-like without being childish. It is Google Fonts open source. Pair with JetBrains Mono for all number displays.
+
+4. The Flame System — Core Visual Identity
+The streak flame is DebtPath's most important visual element. It must grow, intensify, and feel alive as the streak increases. A 3-day flame and a 100-day flame must look distinctly different. The flame is not decoration - it is the emotional core of the streak mechanic.
+
+4a. Flame Design Specifications by Streak Length
+Streak Days
+Character
+Size
+Color Progression
+Animation Speed
+Glow Intensity
+Design Notes
+1-6 days
+Small, gentle
+32x48px
+#F7921E inner, #E8600A outer
+1.8-2.0s
+Low, steady
+Soft, approachable. Should look like a candle, not a bonfire.
+7-13 days
+Medium, established
+40x58px
+#E8600A outer, #F7921E mid, #FCDE5A core
+1.4-1.6s
+Medium, noticeable
+User has built a real habit. Flame feels solid and proud.
+14-29 days
+Strong, confident
+50x68px
+#D85000 base, #E8600A body, #F7921E mid, #FCDE5A tip
+1.1-1.3s
+More visible, warm glow
+Two weeks plus. Flame starts to have a secondary lick forming.
+30-99 days
+Powerful, multi-lick
+60x80px
+Deep orange/red base, multi-tone gradient
+0.8-1.0s
+Strong, dynamic
+Milestone-level flame. Streak Shield badge appears. Multiple flame tongues.
+100+ days
+Legendary, spectacular
+72x96px
+Full color range including white-hot core
+0.6-0.8s
+High, dramatic, particle sparks
+Status symbol. White-hot core. Micro spark particles emitting from top.
+
+4b. Flame Animation Specifications
+	•	Flame body: SVG path with transform-origin at bottom center. Y-scale oscillates between 0.92 and 1.10. X-rotation oscillates between -2.5deg and +2.5deg. Both on separate timing to prevent synchronization.
+	•	Glow layer: Ellipse beneath the flame, blurred 6-10px. Opacity oscillates 0.4-0.9 on a separate 1.4x slower cycle than the flame body.
+	•	Spark particles (100+ day streaks only): Small 3x3px circles emitting from upper third of flame. Random upward trajectory, 0.6-1.0s fade-out. 2-4 active particles at any time.
+	•	At-risk state: Flame opacity drops to 0.3-0.5 on a 0.4s heartbeat pulse. Color shifts toward cooler orange. Dex appears holding/protecting it.
+	•	Flame born animation (day 1): Flame grows from 0 to full size over 0.8s with easing. First frame is a single spark, then ignition.
+
+5. The Dex Mascot — Design & Animation Specifications
+Dex is the emotional engine of DebtPath. Every design decision about Dex must pass this test: does this expression/animation make the user feel that Dex genuinely cares about their specific situation? Dex must never feel like a generic mascot doing stock animations.
+
+5a. Character Design Direction
+	•	Species: Original character - compact rounded fox or abstract woodland creature. Not a direct copy of any existing mascot.
+	•	Proportions: Head 45% of total height. Eyes 35% of face width. Short limbs, round body. Must read clearly at 40x40px (notification size).
+	•	Color: Warm orange-amber primary (#E8850A). Cream/white belly and inner ear. Bright expressive eyes (amber or green iris with large pupil).
+	•	Style: 2D vector, bold outlines, no gradients in final production art. Lottie-compatible rigging for all animations.
+	•	Avoid: Anything that resembles Duolingo's Duo the owl. Avoid green, bird-like forms, or leaf motifs.
+
+5b. Required Animation States
+State Name
+Animation Spec
+When It Fires
+Idle / Default
+Gentle vertical bob, 3.0s loop. Body rises 6px, returns. Eyes do a slow blink every 4-5s. Tail sways slightly out of phase with body bob.
+All default app states. Always running until user action triggers another state.
+Happy - Payment Logged
+Single bounce: body compresses then launches upward 12px, arms raise to 60-degree angle. Eyes widen to 120% size. Duration 0.5s. Returns to idle after.
+Immediately on payment log event. Fires every time, not just first time.
+Celebrating - Milestone
+Full celebration: jump + spin (180-degree turn, 360 for legendary milestones) + arms fully raised. Eyes sparkle (4-point star overlay, 0.3s fade). Duration 0.8-1.2s. Can loop 2-3x for big milestones.
+Level up, streak milestones (7/14/30/60/100 days), debt paid off.
+Worried - Streak at Risk
+Head tilts left 15 degrees. Arms move forward slightly, cupping motion (holding the flame). Eyes narrow to concerned shape (angled inner corners). Gentle left-right head shake, 0.3s period.
+8PM notification if no payment logged. Streak at risk screen.
+Sleeping
+Eyes closed (curved lines). Zzz text floats up from head, 1.5s cycle, alternating opacity. Body shows minimal breathing movement only. Overall opacity 70%.
+7+ days without opening app. Used in re-engagement notifications.
+Encouraging - Missed Days
+Thumbs up pose. Head nod, 1.0s. Eyes show warm half-squint (happy concern). Speech bubble: 'You have got this. No judgment here.'
+3+ days without logging. Forgiveness mechanic screens.
+Onboarding - Clipboard
+Holds clipboard in both arms. Tail raised slightly (alert/excited). Finger taps clipboard in sync with typing animation in speech bubble.
+All 3 onboarding question screens.
+Surprised - Variable Bonus
+Eyes go wide (150%), mouth open O shape, small jump. Arms spread outward. Duration 0.4s then transition to celebrating.
+Random bonus XP day announcement.
+
+5c. Dex Speech Bubble Design
+	•	Rounded rectangle, 16px corner radius. White fill. 1px border in Dex Orange (#E8600A).
+	•	Tail points from bottom-left of bubble toward Dex's mouth area.
+	•	Text appears character by character, 40ms per character. Cursor blinking while typing. This is the typing animation that creates emotional engagement.
+	•	Maximum 2 lines of text in bubble. Never truncate - if copy is longer, it displays in a separate screen element.
+	•	Bubble entrance: scale from 0.8 to 1.0 over 0.2s with slight overshoot (spring easing).
+
+6. Screen-Level Animation Specifications
+
+6a. Payment Logged Screen
+This is the highest-frequency interaction in the app. It must feel satisfying every single time - not just the first time. Variable reward principle: the core animation is consistent, but small random variations keep it fresh.
+
+	•	Trigger: User taps 'Log payment' and confirms amount
+	•	Frame 0-0.1s: Button state changes to loading spinner (prevents double-tap)
+	•	Frame 0.1-0.4s: Button transforms into checkmark with green fill. Scale 0.9 -> 1.05 -> 1.0 (spring bounce)
+	•	Frame 0.2-0.6s: XP number floats up from button center. '+50 XP' in blue, bold Nunito, 18px. Opacity 0->1->0 over 0.6s. Moves upward 40px.
+	•	Frame 0.3-0.7s: Dex happy animation fires simultaneously
+	•	Frame 0.4-0.8s: Streak flame pulses once (1.2x scale, 0.3s return)
+	•	Frame 0.5-1.0s: XP bar increments with smooth transition (not instant jump)
+	•	Frame 0.6-1.2s: Interest saved counter updates with animated number roll (if extra payment)
+
+Variable reward injection: On approximately 15% of payments (random), a secondary celebration fires: additional confetti, 2x XP message ('Bonus day! 2x XP!'), Dex celebration state instead of just happy state. This unpredictability is the core of variable reward psychology.
+
+6b. Streak Milestone Screens (3, 7, 14, 30, 60, 100 days)
+	•	Full-screen takeover: semi-transparent dark overlay (0.8 opacity) animates in over 0.3s
+	•	Card rises from bottom: white card, 20px corner radius, slides up 100% of screen height over 0.5s with spring easing
+	•	Confetti burst: 24-36 colored rectangles (7x7px) emit from card top. Colors: Dex Orange, Trust Blue, Achievement Gold, Freedom Green. Random rotation and fall trajectory. 1.5s animation.
+	•	Milestone number: Large display text (Nunito ExtraBold, 72px) in Dex Orange animates in with scale 0.5->1.1->1.0 over 0.4s
+	•	Dex celebrating: Full celebrate animation plays 2x
+	•	Sound: Milestone fanfare (see sound design section)
+	•	Dismiss: 'CLAIM [XP AMOUNT]' button. Tapping fires one final confetti burst then closes overlay.
+
+6c. Level Up Overlay
+	•	Similar structure to milestone screen but with level badge animation as focal point
+	•	Old level badge: fades out to 0 opacity over 0.3s
+	•	New badge: scales from 0 to 1.15 to 1.0 over 0.5s. Badge glows gold (Achievement Gold color) on entry.
+	•	Level name appears character by character below badge: 'INTEREST FIGHTER' with 30ms per character
+	•	Background: Achievement Gold (#D4A017) at 10% opacity as full-screen tint
+
+6d. Debt Paid Off Screen (The Grand Finale)
+This screen is the most important in the entire app. It must be extraordinary. Users will remember this moment and tell people about it. It justifies the entire product.
+
+	•	Phase 1 (0-0.5s): Screen flashes white once (like a camera flash). Jarring in a good way.
+	•	Phase 2 (0.5-1.5s): Confetti explosion - not card-level, full screen. 60-80 particles. Mix of rectangles and circles. Multiple colors including white and gold.
+	•	Phase 3 (1.0-2.0s): 'DEBT FREE' text animates in at 96px Nunito ExtraBold. Dex in full legendary celebration.
+	•	Phase 4 (2.0-5.0s): Real numbers appear one by one: 'Total interest saved: $X', 'Months ahead of schedule: X', 'Streak maintained: X days'. Each with a soft ping sound.
+	•	Phase 5 (5.0s+): 'Share your win' button appears. Social sharing is a major referral acquisition moment.
+	•	Sound: Full 3-second celebration sequence (see sound design). This is the one sound that gets real production budget.
+
+7. The $0.50/Day Visual System
+This is the feature that makes secondary-goal users understand why even tiny extra amounts matter. The visual design must make the math feel real, personal, and dramatic - not academic.
+
+7a. The Live Impact Counter
+Always visible on the dashboard. Updates in real time when any extra payment is logged. Shows three numbers simultaneously:
+
+Metric
+Visual Style
+Example Value
+Behavior
+Extra paid this month
+Large display number, Trust Blue
+$15.00
+Updates immediately on payment log
+Interest you have avoided
+Large display number, Freedom Green
+$3.82
+Calculated from APR and payment applied to principal
+Days shaved off payoff
+Large display number, Dex Orange
+7 days
+Dramatic - even small amounts produce visible day counts
+Your debt-free date
+Smaller text below main numbers
+Oct 2026
+Updates every time extra payment is logged. This is the emotional anchor.
+
+7b. The Payoff Date Animation
+When a user logs any extra payment, the payoff date must visibly move forward. This is the single most emotionally powerful animation in the app for secondary-goal users.
+
+	•	'Before' date: displayed in muted red-gray, struck through with a diagonal line
+	•	Strike animation: line draws from left to right over 0.4s simultaneously with the extra payment confirmation
+	•	'After' date: appears below in Freedom Green (#1E7A45) at 120% scale, bounces down to 100%
+	•	Dex appears with speech bubble: 'Your debt-free date just moved up [X] days. That was $[amount].'
+	•	If date moves by 30+ days from a single payment: full celebration animation fires
+
+7c. The Interest Savings Bar
+A visual progress bar showing cumulative interest saved vs. what they would have paid. This bar only ever grows - it never goes down. This is a pure positive feedback loop.
+
+	•	Label: 'Interest you have kept in your pocket'
+	•	Bar color: Freedom Green gradient (light to full green, left to right)
+	•	Milestone markers at $50, $100, $250, $500, $1000 saved
+	•	When bar reaches a milestone: Dex jumps, coin sound plays, text updates: 'You just crossed $100 saved in interest. That is a car payment you kept.'
+
+8. Notification Visual Design
+
+8a. Push Notification Templates
+Notification Type
+Copy
+Icon Style
+Design Notes
+Streak maintained (8PM)
+🔥 [Name], your [X]-day streak is safe! Keep going tomorrow.
+Dex Orange icon
+Streak flame emoji + achievement feeling
+Streak at risk (8PM - not logged)
+🔥 [Name]! Your [X]-day streak ends at midnight. One tap saves it.
+Dex Orange icon, URGENT badge
+Loss aversion trigger. This is the highest-urgency notification.
+Interest saved weekly (Sunday)
+💚 You saved $[X] in interest this week. Your debt-free date: [date]
+Freedom Green icon
+Pure positive. No urgency. Celebrate the win.
+Payoff date moved
+📅 Your debt-free date just moved to [date]. [X] months faster!
+Trust Blue icon
+Fires any time extra payment moves the date
+Variable bonus day
+🌟 Bonus day! Log any payment today for 3x XP. Dex is waiting.
+Achievement Gold icon
+Random 1-2x/month. Creates anticipation and urgency.
+7-day re-engagement
+💤 Dex misses you. Your streak is paused, not gone. Tap to restart.
+Sleeping Dex icon
+Never shame. Always restart/redemption framing.
+
+8b. Notification Visual Rules
+	•	Always include Dex as the icon or an emoji that matches the emotional tone
+	•	Never use a generic finance icon (chart, dollar sign alone) as the notification icon
+	•	Copy must fit in 2 lines on a standard lock screen. Test at iPhone SE size.
+	•	Loss-framed notifications (streak risk) use 'ends at midnight' not 'you are about to fail'
+	•	Gain-framed notifications for everything else - emphasize what they are getting, not what they might lose
+
+9. Sound Design Specifications
+Sound is the most underused emotional design tool in finance apps. DebtPath should have a complete sound system that makes users want to open the app, not mute it.
+
+Master principle: Every sound should be something users look forward to. Never punitive. Never harsh. If a user describes the streak-risk sound as 'stressful' in testing, redesign it. The test: would you want to hear this sound every day? If not, rework it.
+
+Sound Event
+Specification
+Trigger
+Reference Feel
+Payment logged
+Single warm coin-drop tone. Mid pitch (~C5). Soft attack, resonant body, 0.3s decay. Marimba or vibraphone timbre. Stereo centered.
+Fires immediately on payment confirmation. Cannot be muted by default (but respects system silence mode).
+Duolingo correct-answer chime / Apple Pay confirm - but warmer
+XP earned
+Short high-register bell. Pitch ~E5. 0.15s attack, 0.15s decay. Brighter and shorter than payment sound. Distinguishable by pitch.
+Accompanies XP float-up animation.
+Zelda item pickup - but more subtle
+Streak maintained
+Two-note ascending chord. Major second interval. Low-mid to mid. 0.4s total. Warm resonance.
+Daily streak-maintained confirmation.
+Duolingo streak continuation chime
+Level up
+3-4 note ascending fanfare. Major key. Full 0.8s. Warm brass or synth. Satisfying resolution on final note.
+Level up overlay.
+Duolingo league promotion / shortened Zelda item fanfare
+Milestone (7/14/30 days)
+Extended 1.2s version of level-up fanfare. Additional harmony layer. Slightly more orchestral.
+Streak milestone screens.
+More elaborate than level-up but not as long as debt payoff
+Streak at risk
+Two-note descending minor second. Soft attack. Low urgency - concerned, not alarming. 0.3s total.
+8PM notification if nothing logged.
+iMessage notification - slightly lower and softer
+Variable bonus
+Upward sparkle: 3 rapid ascending notes. Bright, surprising, delightful. 0.3s.
+Bonus XP day announcement.
+Coin sparkle sound - like finding something unexpected
+Interest saved (weekly)
+Three overlapping soft plinks at E5, G5, C6. Each 0.1s apart. Feels like coins landing. 0.6s total.
+Weekly interest-saved notification.
+Original DebtPath signature sound - no direct reference
+Debt paid off
+Full 3.0s celebration. Ascending fanfare (0.8s) + confetti burst crackle (0.5s) + triumphant final chord (1.0s) + resonant decay (0.7s). Full stereo mix. This is the only sound requiring real composer budget.
+Debt cleared screen. Play at full volume, always.
+Game show winner / fireworks finale. This is the moment users will remember for years.
+Dex vocalization (optional)
+Short (<0.4s) wordless character sounds. Warm, friendly. Approval: bright up-glide. Concern: soft down-glide. Surprise: upward yelp.
+Accompanies Dex state changes. Toggle in settings.
+Animal Crossing speech tones - do not use this feature if it tests as annoying
+
+10. Illustration and Asset Requirements
+
+10a. Dex Mascot Asset List
+Asset Name
+Format
+Color Variant
+Animation Notes
+Dex Idle
+Lottie JSON
+Full color, all sizes
+3s loop, minimum 24fps
+Dex Happy
+Lottie JSON
+Full color, all sizes
+0.5s one-shot, seamless return to idle
+Dex Celebrating
+Lottie JSON
+Full color, all sizes
+0.8s, 1.2s extended version for big milestones
+Dex Worried (holding flame)
+Lottie JSON
+Full color, all sizes
+Continuous loop with 0.3s head shake
+Dex Sleeping
+Lottie JSON
+Desaturated 40%, all sizes
+Zzz float loop, 1.5s
+Dex Encouraging
+Lottie JSON
+Full color, all sizes
+Thumbs up + head nod, 1.0s
+Dex Onboarding (clipboard)
+Lottie JSON
+Full color, large only
+Finger tap loop during typing
+Dex Surprised
+Lottie JSON
+Full color, all sizes
+0.4s burst, transition to celebrate
+Dex Static (all key states)
+PNG @2x and @3x
+Full color
+For use in notifications and places Lottie does not render
+
+10b. Flame Asset List
+Asset Name
+Format
+Color
+Notes
+Flame 1-6 days
+Lottie JSON
+Orange (#E8600A)
+Small, 2.0s loop
+Flame 7-13 days
+Lottie JSON
+Orange + gold core
+Medium, 1.5s loop
+Flame 14-29 days
+Lottie JSON
+Deep orange + gold + white
+Large, 1.2s loop
+Flame 30-99 days
+Lottie JSON
+Multi-color gradient, secondary lick
+XL, 1.0s loop
+Flame 100+ days
+Lottie JSON
+Full spectrum + particle sparks
+XXL with particles, 0.8s loop
+Flame at risk
+Lottie JSON
+Desaturated orange, dim
+Pulse animation, 0.4s cycle
+Flame ignition (day 1)
+Lottie JSON
+Orange
+0.8s ignition one-shot + loop transition
+Flame held by Dex
+Lottie JSON
+Orange, small size
+Integrated with Dex worried state - coordinated animation
+
+10c. UI Illustration Assets
+Asset
+Format
+Color
+Usage Notes
+Confetti burst (milestone)
+Lottie JSON
+Multi-color
+24-36 particles, 1.5s fall, used on milestone + level-up screens
+Coin fly animation
+Lottie JSON
+Gold #D4A017
+Single coin tumble + bounce, 0.6s, reusable per-payment
+XP bar fill particle
+Lottie JSON
+Trust Blue + white
+3 small particles at fill edge, continuous while filling
+Payoff date strikethrough
+SVG animated
+Red-gray
+Line draws left to right over 0.4s
+New date drop-in
+SVG animated
+Freedom Green
+Scale in from 0.8 + spring bounce
+Interest counter tick
+SVG animated
+Freedom Green
+Number odometer roll, 0.8s per increment
+Achievement badge frames
+PNG @2x and @3x
+Per level color
+8 badge designs - one per level tier, plus special milestone badges
+Streak Shield badge
+PNG @2x and @3x
+Achievement Gold
+Overlays on flame at 30+ day streaks
+
+11. Screen Layout Principles
+
+11a. Dashboard Layout Priority
+The dashboard shows: (1) Dex with today's greeting, (2) streak flame + count, (3) XP bar + level, (4) payoff date + impact counter, (5) today's action button. This priority order must not change.
+
+	•	Dex and streak flame must be visible without scrolling on all phones including iPhone SE (4-inch)
+	•	The payoff date must update visibly when any extra payment is logged - even while the user is on this screen
+	•	'Log payment today' button must be visible without scrolling and must always be the most prominent interactive element
+
+11b. Information Hierarchy for Numbers
+	•	Streak count: Nunito ExtraBold, 48px or larger. Dex Orange. Most visible number on screen.
+	•	XP and level: Nunito Bold, 24px. Trust Blue. Secondary prominence.
+	•	Debt balance: Nunito Regular, 18px. Neutral dark gray. Never red. Not emotionally loaded.
+	•	Interest saved: Nunito Bold, 20px. Freedom Green. Prominently featured but not dominant.
+	•	Payoff date: Nunito ExtraBold, 28px. Changes color from muted red-gray to Freedom Green when extra payments are logged.
+
+11c. Accessibility Requirements
+	•	All text: minimum 4.5:1 contrast ratio against background. Test Dex Orange on white (#FFF) - it passes at 4.5:1 at the standard value.
+	•	All tap targets: minimum 44x44pt. Dex himself should be tappable and trigger a random encouraging speech bubble.
+	•	Sound effects: all sounds have visual equivalents. XP float-up covers for XP earned sound. Animation covers for all milestone sounds.
+	•	Reduce motion: when system 'reduce motion' is enabled, replace bounce animations with simple fade transitions. Keep all functional elements visible.
+	•	Font scaling: all layouts must accommodate iOS Dynamic Type up to 'Accessibility Large' without breaking the dashboard layout.
+
+DebtPath — Visual, Animation & Sound Design Brief | Confidential | For Designer & Animator Use

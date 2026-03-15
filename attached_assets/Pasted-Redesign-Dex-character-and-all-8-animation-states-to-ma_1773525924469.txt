@@ -1,0 +1,89 @@
+Redesign Dex character and all 8 animation 
+states to match the official design brief.
+
+CHARACTER DESIGN:
+- Compact rounded fox/woodland creature
+- NOT a bird, NOT green, NOT like Duolingo owl
+- Head = 45% of total height
+- Eyes = 35% of face width
+- Short limbs, round body
+- Primary color: warm orange-amber #E8850A
+- Cream/white belly and inner ear
+- Bright expressive eyes, large pupils
+- Bold outlines, 2D vector style
+- Must be readable at 40x40px
+
+8 ANIMATION STATES using React Native Animated:
+
+1. IDLE (default, always running):
+- Gentle vertical bob
+- Body rises 6px and returns
+- 3.0s loop
+- Eyes slow blink every 4-5s
+- Tail sways slightly out of phase
+
+2. HAPPY (fires on every payment logged):
+- Body compresses then launches 12px up
+- Arms raise to 60 degrees
+- Eyes widen to 120% size
+- Duration 0.5s
+- Returns to idle automatically
+
+3. CELEBRATING (level up, milestone, debt cleared):
+- Jump + 180 degree spin
+- Arms fully raised
+- Eyes sparkle (4-point star overlay)
+- Duration 0.8-1.2s
+- Loops 2-3x for big milestones
+- 360 spin for legendary moments
+
+4. WORRIED (streak at risk):
+- Head tilts left 15 degrees
+- Arms forward in cupping motion
+- Eyes narrow to concerned shape
+- Left-right head shake 0.3s period
+- Continuous loop
+
+5. SLEEPING (7+ days no app open):
+- Eyes closed (curved lines)
+- Zzz floats up, 1.5s cycle
+- Minimal breathing movement
+- Overall opacity 70%
+
+6. ENCOURAGING (3+ days no payment):
+- Thumbs up pose
+- Head nod 1.0s
+- Warm half-squint eyes
+- Speech bubble: "You've got this. 
+  No judgment here."
+
+7. ONBOARDING CLIPBOARD:
+- Holds clipboard in both arms
+- Tail raised (alert/excited)
+- Finger taps clipboard in sync 
+  with speech bubble typing
+
+8. SURPRISED (variable bonus XP):
+- Eyes wide to 150%
+- Mouth open O shape
+- Small jump, arms spread
+- 0.4s duration
+- Transitions to celebrating
+
+DEX SPEECH BUBBLE:
+- Rounded rect, 16px corner radius
+- White fill
+- 1px border #E8600A
+- Tail from bottom-left toward Dex mouth
+- Text types character by character 40ms each
+- Cursor blinks while typing
+- Bubble entrance: scale 0.8 to 1.0 
+  over 0.2s with spring easing
+- Max 2 lines of text
+
+DEX IS TAPPABLE:
+- Tapping Dex triggers random encouraging 
+  speech bubble from a list of 8 messages
+- Small bounce animation on tap
+
+Send QR when done. ty!

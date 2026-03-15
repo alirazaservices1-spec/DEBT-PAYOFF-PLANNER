@@ -13,9 +13,15 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
+import { soundManager } from "@/utils/SoundManager";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useGame } from "@/context/GameContext";
+import { useStreakReminder } from "@/context/StreakReminderContext";
+import { useGoal } from "@/context/GoalContext";
 import {
   monthsToText,
   MonthlySnapshot,
@@ -23,14 +29,18 @@ import {
   debtsEligibleForStrategy,
 } from "@/lib/calculations";
 import { RecommendationBar } from "@/components/RecommendationBar";
+import {
+  usePaymentEffects,
+  PaymentEffectsOverlay,
+} from "@/components/PaymentSuccessEffects";
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const DEBT_COLORS = [
-  "#3498DB","#9B59B6","#E67E22","#E74C3C","#1ABC9C",
-  "#F39C12","#2ECC71","#E91E63","#00BCD4","#FF5722",
+  "#3498DB","#9B59B6","#E67E22","#E74C3C","#1F4E8C",
+  "#F39C12","#1E7A45","#E91E63","#00BCD4","#FF5722",
 ];
 
 function formatMonth(date: Date): string {
@@ -126,11 +136,11 @@ function AmortizationRow({
                       <Text style={{ color: Colors.progressGreen }}>✓ {debt.name} — paid off</Text>
                     ) : (
                       <>
-                        <Text style={{ fontWeight: "800", color: Colors.primary }}>
+                        <Text style={{ fontFamily: Fonts.extraBold, fontWeight: "800", color: Colors.primary }}>
                           {fmtFull(b.payment)}
                         </Text>
                         <Text style={{ color: C.text }}> to </Text>
-                        <Text style={{ fontWeight: "700", color: C.text }}>{debt.name}</Text>
+                        <Text style={{ fontFamily: Fonts.bold, fontWeight: "700", color: C.text }}>{debt.name}</Text>
                         <Text style={{ color: C.text }}> on the {ordinal(debt.dueDate)}</Text>
                       </>
                     )}
@@ -289,7 +299,7 @@ function CalendarView({
                       <Text style={[
                         calStyles.dayNum,
                         { color: todayCell ? Colors.primary : C.text },
-                        todayCell && { fontWeight: "700" },
+                        todayCell && { fontFamily: Fonts.bold, fontWeight: "700" },
                       ]}>
                         {day}
                       </Text>
@@ -380,16 +390,16 @@ const calStyles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  monthTitle: { fontSize: 17, fontWeight: "700" },
+  monthTitle: { fontSize: 17, fontFamily: Fonts.bold, fontWeight: "700" },
   dayHeaders: { flexDirection: "row", paddingHorizontal: 8, paddingVertical: 6 },
   dayHeaderCell: { flex: 1, alignItems: "center" },
-  dayHeaderText: { fontSize: 12, fontWeight: "600" },
+  dayHeaderText: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600" },
   week: { flexDirection: "row" },
   dayCell: { flex: 1, minHeight: 58, padding: 3 },
   dayNum: { fontSize: 13 },
   chips: { gap: 2, marginTop: 2 },
   chip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
-  chipText: { fontSize: 9, fontWeight: "700", color: "#05130A" },
+  chipText: { fontSize: 9, fontFamily: Fonts.bold, fontWeight: "700", color: "#fff" },
   moreText: { fontSize: 9 },
   legend: { flexDirection: "row", gap: 16, justifyContent: "center", padding: 12, borderRadius: 10, borderWidth: 1, margin: 8 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -408,12 +418,12 @@ const calStyles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  popupTitle: { fontSize: 18, fontWeight: "700" },
+  popupTitle: { fontSize: 18, fontFamily: Fonts.bold, fontWeight: "700" },
   popupRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   popupDot: { width: 12, height: 12, borderRadius: 6 },
-  popupName: { fontSize: 15, fontWeight: "600" },
+  popupName: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600" },
   popupStatus: { fontSize: 13, fontWeight: "500", marginTop: 1 },
-  popupAmount: { fontSize: 17, fontWeight: "800" },
+  popupAmount: { fontSize: 17, fontFamily: Fonts.mono, fontWeight: "500" },
   markPaidBtn: {
     marginTop: 2,
     paddingHorizontal: 8,
@@ -423,11 +433,11 @@ const calStyles = StyleSheet.create({
   },
   markPaidBtnText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     color: Colors.progressGreen,
   },
   popupClose: { borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 4 },
-  popupCloseText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  popupCloseText: { color: "#fff", fontFamily: Fonts.bold, fontWeight: "700", fontSize: 15 },
 });
 
 export default function PlanScreen() {
@@ -437,6 +447,12 @@ export default function PlanScreen() {
   const insets = useSafeAreaInsets();
   const { activeResult, debts, selectedStrategy, payments, logPayment } = useDebts();
   const { fmt, fmtFull } = useCurrency();
+  const { awardXp, recordPaymentForStreak, triggerDex, triggerFlamePulse, grantBonusXp } = useGame();
+  const {
+    xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
+  } = usePaymentEffects();
+  const { cancelTonightsReminder } = useStreakReminder();
+  const { addGoalProgress } = useGoal();
 
   // All sections closed by default; tap a row to see how much to pay each debt that month
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set());
@@ -597,16 +613,53 @@ export default function PlanScreen() {
             C={C}
             fmt={fmt}
             onMarkPayment={async (event) => {
-              await logPayment({
-                debtId: event.debtId,
-                amount: event.amount,
-                date: event.scheduledDate.toISOString(),
-                isMissed: false,
-              });
+              await runPayment(
+                async () => {
+                  await logPayment({
+                    debtId: event.debtId,
+                    amount: event.amount,
+                    date: event.scheduledDate.toISOString(),
+                    isMissed: false,
+                  });
+                  awardXp("LOG_PAYMENT");
+                  recordPaymentForStreak();
+                  cancelTonightsReminder();
+                  const milestoneHit = await addGoalProgress(event.amount);
+                  if (milestoneHit !== null) awardXp("HIT_MILESTONE");
+                  return { milestoneHit: milestoneHit ?? null };
+                },
+                {
+                  onBonus: () => grantBonusXp(50),
+                  onFlamePulse: () => triggerFlamePulse(),
+                  onDex: (isBonus) => {
+                    if (isBonus) {
+                      triggerDex("surprised", 450);
+                      setTimeout(() => triggerDex("celebrating", 3000), 450);
+                    } else {
+                      triggerDex("happy");
+                    }
+                  },
+                  onClose: () => setCalendarVisible(false),
+                  onSuccessAfterSheetClosed: (_isBonus, milestoneHit) => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    soundManager.play("payment_logged");
+                    if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+                  },
+                }
+              );
             }}
           />
         </View>
       </Modal>
+
+      <PaymentEffectsOverlay
+        xpFloatActive={xpFloatActive}
+        xpAmount={xpAmount}
+        xpY={xpY}
+        xpOpacity={xpOpacity}
+        xpScale={xpScale}
+        bonusActive={bonusActive}
+      />
     </View>
   );
 }
@@ -620,8 +673,8 @@ const styles = StyleSheet.create({
   },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
-  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
-  headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
+  headerBrandName: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
+  headerTitle: { fontSize: 28, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.5 },
   headerSub: { fontSize: 16, marginTop: 2 },
   calFab: {
     position: "absolute",
@@ -639,7 +692,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  calFabText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  calFabText: { color: "#fff", fontFamily: Fonts.bold, fontWeight: "700", fontSize: 15 },
   calModal: { flex: 1 },
   calModalHeader: {
     flexDirection: "row",
@@ -649,7 +702,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  calModalTitle: { fontSize: 20, fontWeight: "700" },
+  calModalTitle: { fontSize: 20, fontFamily: Fonts.bold, fontWeight: "700" },
   summaryRow: {
     flexDirection: "row",
     paddingVertical: 12,
@@ -657,7 +710,7 @@ const styles = StyleSheet.create({
   },
   summaryStat: { flex: 1, alignItems: "center" },
   summaryLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" },
-  summaryValue: { fontSize: 17, fontWeight: "700", marginTop: 3 },
+  summaryValue: { fontSize: 17, fontFamily: Fonts.mono, fontWeight: "500", marginTop: 3 },
   summaryDivider: { width: StyleSheet.hairlineWidth },
   excludedBanner: {
     flexDirection: "row",
@@ -680,7 +733,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  colHeaderText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  colHeaderText: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   listContent: { gap: 2, padding: 8, paddingTop: 4 },
   monthRow: {
     flexDirection: "row",
@@ -696,12 +749,12 @@ const styles = StyleSheet.create({
   },
   monthLeft: { flex: 1, gap: 2 },
   monthNum: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
-  monthDate: { fontSize: 15, fontWeight: "600" },
+  monthDate: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600" },
   monthFollowLabel: { fontSize: 11, marginTop: 4, lineHeight: 14 },
   paidOffBadge: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
-  paidOffText: { fontSize: 13, fontWeight: "600" },
+  paidOffText: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600" },
   monthRight: { alignItems: "flex-end" },
-  monthBalance: { fontSize: 15, fontWeight: "700" },
+  monthBalance: { fontSize: 15, fontFamily: Fonts.bold, fontWeight: "700" },
   monthInterest: { fontSize: 13, marginTop: 1 },
   breakdown: {
     marginTop: 2,
@@ -713,7 +766,7 @@ const styles = StyleSheet.create({
   },
   breakdownScheduleTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 6,
@@ -728,13 +781,13 @@ const styles = StyleSheet.create({
     padding: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  breakdownName: { fontSize: 14, fontWeight: "600" },
+  breakdownName: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
   breakdownStats: { flexDirection: "row", gap: 8, marginTop: 2 },
   breakdownStat: { fontSize: 13 },
-  breakdownPayment: { fontSize: 14, fontWeight: "700" },
+  breakdownPayment: { fontSize: 14, fontFamily: Fonts.bold, fontWeight: "700" },
   breakdownBalance: { fontSize: 13, marginTop: 2 },
   emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 14 },
   emptyIcon: { width: 96, height: 96, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontSize: 22, fontWeight: "700" },
+  emptyTitle: { fontSize: 22, fontFamily: Fonts.bold, fontWeight: "700" },
   emptyBody: { fontSize: 15, textAlign: "center", lineHeight: 22 },
 });

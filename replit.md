@@ -1,6 +1,18 @@
-# DebtFree - Payoff Planner & Tracker
+# DebtPath — Payoff Planner & Tracker
 
 A comprehensive debt management app built with Expo React Native and Express backend. Targets elderly users (65+) with Duolingo-inspired design, WCAG AA/AAA contrast compliance, and big bold typography.
+
+## Design System (Designer Handoff — Milestone 2 + Color/Typography Overhaul)
+
+- **Fonts**: Nunito (400/600/700/800/900) + JetBrains Mono (400/500) via @expo-google-fonts — loaded in _layout.tsx with useFonts
+- **Colors**: `constants/colors.ts` exports `Colors` object (orange=#E8600A, blue=#1F4E8C, green=#1E7A45, gold=#D4A017, red=#E24B4A) and `D` alias. Dark backgrounds: bg=#0E0F11, surface=#161719, neutral (not green-tinted). Old hex greens replaced globally.
+- **Font constants**: `constants/fonts.ts` — `Fonts.regular/semiBold/bold/extraBold/black/mono`. All stylesheets in all screens and components now use Nunito for text and JetBrains Mono for ALL numbers (debt balances, XP, streak count, dates, amounts).
+- **Typography rules**: fontWeight 900→Fonts.black, 800→Fonts.extraBold, 700→Fonts.bold, 600→Fonts.semiBold. Numbers (currency, counts, percentages) use Fonts.mono regardless of weight.
+- **FlameIcon**: `components/FlameIcon.tsx` — 5-tier SVG flame (react-native-svg) animated with React Native Animated, scales by streak tier
+- **XPProgressBar**: Blue gradient (#1F4E8C→#4B9EF8), 14px, white particle dot at leading edge, 1.4s cubic-bezier transition
+- **StreakWidget**: Uses FlameIcon (5 SVG tiers) instead of Ionicons
+- **ImpactCounter**: `components/ImpactCounter.tsx` — $0.50/day extra payment impact widget on dashboard (extra this month, interest avoided, days shaved, debt-free date)
+- **SoundManager**: `utils/SoundManager.ts` — expo-av based sound system. Pre-generates 9 WAV files in `assets/sounds/` (payment_logged, xp_earned, streak_maintained, level_up, milestone, streak_at_risk, variable_bonus, interest_saved, debt_paid_off). Preloads all sounds at app start via `soundManager.preload()` in `_layout.tsx`. `soundManager.play(name)` used in GameContext, dashboard, and DebtClearedOverlay. `soundManager.setEnabled(bool)` with AsyncStorage persistence. Sound toggle in Settings screen. `debt_paid_off` bypasses iOS silent mode.
 
 ## Architecture
 
@@ -16,7 +28,7 @@ A comprehensive debt management app built with Expo React Native and Express bac
 ```
 app/
   _layout.tsx       - Root layout with providers: CurrencyProvider, NotificationProvider, DebtProvider
-  onboarding.tsx    - 3-step onboarding flow (value prop → add debt → payoff reveal)
+  onboarding.tsx    - 9-screen Duolingo-style onboarding: Splash → Dex Intro → Question Intro → Q1/Q2/Q3 → Celebration (CLAIM +100 XP) → Streak Born → Streak Goal Picker
   settings.tsx      - Settings screen with appearance + currency picker
   (tabs)/
     index.tsx         - Debts tab: add, edit, delete, view debts + notification bell icon
@@ -48,6 +60,51 @@ server/
   routes.ts       - Lead API endpoints, PostgreSQL persistence
   templates/      - Landing page HTML for production static builds
 ```
+
+## Gamification System (Milestone 2 — Step 1)
+
+### GameContext (`context/GameContext.tsx`)
+Global XP + level engine persisted in AsyncStorage (`@debtfree_game_v1`).
+
+**XP Rewards:**
+- `LOG_PAYMENT` → +50 XP
+- `PAY_OFF_DEBT` → +500 XP
+- `COMPLETE_ONBOARDING` → +100 XP
+- `HIT_MILESTONE` → +200 XP
+- `DAILY_STREAK` → +25 XP
+
+**Level thresholds:** 0, 200, 500, 1000, 2000, 4000 (then +3000/level after)
+
+**API:** `useGame()` exposes `totalXp`, `level`, `currentLevelXp`, `nextLevelXp`, `progress`, `awardXp(event, meta?)`, `celebration`, `dismissCelebration`.
+
+### Celebration Overlays
+- `CelebrationHost` — mounts both overlays at root level; auto-dismisses after 3 s or on tap
+- `LevelUpOverlay` — full-screen confetti + animated level badge for level-up events
+- `DebtClearedOverlay` — pulsing ring + checkmark for `PAY_OFF_DEBT` events
+
+### XPProgressBar (`components/XPProgressBar.tsx`)
+Shown at the top of the Dashboard tab. Displays current level badge, animated fill bar, and XP needed for next level.
+
+### Dex Mascot System (Milestone 2 — Step 2)
+
+`components/DexMascot.tsx` — SVG-drawn animated character using `react-native-svg` + Reanimated.
+- **TODO**: Replace `<DexArtwork>` SVG with the final Lottie file when ready. All Reanimated motion logic stays unchanged.
+- 5 states with distinct animation loops: `idle` (slow bob), `happy` (spring bounce), `celebrating` (jump + rotate wiggle), `encouraging` (gentle tilt), `sleeping` (slow drift + Zzz)
+- Accepts `state: DexState` and `size?: number` props
+
+`components/DexCard.tsx` — Dashboard card that houses Dex + contextual speech bubble.
+- Computes initial state on mount from `prevLastOpenedAt` (7+ days → sleeping) and payment history (3+ days → encouraging)
+- Reacts to `celebration.type` changes (level_up / debt_cleared → celebrating)
+- `happy` is triggered externally by the dashboard's log-payment handler via `triggerDex("happy")`
+
+**GameContext additions**: `dexState: DexState`, `triggerDex(state, durationMs?)`, `prevLastOpenedAt`, `totalXpRef` for synchronous XP reads. `awardXp` auto-triggers `celebrating` on debt payoff and level up.
+
+### Integration Points for Future Steps
+- Call `awardXp("LOG_PAYMENT")` when a payment is logged
+- Call `awardXp("PAY_OFF_DEBT", { debtName })` when a debt is paid off
+- Call `awardXp("COMPLETE_ONBOARDING")` when onboarding completes
+- Call `awardXp("HIT_MILESTONE")` at payoff milestones
+- Call `awardXp("DAILY_STREAK")` from the streak system
 
 ## Key Features
 

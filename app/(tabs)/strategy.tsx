@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
@@ -604,7 +605,7 @@ export default function StrategyScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.sliderQuickBtnText, { color: sliderValue === v ? "#05130A" : C.textSecondary }]}>
+                  <Text style={[styles.sliderQuickBtnText, { color: sliderValue === v ? "#fff" : C.textSecondary }]}>
                     {v === 0 ? "None" : `+$${v}`}
                   </Text>
                 </Pressable>
@@ -850,13 +851,13 @@ const styles = StyleSheet.create({
   },
   headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
-  headerBrandName: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
-  headerTitle: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
+  headerBrandName: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
+  headerTitle: { fontSize: 28, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.5 },
   headerSub: { fontSize: 16, marginTop: 2 },
   scroll: { padding: 16, gap: 12 },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     paddingHorizontal: 2,
@@ -872,7 +873,7 @@ const styles = StyleSheet.create({
   },
   singleDebtNoticeText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textAlign: "center",
     lineHeight: 22,
   },
@@ -898,7 +899,7 @@ const styles = StyleSheet.create({
   },
   taxNoticeTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     marginBottom: 3,
   },
   taxNoticeBody: {
@@ -940,7 +941,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  bestBadgeText: { color: "#fff", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+  bestBadgeText: { color: "#fff", fontSize: 12, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: 0.5 },
   stratCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   stratCheckWrap: {
     width: 28,
@@ -964,17 +965,17 @@ const styles = StyleSheet.create({
   },
   benefitChipText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.2,
   },
-  stratLabel: { fontSize: 16, fontWeight: "700" },
+  stratLabel: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700" },
   stratDesc: { fontSize: 15, marginTop: 2, lineHeight: 20 },
   stratDivider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
   stratStats: { flexDirection: "row", justifyContent: "space-between" },
   stratStat: {},
   stratStatLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
-  stratStatValue: { fontSize: 15, fontWeight: "700", marginTop: 2 },
-  stratDetailText: { fontSize: 13, fontWeight: "600", marginTop: 3 },
+  stratStatValue: { fontSize: 15, fontFamily: Fonts.bold, fontWeight: "700", marginTop: 2 },
+  stratDetailText: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600", marginTop: 3 },
   learnMoreRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -982,7 +983,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   learnMoreBtn: { paddingVertical: 2 },
-  learnMoreText: { fontSize: 13, fontWeight: "600" },
+  learnMoreText: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600" },
   sliderCard: {
     borderRadius: 14,
     borderWidth: 1,
@@ -990,8 +991,8 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sliderTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sliderLabel: { fontSize: 16, fontWeight: "600" },
-  sliderValue: { fontSize: 20, fontWeight: "800" },
+  sliderLabel: { fontSize: 16, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  sliderValue: { fontSize: 20, fontFamily: Fonts.mono, fontWeight: "500" },
   sliderTrackWrap: { gap: 10 },
   sliderTrack: {
     height: 6,
@@ -1037,13 +1038,13 @@ const styles = StyleSheet.create({
   },
   impactStat: { flex: 1, alignItems: "center" },
   impactLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 },
-  impactValue: { fontSize: 18, fontWeight: "700", marginTop: 2 },
+  impactValue: { fontSize: 18, fontFamily: Fonts.bold, fontWeight: "700", marginTop: 2 },
   impactDivider: { width: StyleSheet.hairlineWidth },
   customOrderCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   orderRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   orderNum: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  orderNumText: { color: "#05130A", fontSize: 13, fontWeight: "700" },
-  orderName: { fontSize: 15, fontWeight: "600" },
+  orderNumText: { color: "#fff", fontSize: 13, fontFamily: Fonts.bold, fontWeight: "700" },
+  orderName: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600" },
   orderBalance: { fontSize: 13 },
   orderHandle: { padding: 4 },
   orderArrows: { flexDirection: "column", gap: 0 },
@@ -1066,7 +1067,7 @@ const styles = StyleSheet.create({
   },
   extraMethodLabel: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   extraMethodTagline: {
     fontSize: 13,
@@ -1086,7 +1087,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     flex: 1,
     marginRight: 12,
   },
@@ -1125,7 +1126,7 @@ const styles = StyleSheet.create({
   modalPrimaryText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
   modalSecondaryBtn: {
     alignItems: "center",

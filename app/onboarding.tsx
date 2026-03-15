@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+// ─── Onboarding — Duolingo-style, 9 screens, shows ONCE ──────────────────────
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,1075 +7,1073 @@ import {
   Pressable,
   Dimensions,
   ScrollView,
-  Platform,
   Animated,
+  Easing,
+  Platform,
   useColorScheme,
-  Modal,
   Image,
 } from "react-native";
-import { Image as ExpoImage } from "expo-image";
+
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
-import { DebtForm } from "@/components/DebtForm";
-import { Debt } from "@/lib/calculations";
-import { useCurrency } from "@/context/CurrencyContext";
+import { useGame } from "@/context/GameContext";
+import { DexMascot } from "@/components/DexMascot";
+import { FlameIcon } from "@/components/FlameIcon";
 
+const { width: SW, height: SH } = Dimensions.get("window");
+// true on iOS/Android (runs off JS thread), false on web (react-native-web requirement)
+const ND = Platform.OS !== "web";
 
-const DARK = {
-  // Bright, Duolingo-style onboarding palette (still called DARK for reuse)
-  // WCAG AA Required: Contrast ratio must be 4.5:1 minimum. Verify with
-  // https://webaim.org/resources/contrastchecker/
-  bg: "#FFFFFF",
-  card: "#FFFFFF",
-  cardBorder: "#E0F0E6",
-  text: "#05130A",
-  textSub: "#335547",
-  input: "#F4FBF7",
-  inputBorder: "#C9DFD2",
-  teal: "#2ECC71",
-  tealDim: "rgba(46,204,113,0.15)",
+// ─── AsyncStorage keys ────────────────────────────────────────────────────────
+const AKEY_GOAL       = "@debtpath_onboarding_goal";
+const AKEY_DEBT_RANGE = "@debtpath_onboarding_debt_range";
+const AKEY_MOTIVATION = "@debtpath_onboarding_motivation";
+const AKEY_STREAK     = "@debtpath_streak_goal_days";
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+// ─── Color tokens ─────────────────────────────────────────────────────────────
+const P = {
+  text:      "#1A1A1A",
+  sub:       "#335547",
+  green:     Colors.buttonGreen,
+  greenDk:   Colors.buttonGreenDark,
+  orange:    "#E8600A",
+  orangeLight:"#FFF3E0",
+  blue:      "#1F4E8C",
+  blueDk:    "#163A6B",
+  gold:      "#D4A017",
+  goldLight: "#FFFBE6",
+  disabled:  "#B8BCC4",
 };
 
-type Step = 1 | 2 | 3;
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+const CONFETTI_COLORS = ["#FF6B6B","#FFD93D","#6BCB77","#4D96FF","#FF6BFF","#E8850A","#00C9A7"];
 
-
-const FREE_FEATURES = [
-  "Choose a strategy: Snowball, Avalanche, Tsunami, or another.",
-  "Discover the exact date you will be 100% debt-free.",
-  "See how an extra $25+/mo shaves years off your timeline.",
-  "Track your progress with simple, intuitive charts.",
-];
-
-export default function OnboardingScreen() {
-  const insets = useSafeAreaInsets();
-  const { addDebt, setOnboardingDone, debts } = useDebts();
-  const { fmt } = useCurrency();
-  const scheme = useColorScheme();
-  const isDarkMode = scheme === "dark";
-  const [step, setStep] = useState<Step>(1);
-  const [incomingStep, setIncomingStep] = useState<Step | null>(null);
-  const exitAnim = useRef(new Animated.Value(0)).current;
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const screenWidth = Dimensions.get("window").width;
-  const pendingAnim = useRef<{ outTo: number; next: Step } | null>(null);
-
-  const [formVisible, setFormVisible] = useState(false);
-
-  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const botPad = Math.max(insets.bottom, 20) + (Platform.OS === "web" ? 34 : 0);
+function Confetti() {
+  const particles = useRef(
+    Array.from({ length: 30 }, (_, i) => ({
+      x: (i / 30) * SW + Math.random() * (SW / 30),
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      anim: new Animated.Value(0),
+      delay: Math.random() * 1300,
+      size: 7 + Math.random() * 10,
+      isRect: i % 3 === 0,
+    }))
+  ).current;
 
   useEffect(() => {
-    if (incomingStep === null || !pendingAnim.current) return;
-    const { outTo, next } = pendingAnim.current;
-    pendingAnim.current = null;
-    Animated.parallel([
-      Animated.timing(exitAnim, { toValue: outTo, duration: 220, useNativeDriver: true }),
-      Animated.timing(enterAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => {
-      setStep(next);
-      setIncomingStep(null);
-      exitAnim.setValue(0);
+    particles.forEach((p) => {
+      Animated.loop(
+        Animated.timing(p.anim, {
+          toValue: 1,
+          duration: 1900 + Math.random() * 1400,
+          delay: p.delay,
+          useNativeDriver: ND,
+        })
+      ).start();
     });
-  }, [incomingStep]);
+  }, []);
 
-  const animateToStep = (next: Step, direction: "forward" | "back" = "forward") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const outTo = direction === "forward" ? -screenWidth : screenWidth;
-    const inFrom = direction === "forward" ? screenWidth : -screenWidth;
-    exitAnim.setValue(0);
-    enterAnim.setValue(inFrom);
-    pendingAnim.current = { outTo, next };
-    setIncomingStep(next);
-  };
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {particles.map((p, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            left: p.x,
+            width: p.size,
+            height: p.size * (p.isRect ? 1.7 : 1),
+            borderRadius: p.isRect ? 2 : p.size / 2,
+            backgroundColor: p.color,
+            opacity: p.anim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [1, 0.8, 0] }),
+            transform: [
+              { translateY: p.anim.interpolate({ inputRange: [0, 1], outputRange: [-16, SH + 20] }) },
+              { rotate: p.anim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "540deg"] }) },
+            ],
+          }}
+        />
+      ))}
+    </View>
+  );
+}
 
-  const handleEnter = async () => {
-    // AUTH GATE DISABLED FOR GUEST MODE — V1 REQUIREMENT
-    // No login, account creation, or paywall between this button and the app.
+// ─── Typewriter hook ──────────────────────────────────────────────────────────
+function useTypewriter(text: string, speed = 40) {
+  const [display, setDisplay] = useState("");
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    setDisplay("");
+    setDone(false);
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      setDisplay(text.slice(0, i));
+      if (i >= text.length) { clearInterval(iv); setDone(true); }
+    }, speed);
+    return () => clearInterval(iv);
+  }, [text]);
+  return { display, done };
+}
+
+// ─── Speech bubble (above Dex, tail points down) ─────────────────────────────
+function SpeechBubble({ text, isDark }: { text: string; isDark: boolean }) {
+  const scaleAnim = useRef(new Animated.Value(0.88)).current;
+  useEffect(() => {
+    Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 280, useNativeDriver: ND }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }], alignSelf: "center" }}>
+      <View style={[sb.bubble, { backgroundColor: isDark ? "#1A2535" : "#FFFFFF", borderColor: isDark ? "#2A3D55" : P.orange }]}>
+        <Text style={[sb.text, { color: isDark ? "#FFFFFF" : P.text }]}>{text}</Text>
+        <View style={[sb.tail, { borderTopColor: isDark ? "#1A2535" : "#FFFFFF" }]} />
+        <View style={[sb.tailBorder, { borderTopColor: isDark ? "#2A3D55" : P.orange }]} />
+      </View>
+    </Animated.View>
+  );
+}
+const sb = StyleSheet.create({
+  bubble: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    maxWidth: SW - 60,
+    position: "relative",
+  },
+  text: {
+    fontSize: 18,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 27,
+  },
+  tail: {
+    position: "absolute",
+    bottom: -12,
+    alignSelf: "center",
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderTopWidth: 13,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    zIndex: 2,
+  },
+  tailBorder: {
+    position: "absolute",
+    bottom: -14,
+    alignSelf: "center",
+    width: 0,
+    height: 0,
+    borderLeftWidth: 11,
+    borderRightWidth: 11,
+    borderTopWidth: 14,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    zIndex: 1,
+  },
+});
+
+// ─── Orange progress bar ──────────────────────────────────────────────────────
+function ProgressBar({ current, total }: { current: number; total: number }) {
+  const pct = current / total;
+  const widthAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(widthAnim, { toValue: pct, duration: 380, useNativeDriver: false }).start();
+  }, [pct]);
+
+  return (
+    <View style={pb.track}>
+      <Animated.View style={[pb.fill, { width: widthAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }]} />
+    </View>
+  );
+}
+const pb = StyleSheet.create({
+  track: { height: 10, backgroundColor: "#FFE0B2", borderRadius: 5, overflow: "hidden", marginHorizontal: 20, marginBottom: 4 },
+  fill:  { height: "100%", backgroundColor: P.orange, borderRadius: 5 },
+});
+
+// ─── Option card — orange when selected ──────────────────────────────────────
+function OptionCard({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        oc.card,
+        {
+          backgroundColor: selected ? P.orange : "#FFFFFF",
+          borderColor: selected ? P.orange : "#E8E8E8",
+          borderWidth: selected ? 2 : 1.5,
+        },
+      ]}
+    >
+      <Text style={[oc.label, { color: selected ? "#FFFFFF" : P.text }]}>
+        {label}
+      </Text>
+      {selected && <Ionicons name="checkmark-circle" size={22} color="rgba(255,255,255,0.9)" />}
+    </Pressable>
+  );
+}
+const oc = StyleSheet.create({
+  card:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 10 },
+  label: { fontSize: 16, fontFamily: Fonts.semiBold, fontWeight: "600", flex: 1, lineHeight: 22 },
+});
+
+// ─── Green button ─────────────────────────────────────────────────────────────
+function GreenBtn({ label, onPress, disabled, icon }: { label: string; onPress: () => void; disabled?: boolean; icon?: string }) {
+  return (
+    <Pressable onPress={disabled ? undefined : onPress} style={({ pressed }) => [{ opacity: disabled ? 0.42 : pressed ? 0.88 : 1 }]}>
+      <LinearGradient
+        colors={disabled ? ["#B8BCC4","#A0A5AD"] : [P.green, P.greenDk]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={btn.base}
+      >
+        <Text style={btn.label}>{label}</Text>
+        {icon && <Ionicons name={icon as any} size={18} color="#fff" />}
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+// ─── Blue button ──────────────────────────────────────────────────────────────
+function BlueBtn({ label, onPress, disabled, icon }: { label: string; onPress: () => void; disabled?: boolean; icon?: string }) {
+  return (
+    <Pressable onPress={disabled ? undefined : onPress} style={({ pressed }) => [{ opacity: disabled ? 0.42 : pressed ? 0.88 : 1 }]}>
+      <LinearGradient
+        colors={disabled ? ["#B8BCC4","#A0A5AD"] : [P.blue, P.blueDk]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={btn.base}
+      >
+        <Text style={btn.label}>{label}</Text>
+        {icon && <Ionicons name={icon as any} size={18} color="#fff" />}
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+// ─── Orange button ────────────────────────────────────────────────────────────
+function OrangeBtn({ label, onPress, disabled, icon }: { label: string; onPress: () => void; disabled?: boolean; icon?: string }) {
+  return (
+    <Pressable onPress={disabled ? undefined : onPress} style={({ pressed }) => [{ opacity: disabled ? 0.42 : pressed ? 0.88 : 1 }]}>
+      <LinearGradient
+        colors={disabled ? ["#B8BCC4","#A0A5AD"] : [P.orange, "#C46A04"]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={btn.base}
+      >
+        <Text style={btn.label}>{label}</Text>
+        {icon && <Ionicons name={icon as any} size={18} color="#fff" />}
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+const btn = StyleSheet.create({
+  base:  { borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 56 },
+  label: { color: "#fff", fontSize: 17, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: 0.3 },
+});
+
+// ─── Back button ──────────────────────────────────────────────────────────────
+function BackBtn({ onPress, isDark, topPad = 0 }: { onPress: () => void; isDark: boolean; topPad?: number }) {
+  const iconColor = isDark ? "rgba(255,255,255,0.8)" : "#4A5568";
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      style={{
+        position: "absolute",
+        top: topPad + 10,
+        left: 12,
+        zIndex: 50,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)",
+        borderRadius: 20,
+        paddingLeft: 6,
+        paddingRight: 12,
+        paddingVertical: 7,
+      }}
+    >
+      <Ionicons name="chevron-back" size={22} color={iconColor} />
+      <Text style={{ fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600", color: iconColor }}>
+        Back
+      </Text>
+    </Pressable>
+  );
+}
+
+// ─── Main onboarding component ────────────────────────────────────────────────
+export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
+  const { setOnboardingDone } = useDebts();
+  const { awardXp, grantBonusXp, triggerDex, triggerCelebration, level } = useGame();
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
+
+  const [step, setStep] = useState<Step>(1);
+  const [q1, setQ1] = useState<string | null>(null);
+  const [q2, setQ2] = useState<string | null>(null);
+  const [q3, setQ3] = useState<string | null>(null);
+  const [streakDays, setStreakDays] = useState<number | null>(null);
+  const [xpClaimed, setXpClaimed] = useState(false);
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const bg = isDark ? "#080E14" : "#FFFFFF";
+  const topPad = insets.top;
+  const botPad = Math.max(insets.bottom, 16);
+
+  const goTo = useCallback((next: Step, dir: "fwd" | "back" = "fwd") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const outTo  = dir === "fwd" ? -SW : SW;
+    const inFrom = dir === "fwd" ?  SW : -SW;
+    Animated.timing(slideAnim, { toValue: outTo, duration: 210, useNativeDriver: ND }).start(() => {
+      slideAnim.setValue(inFrom);
+      setStep(next);
+      Animated.timing(slideAnim, { toValue: 0, duration: 210, useNativeDriver: ND }).start();
+    });
+  }, [slideAnim]);
+
+  // Skip entire onboarding (already have app)
+  const handleSkipAll = async () => {
     await setOnboardingDone();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace("/(tabs)");
   };
 
-  const handleOnboardingDebtSave = async (data: Omit<Debt, "id" | "dateAdded">) => {
-    await addDebt(data);
-    setFormVisible(false);
-    if (step !== 3) animateToStep(3);
+  // Claim the 100 XP on celebration screen, then go to streak born
+  const handleClaimXp = () => {
+    if (xpClaimed) return;
+    setXpClaimed(true);
+    awardXp("COMPLETE_ONBOARDING");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    AsyncStorage.multiSet([
+      [AKEY_GOAL,       q1 ?? ""],
+      [AKEY_DEBT_RANGE, q2 ?? ""],
+      [AKEY_MOTIVATION, q3 ?? ""],
+    ]);
+    setTimeout(() => goTo(8), 700);
   };
 
+  // Commit to streak goal → finish onboarding, go to dashboard
+  const handleCommitStreak = async () => {
+    if (!streakDays) return;
+    const xpMap: Record<number, number> = { 7: 150, 14: 300, 30: 500, 60: 750 };
+    const bonus = xpMap[streakDays] ?? 150;
+    grantBonusXp(bonus);
+    await AsyncStorage.setItem(AKEY_STREAK, String(streakDays));
+    await setOnboardingDone();
+    triggerDex("celebrating");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace("/(tabs)");
+    // Show level-up popup centered on the dashboard once navigation settles
+    setTimeout(() => {
+      triggerCelebration({ type: "level_up", level: level > 1 ? level : 2 }, 8000);
+    }, 450);
+  };
+
+  const sp = { isDark, bg, topPad, botPad, goTo, handleSkipAll };
+
   return (
-    <View style={[styles.root, { overflow: "hidden" }]}>
-      {/* Exiting screen */}
-      <Animated.View style={[styles.root, { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, transform: [{ translateX: exitAnim }] }]}>
-        {step === 1 && <Screen1 onNext={() => animateToStep(2)} onSkip={handleEnter} onOpenForm={() => setFormVisible(true)} topPad={topPad} botPad={botPad} />}
-        {step === 2 && <Screen2 onNext={() => setFormVisible(true)} onSkip={handleEnter} onBack={() => animateToStep(1, "back")} topPad={topPad} botPad={botPad} />}
-        {step === 3 && (
-          <InventoryScreen
-            debts={debts}
-            onAddAnother={() => setFormVisible(true)}
-            onChooseStrategy={handleEnter}
-            topPad={topPad}
-            botPad={botPad}
-            fmt={fmt}
+    <View style={{ flex: 1, backgroundColor: bg, overflow: "hidden" }}>
+      <Animated.View style={{ flex: 1, transform: [{ translateX: slideAnim }] }}>
+
+        {/* Screen 1 — Splash */}
+        {step === 1 && <SplashScreen {...sp} />}
+
+        {/* Screen 2 — Dex intro "Hi there!" */}
+        {step === 2 && (
+          <DexIntroScreen {...sp}
+            text={"Hi there! I'm Dex! 👋"}
+            dexState="happy"
+            nextStep={3}
+            backStep={1}
           />
         )}
-      </Animated.View>
-      {/* Incoming screen (only rendered during transition) */}
-      {incomingStep !== null && (
-        <Animated.View style={[styles.root, { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, transform: [{ translateX: enterAnim }] }]}>
-          {incomingStep === 1 && <Screen1 onNext={() => {}} onSkip={() => {}} onOpenForm={() => {}} topPad={topPad} botPad={botPad} />}
-          {incomingStep === 2 && <Screen2 onNext={() => {}} onSkip={() => {}} onBack={() => {}} topPad={topPad} botPad={botPad} />}
-          {incomingStep === 3 && (
-            <InventoryScreen
-              debts={debts}
-              onAddAnother={() => {}}
-              onChooseStrategy={() => {}}
-              topPad={topPad}
-              botPad={botPad}
-              fmt={fmt}
-            />
-          )}
-        </Animated.View>
-      )}
 
-      {step !== 3 && (
-        <View style={[styles.dotsRow, { bottom: botPad - 8 }]}>
-          {([1, 2] as Step[]).map((s) => (
-          <View
-            key={s}
-            style={[
-              styles.dot,
-              {
-                width: s === step ? 24 : 8,
-                backgroundColor: s === step
-                  ? DARK.teal
-                  : isDarkMode
-                  ? "rgba(255,255,255,0.28)"
-                  : "#C9DFD2",
-              },
-            ]}
+        {/* Screen 3 — Question intro */}
+        {step === 3 && (
+          <DexIntroScreen {...sp}
+            text={"Just 3 quick questions to build\nyour personalized debt payoff plan!"}
+            dexState="celebrating"
+            nextStep={4}
+            backStep={2}
           />
-          ))}
-        </View>
-      )}
-      <Modal
-        visible={formVisible}
-        animationType="slide"
-        presentationStyle="formSheet"
-        onRequestClose={() => setFormVisible(false)}
-      >
-        <DebtForm
-          initial={undefined}
-          onSave={handleOnboardingDebtSave}
-          onCancel={() => setFormVisible(false)}
-          title="Add A Debt"
-        />
-      </Modal>
+        )}
+
+        {/* Screen 4 — Q1: Debt goal */}
+        {step === 4 && (
+          <QuestionScreen {...sp} progress={1} total={3}
+            question="What is your main debt goal?"
+            options={[
+              "💳  Pay off credit cards",
+              "🏠  Pay off my mortgage faster",
+              "📋  Pay off student loans",
+              "🏢  Pay off business debt",
+              "🗂️  Get completely debt-free",
+            ]}
+            selected={q1} onSelect={setQ1}
+            onNext={() => goTo(5)} onBack={() => goTo(3, "back")}
+          />
+        )}
+
+        {/* Screen 5 — Q2: Debt range */}
+        {step === 5 && (
+          <QuestionScreen {...sp} progress={2} total={3}
+            question="How much total debt do you have?"
+            options={["Under $5,000","$5,000 – $15,000","$15,000 – $50,000","Over $50,000"]}
+            selected={q2} onSelect={setQ2}
+            onNext={() => goTo(6)} onBack={() => goTo(4, "back")}
+          />
+        )}
+
+        {/* Screen 6 — Q3: Motivation */}
+        {step === 6 && (
+          <QuestionScreen {...sp} progress={3} total={3}
+            question="How motivated are you to become debt-free?"
+            options={[
+              "🔥  Super motivated – let's crush it!",
+              "💪  Pretty motivated",
+              "😐  Just getting started",
+              "😟  Feeling a bit overwhelmed",
+            ]}
+            selected={q3} onSelect={setQ3}
+            onNext={() => goTo(7)} onBack={() => goTo(5, "back")}
+          />
+        )}
+
+        {/* Screen 7 — Celebration */}
+        {step === 7 && (
+          <CelebrationScreen {...sp}
+            q1={q1} q2={q2}
+            xpClaimed={xpClaimed}
+            onClaim={handleClaimXp}
+            onBack={() => goTo(6, "back")}
+          />
+        )}
+
+        {/* Screen 8 — Streak Born */}
+        {step === 8 && (
+          <StreakBornScreen {...sp}
+            onNext={() => goTo(9)}
+            onBack={() => goTo(7, "back")}
+          />
+        )}
+
+        {/* Screen 9 — Streak Goal Picker */}
+        {step === 9 && (
+          <StreakGoalScreen {...sp}
+            streakDays={streakDays}
+            onSelect={setStreakDays}
+            onCommit={handleCommitStreak}
+            onBack={() => goTo(8, "back")}
+          />
+        )}
+
+      </Animated.View>
     </View>
   );
 }
 
-const S1_TABS = ["Overview", "How It Works"];
-
-function Screen1({ onNext, onSkip, onOpenForm, topPad, botPad }: any) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const tabContentAnim = useRef(new Animated.Value(1)).current;
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
-  const [activeTab, setActiveTab] = useState(0);
-
-  const switchTab = (index: number) => {
-    if (index === activeTab) return;
-    Animated.sequence([
-      Animated.timing(tabContentAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(tabContentAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
-    setTimeout(() => setActiveTab(index), 150);
-  };
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-  }, []);
-
-  const tabBarBg = isDark ? "rgba(8,14,20,0.95)" : "rgba(231,248,236,0.97)";
-
+// ─── Screen 1: Splash ─────────────────────────────────────────────────────────
+function SplashScreen({ isDark, bg, topPad, botPad, goTo, handleSkipAll }: any) {
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? "#080E14" : DARK.bg }]}>
+    <View style={[s.screen, { backgroundColor: bg, paddingTop: topPad, paddingBottom: botPad }]}>
       <LinearGradient
-        colors={isDark ? ["#0A1628", "#080E14", "#050A0E"] : ["#E7F8EC", "#FFFFFF"]}
+        colors={isDark ? ["#0A1628","#080E14"] : ["#FFFFFF","#FFFFFF"]}
         style={StyleSheet.absoluteFill}
       />
-
-      {/* Tab bar */}
-      <View style={[styles.s1TabBar, { paddingTop: topPad + 8, backgroundColor: tabBarBg }]}>
-        {S1_TABS.map((tab, i) => (
-          <Pressable
-            key={tab}
-            onPress={() => switchTab(i)}
-            style={[styles.s1Tab, activeTab === i && { borderBottomColor: DARK.teal, borderBottomWidth: 2 }]}
-          >
-            <Text style={[styles.s1TabText, { color: activeTab === i ? DARK.teal : (isDark ? "#FFFFFF" : "#7A9B83") }]}>
-              {tab}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={s.splashCenter}>
+        <Image
+          source={require("@/assets/images/iconApp.png")}
+          defaultSource={require("@/assets/images/iconApp.png")}
+          style={s.splashLogo}
+          resizeMode="contain"
+          // Remove any platform fade so the icon appears instantly once the view mounts.
+          // (fadeDuration is Android-only; iOS shows it immediately by default.)
+          fadeDuration={0}
+        />
+        <Text style={[s.splashName, { color: isDark ? "#FFFFFF" : "#05130A" }]}>DebtPath</Text>
+        <Text style={[s.splashTagline, { color: isDark ? "rgba(255,255,255,0.68)" : "#335547" }]}>
+          Your path to debt freedom.{"\n"}Free. Forever.
+        </Text>
       </View>
 
-      {/* Tab content — single screen, content swaps */}
-      <Animated.View style={{ flex: 1, opacity: tabContentAnim }}>
-        {activeTab === 0 ? (
-          /* ── Overview tab ── */
-          <View style={[styles.s1Content, { paddingTop: topPad + 68, paddingBottom: botPad + 56 }]}>
-            <View style={styles.s1IconWrap}>
-              <ExpoImage
-                source={require("@/assets/images/iconApp.png")}
-                style={styles.s1LogoImg}
-                contentFit="contain"
-                transition={0}
-                cachePolicy="memory-disk"
-              />
-            </View>
-
-            <Animated.View style={{ opacity: fadeAnim, gap: 10, alignItems: "center", width: "100%" }}>
-              <Text style={[styles.s1Title, { color: isDark ? "#FFFFFF" : DARK.text }]}>
-                Break Free{"\n"}From Debt.
-              </Text>
-              <Text style={[styles.s1Subtitle, { color: "#1F9E55" }]}>Finally.</Text>
-              <Text style={[styles.s1Body, { color: isDark ? "rgba(255,255,255,0.92)" : DARK.textSub, fontWeight: "700" }]}>
-                Free Features Included In The App:
-              </Text>
-              <View style={styles.s1List}>
-                {FREE_FEATURES.map((t) => (
-                  <View key={t} style={styles.s1ListRow}>
-                    <View style={styles.s1CheckDot}>
-                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                    </View>
-                    <Text style={[styles.s1ListText, { color: isDark ? "rgba(255,255,255,0.88)" : DARK.textSub }]}>
-                      {t}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </Animated.View>
-
-            <View style={styles.s1Btns}>
-              <Pressable onPress={onOpenForm} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
-                <LinearGradient
-                  colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.primaryBtn}
-                >
-                  <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Add A Debt</Text>
-                </LinearGradient>
-              </Pressable>
-              <Pressable onPress={() => switchTab(1)} hitSlop={10} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
-                <Text style={[styles.learnMoreLink, { color: isDark ? "#FFFFFF" : "#4A6B53" }]}>
-                  How it works →
-                </Text>
-              </Pressable>
-            </View>
-            <Text style={[styles.privacyNote, { color: isDark ? "#FFFFFF" : "#9AB8A4" }]}>
-              🔒 100% Private - No account needed to start
-            </Text>
-          </View>
-        ) : (
-          /* ── How It Works tab ── */
-          <ScrollView
-            contentContainerStyle={[styles.s1Section, { paddingTop: topPad + 68, paddingBottom: botPad + 56 }]}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={{ gap: 4, width: "100%" }}>
-              <Text style={[styles.s2Title, { color: isDark ? "#FFFFFF" : DARK.text }]}>How It{"\n"}Works.</Text>
-              <Text style={[styles.s2Sub, { color: isDark ? "#FFFFFF" : DARK.textSub }]}>
-                A simple, proven system to pay off your loans faster.
-              </Text>
-            </View>
-            {FEATURE_CARDS.map((card) => (
-              <View
-                key={card.title}
-                style={[styles.featureCard, {
-                  backgroundColor: isDark ? "#0D1520" : DARK.card,
-                  borderColor: isDark ? "#1A2535" : DARK.cardBorder,
-                  borderLeftColor: card.color,
-                }]}
-              >
-                <View style={[styles.featureStepBadge, { backgroundColor: card.color + "22" }]}>
-                  <Text style={[styles.featureStepNum, { color: card.color }]}>{card.step}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.featureTitle, { color: isDark ? "#FFFFFF" : DARK.text }]}>{card.title}</Text>
-                  <Text style={[styles.featureDesc, { color: isDark ? "#FFFFFF" : DARK.textSub }]}>{card.desc}</Text>
-                </View>
-              </View>
-            ))}
-            <View style={[styles.s1Btns, { width: "100%" }]}>
-              <Pressable onPress={onOpenForm} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
-                <LinearGradient
-                  colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.primaryBtn}
-                >
-                  <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Add A Debt</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
-          </ScrollView>
-        )}
-      </Animated.View>
+      <View style={[s.splashBtns, { paddingBottom: botPad + 8 }]}>
+        <GreenBtn label="GET STARTED" onPress={() => goTo(2)} icon="arrow-forward" />
+        <Pressable onPress={handleSkipAll} hitSlop={12}>
+          <Text style={[s.alreadyHave, { color: isDark ? "rgba(255,255,255,0.4)" : "#8FA89A" }]}>
+            I ALREADY HAVE THE APP
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-const FEATURE_CARDS = [
-  {
-    step: 1,
-    icon: "create",
-    title: "Add Your Debts",
-    desc: "Securely log your balances and interest rates. Your data stays private and stored locally.",
-    color: "#3498DB",
-  },
-  {
-    step: 2,
-    icon: "swap-vertical",
-    title: "Pick Your Strategy",
-    desc: "Compare Snowball, Avalanche, or Highest Payment. Or, drag-and-drop to create a custom plan.",
-    color: DARK.teal,
-  },
-  {
-    step: 3,
-    icon: "calendar",
-    title: "See Your Debt-Free Date",
-    desc: "Instantly see the exact month and year you'll be 100% debt-free based on your plan.",
-    color: "#9B59B6",
-  },
-  {
-    step: 4,
-    icon: "calculator",
-    title: "Fast-Track Your Progress",
-    desc: "Run what-if scenarios to see how even small extra payments shave years off your timeline.",
-    color: "#E67E22",
-  },
-];
-
-function Screen2({ onNext, onSkip, onBack, topPad, botPad }: any) {
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const cardAnims = useRef(FEATURE_CARDS.map(() => new Animated.Value(60))).current;
-  const fadeAnims = useRef(FEATURE_CARDS.map(() => new Animated.Value(0))).current;
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+// ─── Screens 2 & 3: Dex intro / Question intro ────────────────────────────────
+function DexIntroScreen({ isDark, bg, topPad, botPad, goTo, text, dexState, nextStep, backStep }: any) {
+  const { display, done } = useTypewriter(text, 40);
+  const bobAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.stagger(100, FEATURE_CARDS.map((_, i) =>
-      Animated.parallel([
-        Animated.timing(cardAnims[i], { toValue: 0, duration: 350, useNativeDriver: true }),
-        Animated.timing(fadeAnims[i], { toValue: 1, duration: 350, useNativeDriver: true }),
+    const bob = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bobAnim, {
+          toValue: -10,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: ND,
+        }),
+        Animated.timing(bobAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: ND,
+        }),
       ])
-    )).start();
+    );
+    bob.start();
+    return () => bob.stop();
   }, []);
 
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? "#080E14" : DARK.bg }]}>
-      <LinearGradient
-        colors={isDark ? ["#0A1628", "#080E14"] : ["#E7F8EC", "#FFFFFF"]}
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={[s.screen, { backgroundColor: bg, paddingTop: topPad, paddingBottom: botPad }]}>
+      <LinearGradient colors={isDark ? ["#0A1628","#080E14"] : ["#FFFFFF","#FFFFFF"]} style={StyleSheet.absoluteFill} />
+      <BackBtn onPress={() => goTo(backStep, "back")} isDark={isDark} topPad={topPad} />
+
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 28 }}>
+        <SpeechBubble text={display + (done ? "" : "▌")} isDark={isDark} />
+        <Animated.View style={{ transform: [{ translateY: bobAnim }] }}>
+          <DexMascot state={dexState} size={180} />
+        </Animated.View>
+      </View>
+
+      <View style={[s.footer, { paddingBottom: botPad + 8 }]}>
+        <OrangeBtn label="CONTINUE" onPress={() => goTo(nextStep)} icon="arrow-forward" />
+      </View>
+    </View>
+  );
+}
+
+// ─── Screens 4–6: Question screens ────────────────────────────────────────────
+function QuestionScreen({ isDark, bg, topPad, botPad, progress, total, question, options, selected, onSelect, onNext, onBack }: any) {
+  return (
+    <View style={[s.screen, { backgroundColor: bg, paddingTop: topPad + 8 }]}>
+      <LinearGradient colors={isDark ? ["#0A1628","#080E14"] : ["#FFFFFF","#FFFFFF"]} style={StyleSheet.absoluteFill} />
+      <BackBtn onPress={onBack} isDark={isDark} topPad={topPad} />
+
+      {/* Orange progress bar — sits below the back button */}
+      <View style={{ marginTop: 50 }}>
+        <ProgressBar current={progress} total={total} />
+      </View>
+
+      {/* Dex + speech bubble */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 20 }}>
+        <DexMascot state="onboarding_clipboard" size={72} />
+        <View style={[s.qBubble, {
+          backgroundColor: isDark ? "#1A2535" : "#FFFFFF",
+          borderColor: isDark ? "#2A3D55" : P.orange,
+          flex: 1,
+        }]}>
+          <Text style={[s.qBubbleText, { color: isDark ? "#FFFFFF" : P.text }]}>{question}</Text>
+          <View style={[s.qBubbleTail, { borderRightColor: isDark ? "#1A2535" : "#FFFFFF" }]} />
+          <View style={[s.qBubbleTailBorder, { borderRightColor: isDark ? "#2A3D55" : P.orange }]} />
+        </View>
+      </View>
+
       <ScrollView
-        contentContainerStyle={[styles.s2Content, { paddingTop: topPad + 16, paddingBottom: botPad + 64 }]}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={onBack} style={styles.backBtn} hitSlop={16}>
-          <Ionicons
-            name="chevron-back"
-            size={28}
-            color={isDark ? "rgba(255,255,255,0.5)" : "#5A7A62"}
+        {options.map((opt: string) => (
+          <OptionCard
+            key={opt}
+            label={opt}
+            selected={selected === opt}
+            onPress={() => {
+              onSelect(opt);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
           />
-        </Pressable>
+        ))}
+      </ScrollView>
 
-        <View style={{ gap: 8, marginBottom: 24 }}>
-          <Text
-            style={[
-              styles.s2Title,
-              { color: isDark ? "#FFFFFF" : DARK.text },
-            ]}
-          >
-            Your Blueprint.
-          </Text>
-          <Text style={[styles.s2TitleGreen, { color: DARK.teal }]}>To Zero Debt.</Text>
-          <Text
-            style={[
-              styles.s2Sub,
-              {
-                color: isDark
-                  ? "rgba(255,255,255,0.92)"
-                  : DARK.textSub,
-              },
-            ]}
-          >
-            A simple, proven system to pay off your loans faster and save thousands in interest.
-          </Text>
-        </View>
+      <View style={[s.footer, { paddingBottom: botPad + 8 }]}>
+        <OrangeBtn label="CONTINUE" onPress={onNext} disabled={!selected} icon="arrow-forward" />
+      </View>
+    </View>
+  );
+}
 
-        {FEATURE_CARDS.map((card, i) => {
-          const isExpanded = expandedIndex === i;
-          return (
-            <Animated.View
-              key={card.title}
+// ─── Screen 7: Celebration ────────────────────────────────────────────────────
+function CelebrationScreen({ isDark, bg, topPad, botPad, q1, q2, xpClaimed, onClaim, onBack }: any) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 500, useNativeDriver: ND }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 80, useNativeDriver: ND }),
+    ]).start();
+  }, []);
+
+  // Extract short label from Q1 answer (strip leading emoji + spaces)
+  const shortGoal = (q1 as string | null)
+    ? (q1 as string).replace(/^[\S]+\s{2}/, "").split(" ").slice(0, 4).join(" ")
+    : "Debt Free";
+  const shortDebt = (q2 as string | null) ?? "N/A";
+
+  const badges = [
+    { label: "GOAL",  value: shortGoal,     bg: "#FFF3E0", textColor: P.orange,  labelColor: "#B8700A" },
+    { label: "DEBT",  value: shortDebt,     bg: "#EFF6FF", textColor: P.blue,    labelColor: "#3B5F8C" },
+    { label: "LEVEL", value: "Debt Rookie", bg: "#FFFBE6", textColor: P.gold,    labelColor: "#8B6914" },
+  ];
+
+  return (
+    <View style={[s.screen, { backgroundColor: isDark ? "#080E14" : "#FFFFFF", paddingTop: topPad }]}>
+      <Confetti />
+      <BackBtn onPress={onBack} isDark={isDark} topPad={topPad} />
+
+      <Animated.View style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: fadeAnim,
+        transform: [{ scale: scaleAnim }],
+        paddingHorizontal: 24,
+        gap: 18,
+      }}>
+        <DexMascot state="celebrating" size={130} />
+
+        <Text style={[s.celebTitle, { color: isDark ? "#FFFFFF" : P.text }]}>
+          You're ready to crush{"\n"}your debt!
+        </Text>
+        <Text style={[s.celebSub, { color: isDark ? "rgba(255,255,255,0.65)" : "#335547" }]}>
+          Your personalized plan is ready.
+        </Text>
+
+        {/* 3 stat badges */}
+        <View style={s.badgeRow}>
+          {badges.map((b) => (
+            <View
+              key={b.label}
               style={[
-                styles.featureCard,
+                s.badge,
                 {
-                  borderLeftColor: card.color,
-                  opacity: fadeAnims[i],
-                  transform: [{ translateX: cardAnims[i] }],
-                  backgroundColor: isDark ? "#0D1520" : DARK.card,
-                  borderColor: isDark ? "#1A2535" : DARK.cardBorder,
+                  backgroundColor: isDark ? "#0D1520" : b.bg,
+                  borderColor: isDark ? "#1F2E44" : b.textColor + "44",
                 },
               ]}
             >
-              <Pressable
-                onPress={() => setExpandedIndex(isExpanded ? null : i)}
-                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-              >
-                <View style={[styles.featureStepBadge, { backgroundColor: card.color + "22", marginRight: 14 }]}>
-                  <Text style={[styles.featureStepNum, { color: card.color }]}>{card.step}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.featureTitleRow}>
-                    <Text
-                      style={[
-                        styles.featureTitle,
-                        { color: isDark ? "#FFFFFF" : DARK.text },
-                      ]}
-                    >
-                      {card.title}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.featureDesc,
-                      {
-                        color: isDark
-                          ? "rgba(255,255,255,0.7)"
-                          : DARK.textSub,
-                      },
-                    ]}
-                    numberOfLines={isExpanded ? undefined : 2}
-                  >
-                    {card.desc}
-                  </Text>
-                  {isExpanded && (
-                    <Text
-                      style={[
-                        styles.featureDesc,
-                        {
-                          marginTop: 6,
-                          color: isDark
-                            ? "rgba(255,255,255,0.8)"
-                            : DARK.text,
-                        },
-                      ]}
-                    >
-                      Ready to see this in action? Continue to start your plan and use these tools on your own numbers.
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            </Animated.View>
-          );
-        })}
-
-        <View style={styles.s2Btns}>
-          <Pressable onPress={onNext} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}>
-            <LinearGradient
-              colors={[Colors.buttonGreen, Colors.buttonGreenDark]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.primaryBtn}
-            >
-              <Text style={styles.primaryBtnText}>Build My Blueprint</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </LinearGradient>
-          </Pressable>
-          <Pressable onPress={onSkip} hitSlop={12}>
-            <Text style={[styles.laterLink, { color: isDark ? "#FFFFFF" : "#4A6B53" }]}>
-              I'll do this later
-            </Text>
-          </Pressable>
+              <Text style={[s.badgeLabel, { color: isDark ? "rgba(255,255,255,0.45)" : b.labelColor }]}>
+                {b.label}
+              </Text>
+              <Text style={[s.badgeValue, { color: isDark ? "#FFFFFF" : b.textColor }]} numberOfLines={2}>
+                {b.value}
+              </Text>
+            </View>
+          ))}
         </View>
-      </ScrollView>
+      </Animated.View>
+
+      <View style={[s.footer, { paddingBottom: botPad + 8 }]}>
+        <BlueBtn
+          label={xpClaimed ? "Claimed! Continuing…" : "CLAIM +100 XP 🎉"}
+          onPress={onClaim}
+          disabled={xpClaimed}
+          icon={xpClaimed ? "checkmark" : "gift"}
+        />
+      </View>
     </View>
   );
 }
 
+// ─── Screen 8: Streak Born ────────────────────────────────────────────────────
+const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-function InventoryScreen({ debts, onAddAnother, onChooseStrategy, topPad, botPad, fmt }: any) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
-  const checkAnim = useRef(new Animated.Value(0)).current;
-  const contentAnim = useRef(new Animated.Value(0)).current;
+function StreakBornScreen({ isDark, bg, topPad, botPad, onNext, onBack }: any) {
+  const today = new Date().getDay();
+  const dayOrder = Array.from({ length: 7 }, (_, i) => DAYS[(today + i) % 7]);
+
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const numAnim   = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    Animated.sequence([
-      Animated.spring(checkAnim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
-      Animated.timing(contentAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: ND }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 70, useNativeDriver: ND }),
+      Animated.spring(numAnim,  { toValue: 1, friction: 4, tension: 60, delay: 200, useNativeDriver: ND }),
     ]).start();
   }, []);
 
-  const totalBalance = debts.reduce((sum: number, d: any) => sum + (d.balance ?? 0), 0);
-  const count = debts.length;
-  const lastDebt = debts[debts.length - 1] ?? null;
-
-  const cardBg = isDark ? "#0D1520" : "#FFFFFF";
-  const cardBorder = isDark ? "#1A2535" : DARK.cardBorder;
-  const labelColor = isDark ? "#FFFFFF" : DARK.textSub;
-  const valueColor = isDark ? "#FFFFFF" : DARK.text;
-
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? "#080E14" : DARK.bg }]}>
+    <View style={[s.screen, { backgroundColor: isDark ? "#080E14" : "#FFFFFF", paddingTop: topPad }]}>
       <LinearGradient
-        colors={isDark ? ["#0A1628", "#080E14"] : ["#E7F8EC", "#FFFFFF"]}
+        colors={isDark ? ["#120A00","#080E14"] : ["#FFFFFF","#FFFFFF"]}
         style={StyleSheet.absoluteFill}
       />
+      <BackBtn onPress={onBack} isDark={isDark} topPad={topPad} />
 
-      <ScrollView
-        contentContainerStyle={{ paddingTop: topPad + 20, paddingBottom: botPad + 32, paddingHorizontal: 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View style={[styles.s4Check, { transform: [{ scale: checkAnim }], opacity: checkAnim }]}>
-          <LinearGradient colors={[DARK.teal + "30", DARK.teal + "08"]} style={styles.s4CheckBg}>
-            <Ionicons name="checkmark-circle" size={64} color={DARK.teal} />
-          </LinearGradient>
-        </Animated.View>
+      <Animated.View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 0, opacity: fadeAnim }}>
 
-        <Animated.View style={{ opacity: contentAnim }}>
-          <Text style={{ fontSize: 23, fontWeight: "800", color: valueColor, textAlign: "center", marginBottom: 4 }}>
-            Debt Added!
+        {/* Speech bubble */}
+        <View style={[s.streakBubble, {
+          backgroundColor: isDark ? "#1E1200" : "#FFFFFF",
+          borderColor: isDark ? "#3D2800" : P.orange,
+          marginBottom: 28,
+        }]}>
+          <Text style={[s.streakBubbleText, { color: isDark ? "#FFD09B" : P.text }]}>
+            {"A debt-free journey is born! 🎉\nLog payments every day to keep\nyour streak growing."}
           </Text>
-          <Text style={{ fontSize: 14, color: labelColor, textAlign: "center", marginBottom: 20 }}>
-            Keep going — add all your debts for the full picture.
-          </Text>
+          <View style={[s.streakBubbleTail, { borderTopColor: isDark ? "#1E1200" : "#FFFFFF" }]} />
+        </View>
 
-          <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
-            <View style={{ flex: 1, alignItems: "center", backgroundColor: cardBg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1, borderColor: cardBorder }}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: labelColor, marginBottom: 6 }}>Total Debt Tracked</Text>
-              <Text style={{ fontSize: 21, fontWeight: "800", color: DARK.teal }}>{fmt(totalBalance)}</Text>
-            </View>
-            <View style={{ flex: 1, alignItems: "center", backgroundColor: cardBg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1, borderColor: cardBorder }}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: labelColor, marginBottom: 6 }}>Accounts Added</Text>
-              <Text style={{ fontSize: 21, fontWeight: "800", color: DARK.teal }}>{count}</Text>
+        {/* Dex + flame + number */}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: "center" }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, marginBottom: 0 }}>
+            <DexMascot state="happy" size={88} />
+            <View style={{ marginBottom: 8 }}>
+              <FlameIcon streakDays={1} size={72} />
             </View>
           </View>
+          <Animated.Text style={[s.streakNum, { color: P.orange, transform: [{ scale: numAnim }] }]}>
+            1
+          </Animated.Text>
+          <Text style={[s.streakDayLabel, { color: P.orange }]}>day streak</Text>
+        </Animated.View>
 
-          {lastDebt && (
-            <View style={{ backgroundColor: cardBg, borderRadius: 16, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: cardBorder, borderLeftWidth: 4, borderLeftColor: DARK.teal }}>
-              <Text style={{ fontSize: 11, fontWeight: "700", color: labelColor, letterSpacing: 0.9, textTransform: "uppercase", marginBottom: 10 }}>
-                Just Added
-              </Text>
-              <Text style={{ fontSize: 17, fontWeight: "700", color: valueColor, marginBottom: 14 }} numberOfLines={1}>
-                {lastDebt.name}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: labelColor, marginBottom: 3 }}>Balance</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: valueColor }}>{fmt(lastDebt.balance)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: labelColor, marginBottom: 3 }}>APR</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: valueColor }}>{lastDebt.apr.toFixed(1)}%</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: labelColor, marginBottom: 3 }}>Min. Payment</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: valueColor }}>{fmt(lastDebt.minimumPayment)}</Text>
-                </View>
+        {/* 7-day calendar */}
+        <View style={s.calRow}>
+          {dayOrder.map((d, i) => (
+            <View key={i} style={{ alignItems: "center", gap: 5 }}>
+              <Text style={[s.calDayName, { color: isDark ? "rgba(255,255,255,0.45)" : "#8FA89A" }]}>{d}</Text>
+              <View style={[
+                s.calDot,
+                i === 0
+                  ? { backgroundColor: P.orange, borderColor: P.orange }
+                  : { backgroundColor: "transparent", borderColor: isDark ? "#2A2000" : "#E8E8E8" },
+              ]}>
+                {i === 0 && <Ionicons name="checkmark" size={14} color="#fff" />}
               </View>
             </View>
-          )}
+          ))}
+        </View>
+      </Animated.View>
 
-          <Pressable onPress={onAddAnother} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginBottom: 12 }]}>
-            <LinearGradient
-              colors={[DARK.teal, Colors.primaryDark]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={[styles.primaryBtn, styles.s4PrimaryBtn, { flexDirection: "row", gap: 8 }]}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#fff" />
-              <Text style={styles.primaryBtnText}>Add Another Debt</Text>
-            </LinearGradient>
-          </Pressable>
-
-          <Pressable onPress={onChooseStrategy} style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginBottom: 22 }]}>
-            <View style={{ borderWidth: 2, borderColor: DARK.teal, borderRadius: 14, paddingVertical: 15, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: DARK.teal }}>Choose My Payoff Strategy</Text>
-              <Ionicons name="arrow-forward" size={18} color={DARK.teal} />
-            </View>
-          </Pressable>
-
-          <View style={{ backgroundColor: DARK.teal + "14", borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Text style={{ fontSize: 18 }}>💡</Text>
-            <Text style={{ fontSize: 13, color: isDark ? "rgba(255,255,255,0.72)" : DARK.textSub, flex: 1, lineHeight: 19 }}>
-              Add all your debts to unlock comparisons and other insights.
-            </Text>
-          </View>
-        </Animated.View>
-      </ScrollView>
+      <View style={[s.footer, { paddingBottom: botPad + 8 }]}>
+        <BlueBtn label="I'M COMMITTED 💪" onPress={onNext} icon="arrow-forward" />
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: DARK.bg },
-  dotsRow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 20,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  dotsInline: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  backBtn: {
-    width: 56,
-    height: 56,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+// ─── Screen 9: Streak Goal Picker ─────────────────────────────────────────────
+const STREAK_GOALS = [
+  { days: 7,  xp: 150 },
+  { days: 14, xp: 300 },
+  { days: 30, xp: 500 },
+  { days: 60, xp: 750 },
+];
+
+function StreakGoalScreen({ isDark, bg, topPad, botPad, streakDays, onSelect, onCommit, onBack }: any) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 380, useNativeDriver: ND }).start();
+  }, []);
+
+  return (
+    <View style={[s.screen, { backgroundColor: isDark ? "#080E14" : "#FFFFFF", paddingTop: topPad }]}>
+      <LinearGradient colors={isDark ? ["#0A1628","#080E14"] : ["#FFFFFF","#FFFFFF"]} style={StyleSheet.absoluteFill} />
+      <BackBtn onPress={onBack} isDark={isDark} topPad={topPad} />
+
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {/* Dex + speech bubble header */}
+        <View style={{ alignItems: "center", paddingTop: 24, paddingBottom: 20, gap: 16, paddingHorizontal: 24 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 6 }}>
+            <DexMascot state="encouraging" size={80} />
+            <View style={{ marginBottom: 6 }}>
+              <FlameIcon streakDays={1} size={52} />
+            </View>
+          </View>
+          <View style={[s.streakBubble, {
+            backgroundColor: isDark ? "#1A2535" : "#FFFFFF",
+            borderColor: isDark ? "#2A3D55" : P.orange,
+          }]}>
+            <Text style={[s.streakBubbleText, { color: isDark ? "#FFFFFF" : P.text }]}>
+              {"Let's commit to your\ndebt payoff streak!"}
+            </Text>
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {STREAK_GOALS.map((g) => {
+            const sel = streakDays === g.days;
+            return (
+              <Pressable
+                key={g.days}
+                onPress={() => { onSelect(g.days); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[
+                  s.goalRow,
+                  {
+                    backgroundColor: sel ? P.orange : (isDark ? "#0D1520" : "#FFFFFF"),
+                    borderColor: sel ? P.orange : (isDark ? "#2A3D55" : "#E8E8E8"),
+                    borderWidth: sel ? 2 : 1.5,
+                  },
+                ]}
+              >
+                <Text style={[s.goalDays, { color: sel ? "#FFFFFF" : (isDark ? "#FFFFFF" : P.text) }]}>
+                  {g.days} days
+                </Text>
+                <Text style={[s.goalXp, { color: sel ? "rgba(255,255,255,0.85)" : (isDark ? "rgba(255,255,255,0.4)" : "#8FA89A") }]}>
+                  Earn +{g.xp} XP
+                </Text>
+                {sel && <Ionicons name="checkmark-circle" size={22} color="rgba(255,255,255,0.9)" style={{ marginLeft: 8 }} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Animated.View>
+
+      <View style={[s.footer, { paddingBottom: botPad + 8 }]}>
+        <OrangeBtn label="COMMIT TO MY GOAL 🎯" onPress={onCommit} disabled={!streakDays} />
+      </View>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  screen: { flex: 1 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
     gap: 10,
-    borderRadius: 16,
-    paddingVertical: 17,
-    paddingHorizontal: 24,
-    shadowColor: DARK.teal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  s4PrimaryBtn: {
-    alignSelf: "stretch",
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  skipText: {
-    color: "#1A4530",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  laterLink: {
-    fontSize: 13,
-    textAlign: "center",
-    textDecorationLine: "underline",
-  },
-  privacyNote: {
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 6,
+    position: "relative",
   },
 
-  // Screen 1
-  s1Content: {
+  // Splash
+  splashCenter: {
     flex: 1,
-    paddingHorizontal: 28,
     alignItems: "center",
     justifyContent: "center",
-    gap: 32,
+    gap: 14,
+    paddingHorizontal: 32,
   },
-  s1IconWrap: { alignItems: "center" },
-  s1LogoImg: {
-    width: 140,
-    height: 140,
-    borderRadius: 36,
+  splashLogo: {
+    width: 110,
+    height: 110,
+    borderRadius: 28,
+    marginBottom: 4,
+    // Soft drop shadow so the icon floats on light background (keeps native-like look)
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  s1Title: {
-    color: DARK.text,
+  splashName: {
     fontSize: 44,
-    fontWeight: "800",
+    fontFamily: Fonts.black,
+    fontWeight: "900",
     letterSpacing: -1.5,
-    lineHeight: 50,
-    textAlign: "center",
   },
-  s1Subtitle: {
-    fontSize: 36,
-    fontStyle: "italic",
+  splashTagline: {
+    fontSize: 17,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 26,
+  },
+  splashBtns: {
+    paddingHorizontal: 20,
+    gap: 16,
+    paddingTop: 8,
+  },
+  alreadyHave: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
     fontWeight: "700",
-    letterSpacing: -0.5,
+    letterSpacing: 0.5,
     textAlign: "center",
-    marginTop: -8,
   },
-  privacyBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 20,
+
+  // Question bubble
+  qBubble: {
+    borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    padding: 12,
+    position: "relative",
   },
-  privacyBadgeText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  privacyBadgeLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
-  },
-  s1Body: {
-    color: DARK.textSub,
+  qBubbleText: {
     fontSize: 16,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    lineHeight: 23,
+  },
+  qBubbleTail: {
+    position: "absolute",
+    left: -11,
+    top: 14,
+    width: 0,
+    height: 0,
+    borderTopWidth: 8,
+    borderBottomWidth: 8,
+    borderRightWidth: 11,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    zIndex: 2,
+  },
+  qBubbleTailBorder: {
+    position: "absolute",
+    left: -13,
+    top: 13,
+    width: 0,
+    height: 0,
+    borderTopWidth: 9,
+    borderBottomWidth: 9,
+    borderRightWidth: 13,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    zIndex: 1,
+  },
+
+  // Celebration
+  celebTitle: {
+    fontSize: 30,
+    fontFamily: Fonts.black,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: -0.5,
+    lineHeight: 38,
+  },
+  celebSub: {
+    fontSize: 16,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: -6,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  badge: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    alignItems: "center",
+    gap: 4,
+  },
+  badgeLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.extraBold,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  badgeValue: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+
+  // Streak Born
+  streakBubble: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    alignSelf: "center",
+    maxWidth: SW - 48,
+    position: "relative",
+  },
+  streakBubbleText: {
+    fontSize: 16,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
     textAlign: "center",
     lineHeight: 24,
   },
-  s1List: {
-    width: "100%",
-    gap: 10,
-    marginTop: 6,
-  },
-  s1ListRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  s1CheckDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: DARK.teal,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 1,
-  },
-  s1ListText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  s1TabBar: {
+  streakBubbleTail: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingBottom: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.08)",
+    bottom: -14,
+    alignSelf: "center",
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderTopWidth: 14,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
   },
-  s1Tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+  streakNum: {
+    fontSize: 88,
+    fontFamily: Fonts.black,
+    fontWeight: "900",
+    lineHeight: 96,
   },
-  s1TabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-  s1Section: {
-    paddingHorizontal: 28,
-    alignItems: "center",
-    gap: 24,
-    paddingBottom: 32,
-  },
-  learnMoreLink: {
-    fontSize: 13,
-    fontWeight: "500",
-    textAlign: "center",
-    textDecorationLine: "underline",
-  },
-  s1Btns: {
-    width: "100%",
-    gap: 14,
-  },
-  s1Trust: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  s1TrustText: {
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  // Screen 2
-  s2Content: {
-    paddingHorizontal: 20,
-    gap: 14,
-  },
-  s2Title: {
-    color: DARK.text,
-    fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: -1,
-  },
-  s2TitleGreen: {
-    fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: -1,
-    marginTop: -8,
-  },
-  s2Sub: {
-    color: DARK.textSub,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  featureCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: DARK.card,
-    borderRadius: 14,
-    borderLeftWidth: 3,
-    borderWidth: 1,
-    borderColor: DARK.cardBorder,
-    padding: 14,
-  },
-  featureIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  featureStepBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  featureStepNum: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  featureTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
-  },
-  featureTitle: {
-    color: DARK.text,
-    fontSize: 15,
+  streakDayLabel: {
+    fontSize: 22,
+    fontFamily: Fonts.bold,
     fontWeight: "700",
-    flex: 1,
+    marginTop: -4,
   },
-  freeBadge: {
-    backgroundColor: Colors.primary + "25",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  freeBadgeText: {
-    color: DARK.teal,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  featureDesc: {
-    color: DARK.textSub,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  s2Btns: { gap: 14, marginTop: 8 },
-
-  // Screen 3
-  s3Content: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  s3Title: {
-    color: DARK.text,
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-  },
-  s3TitleGreen: {
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-    marginTop: -6,
-  },
-  s3Sub: {
-    color: DARK.textSub,
-    fontSize: 15,
-  },
-  s3Label: {
-    color: "#1A4530",
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-  },
-  typeGrid: {
+  calRow: {
     flexDirection: "row",
+    gap: 8,
+    marginTop: 28,
+    paddingHorizontal: 8,
     flexWrap: "wrap",
-    gap: 8,
+    justifyContent: "center",
   },
-  typeGridItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 7,
-    flex: 1,
-    minWidth: "30%",
-    maxWidth: "48%",
+  calDayName: {
+    fontSize: 11,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
   },
-  typeGridIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
+  calDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  typeGridLabel: {
-    fontSize: 13,
-    flex: 1,
-  },
-  s3Fields: { gap: 10 },
-  s3Field: {
-    backgroundColor: DARK.card,
+
+  // Streak goal
+  goalRow: {
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
-    gap: 8,
-  },
-  s3FieldTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  s3FieldLabel: {
-    color: DARK.textSub,
-    fontSize: 13,
-    fontWeight: "600",
-    flex: 1,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  s3FieldOptional: {
-    fontSize: 12,
-  },
-  s3FieldInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  s3FieldAdornment: {
-    color: "#1A4530",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  s3Input: {
-    flex: 1,
-    color: DARK.text,
-    fontSize: 20,
-    fontWeight: "600",
-    paddingVertical: 2,
-  },
-  s3Btns: { gap: 14 },
-
-  s3Info: {
-    color: DARK.textSub,
-    fontSize: 14,
-    lineHeight: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
     marginBottom: 4,
   },
-  s3PrivacyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 4,
-  },
-  s3PrivacyText: {
-    fontSize: 12,
-    flex: 1,
-  },
-
-  // Screen 4
-  s4Content: {
-    paddingHorizontal: 24,
-    alignItems: "center",
-    gap: 16,
-  },
-  s4Check: { alignSelf: "center" },
-  s4CheckBg: {
-    width: 110,
-    height: 110,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  s4PreTitle: {
-    color: DARK.textSub,
+  goalDays: {
     fontSize: 18,
-    textAlign: "center",
-  },
-  s4Date: {
-    fontSize: 48,
+    fontFamily: Fonts.extraBold,
     fontWeight: "800",
-    letterSpacing: -1.5,
-    textAlign: "center",
-  },
-  s4Sub: {
-    color: DARK.textSub,
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: -8,
-  },
-  s4Cards: {
-    width: "100%",
-    gap: 10,
-    marginVertical: 4,
-  },
-  s4Card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: DARK.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: DARK.cardBorder,
-    borderLeftWidth: 3,
-    padding: 14,
-  },
-  s4CardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  s4CardText: {
-    color: DARK.textSub,
-    fontSize: 14,
-    lineHeight: 20,
     flex: 1,
+  },
+  goalXp: {
+    fontSize: 14,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
   },
 });

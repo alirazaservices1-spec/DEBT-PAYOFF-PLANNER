@@ -45,10 +45,15 @@ function isUnsecured(d: RecommendationDebt): boolean {
 }
 
 const LINK_TEXT = "Check if you qualify.";
+const MEANS_TEST_LINK_TEXT = "Check the means test →";
+
+const fmtDollars = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+const fmtApr = (n: number) => `${Number(n.toFixed(2))}`;
 
 /**
  * Recommendation engine — exact client rules. Only returns cards whose threshold is met.
  * 1. Tax debt > $5k  2. Unsecured > $10k  3. Business/MCA > $15k  4. Any debt APR >= 18%
+ * 5. Total debt > $15k — means test bankruptcy eligibility warning
  */
 export function getRecommendations(
   debts: RecommendationDebt[],
@@ -59,11 +64,8 @@ export function getRecommendations(
   const taxTotal = debts.filter(isTaxDebt).reduce((s, d) => s + d.balance, 0);
   const businessTotal = debts.filter(isBusinessMCA).reduce((s, d) => s + d.balance, 0);
   const unsecuredTotal = debts.filter(isUnsecured).reduce((s, d) => s + d.balance, 0);
+  const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
   const highestApr = debts.reduce((max, d) => Math.max(max, d.apr || 0), 0);
-
-  const fmtDollars = (n: number) =>
-    `$${Math.round(n).toLocaleString("en-US")}`;
-  const fmtApr = (n: number) => `${Number(n.toFixed(2))}`;
 
   const out: Recommendation[] = [];
 
@@ -103,7 +105,7 @@ export function getRecommendations(
     });
   }
 
-  // 4. High interest — trigger: ANY debt has APR >= 18% (use highest APR)
+  // 4. High interest — trigger: ANY debt has APR >= 18%
   if (highestApr >= 18) {
     out.push({
       id: "rate",
@@ -112,6 +114,18 @@ export function getRecommendations(
       body: `Because you are paying ${fmtApr(highestApr)}% APR, you may qualify for a lower interest rate.`,
       linkText: LINK_TEXT,
       affiliateKey: "CONSOLIDATION",
+    });
+  }
+
+  // 5. Means test — trigger: total debt > $15,000
+  if (totalDebt > 15000) {
+    out.push({
+      id: "means_test",
+      icon: "⚖️",
+      header: "Bankruptcy means test",
+      body: `Because you have ${fmtDollars(totalDebt)} in debt, you may want to check the means test.`,
+      linkText: MEANS_TEST_LINK_TEXT,
+      affiliateKey: "MEANS_TEST",
     });
   }
 

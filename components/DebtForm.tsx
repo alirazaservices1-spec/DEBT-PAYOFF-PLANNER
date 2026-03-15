@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { Debt, DebtType, debtTypeLabel, debtTypeIcon, isSecuredByType, isBusinessDebtType } from "@/lib/calculations";
 import { useDebts } from "@/context/DebtContext";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -25,7 +26,7 @@ const PERSONAL_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
   { key: "personalLoan", icon: "cash", color: "#9B59B6" },
   { key: "studentLoan", icon: "school", color: "#E67E22" },
   { key: "medical", icon: "medkit", color: "#E74C3C" },
-  { key: "auto", icon: "car", color: "#1ABC9C" },
+  { key: "auto", icon: "car", color: "#1F4E8C" },
   { key: "taxDebt", icon: "receipt", color: "#F39C12" },
   { key: "collectionAccount", icon: "alert-circle", color: "#C0392B" },
   { key: "repossessedVehicle", icon: "car-outline", color: "#7F8C8D" },
@@ -576,7 +577,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: -0.3,
   },
   headerSaveBtn: {
@@ -588,7 +589,7 @@ const styles = StyleSheet.create({
   },
   headerSaveBtnText: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   headerExtra: {
     paddingVertical: 8,
@@ -612,7 +613,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     letterSpacing: 0.4,
     marginBottom: 10,
   },
@@ -729,7 +730,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   securedText: { flex: 1 },
-  securedLabel: { fontSize: 15, fontWeight: "600" },
+  securedLabel: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600" },
   securedSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
   previewCard: {
     flexDirection: "row",
@@ -769,7 +770,7 @@ const styles = StyleSheet.create({
   },
   categorySectionLabel: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     letterSpacing: 0.4,
   },
   typeChipIcon: {
@@ -804,7 +805,7 @@ const styles = StyleSheet.create({
   },
   taxPlanLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
   },
   taxPlanHint: {
     fontSize: 12,
@@ -813,7 +814,7 @@ const styles = StyleSheet.create({
   },
   taxPlanSectionHint: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: Fonts.semiBold, fontWeight: "600",
     marginHorizontal: 16,
     marginBottom: 6,
     marginTop: 4,
@@ -860,6 +861,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: "#fff",
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
   },
 });

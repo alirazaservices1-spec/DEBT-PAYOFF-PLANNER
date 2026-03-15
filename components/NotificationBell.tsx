@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useNotifications, type ReminderDays } from "@/context/NotificationContext";
 import { useCurrency } from "@/context/CurrencyContext";
 
@@ -97,7 +98,7 @@ export function NotificationBell() {
                         },
                       ]}
                     >
-                      <Text style={[styles.chipText, { color: active ? "#05130A" : C.textSecondary }]}>
+                      <Text style={[styles.chipText, { color: active ? "#fff" : C.textSecondary }]}>
                         {day === 1 ? "1 day before" : `${day} days before`}
                       </Text>
                     </Pressable>
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  badgeText: { color: "#fff", fontSize: 10, fontFamily: Fonts.extraBold, fontWeight: "800" },
   modal: { flex: 1 },
   modalHeader: {
     flexDirection: "row",
@@ -175,7 +176,7 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTitle: { fontSize: 20, fontWeight: "700" },
+  modalTitle: { fontSize: 20, fontFamily: Fonts.bold, fontWeight: "700" },
   modalScroll: { padding: 16, gap: 14 },
   section: {
     borderRadius: 14,
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: Fonts.bold, fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
@@ -196,9 +197,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  chipText: { fontSize: 13, fontWeight: "600" },
+  chipText: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600" },
   upcomingHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  clearAll: { fontSize: 13, fontWeight: "600" },
+  clearAll: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600" },
   reminderCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -208,12 +209,12 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  reminderName: { fontSize: 15, fontWeight: "700" },
+  reminderName: { fontSize: 15, fontFamily: Fonts.bold, fontWeight: "700" },
   reminderDate: { fontSize: 13, marginTop: 2 },
-  reminderStatus: { fontSize: 13, fontWeight: "600", marginTop: 2 },
+  reminderStatus: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600", marginTop: 2 },
   reminderRight: { alignItems: "flex-end", gap: 8 },
-  reminderAmount: { fontSize: 16, fontWeight: "800" },
+  reminderAmount: { fontSize: 16, fontFamily: Fonts.mono, fontWeight: "500" },
   empty: { alignItems: "center", gap: 12, paddingVertical: 40 },
-  emptyTitle: { fontSize: 18, fontWeight: "700" },
+  emptyTitle: { fontSize: 18, fontFamily: Fonts.bold, fontWeight: "700" },
   emptyBody: { fontSize: 14, textAlign: "center" },
 });
