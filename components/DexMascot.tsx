@@ -4,7 +4,7 @@
 // Bold 2D vector style, readable at 40×40px
 // 8 animation states using react-native-reanimated + react-native Animated
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, Animated, Easing } from "react-native";
 import Svg, { Circle, Ellipse, Path, Rect, G } from "react-native-svg";
 import ReAnimated, {
@@ -16,6 +16,7 @@ import ReAnimated, {
   withSpring,
   withDelay,
   cancelAnimation,
+  runOnJS,
   Easing as REasing,
 } from "react-native-reanimated";
 import { DexState } from "@/context/GameContext";
@@ -345,18 +346,17 @@ interface Props {
   size?: number;
 }
 
-export function DexMascot({ state, size = 88 }: Props) {
-  // Blink state: 0 = eyes open, 1 = eyes closed (used as blinkAlpha in FoxSVG)
+const CROSSFADE_MS = 200;
+
+function DexMascotInner({ state, size = 88 }: Props) {
   const [blinkAlpha, setBlinkAlpha] = useState(0);
   const blinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── react-native-reanimated values for main body transform ─────────────────
   const translateY = useSharedValue(0);
   const scaleX     = useSharedValue(1);
   const scaleY     = useSharedValue(1);
   const rotate     = useSharedValue(0);
 
-  // ── Idle eye blink ────────────────────────────────────────────────────────
   useEffect(() => {
     if (state !== "idle") { setBlinkAlpha(0); return; }
 
@@ -374,7 +374,6 @@ export function DexMascot({ state, size = 88 }: Props) {
     return () => { if (blinkTimer.current) clearTimeout(blinkTimer.current); };
   }, [state]);
 
-  // ── Main body animations ──────────────────────────────────────────────────
   useEffect(() => {
     cancelAnimation(translateY);
     cancelAnimation(scaleX);
@@ -537,4 +536,30 @@ export function DexMascot({ state, size = 88 }: Props) {
   );
 }
 
-export default DexMascot;
+export function DexMascot({ state, size = 88 }: Props) {
+  const [displayState, setDisplayState] = useState<DexState>(state);
+  const opacity = useSharedValue(1);
+
+  const setDisplayStateJS = useCallback((s: DexState) => setDisplayState(s), []);
+
+  useEffect(() => {
+    if (state === displayState) return;
+    opacity.value = withTiming(0, { duration: CROSSFADE_MS }, (finished) => {
+      if (finished) runOnJS(setDisplayStateJS)(state);
+    });
+  }, [state, displayState, setDisplayStateJS]);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: CROSSFADE_MS });
+  }, [displayState]);
+
+  const wrapperStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <ReAnimated.View style={[{ width: size, height: size * 1.36, alignItems: "center", justifyContent: "center" }, wrapperStyle]}>
+      <DexMascotInner state={displayState} size={size} />
+    </ReAnimated.View>
+  );
+}
+
+export default React.memo(DexMascot);

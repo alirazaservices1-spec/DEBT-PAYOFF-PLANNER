@@ -93,8 +93,8 @@ async function scheduleForTonight(
   const title = "DebtPath — Streak Reminder 🔥";
   const body =
     streakCount > 0
-      ? `🔥 Your ${streakCount}-day streak ends at midnight. One tap saves it.`
-      : "💪 Start a new streak today! Log a payment to begin.";
+      ? `🔥 Your ${streakCount}-day streak ends at midnight. Log your daily saving to keep it alive — even $0.50 counts!`
+      : "💪 Start a new streak today! Log your daily saving to begin.";
 
   try {
     const id = await Notifications.scheduleNotificationAsync({

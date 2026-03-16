@@ -22,6 +22,10 @@ export const XP_REWARDS = {
   COMPLETE_ONBOARDING: 100,
   HIT_MILESTONE: 200,
   DAILY_STREAK: 25,
+  DAILY_SAVING: 20,
+  NO_SPEND: 15,
+  SOCIAL_SHARE: 10,
+  BONUS_CHECK: 10,
 } as const;
 
 export type XPEventType = keyof typeof XP_REWARDS;
@@ -168,12 +172,14 @@ interface GameContextValue {
   awardXp: (event: XPEventType, meta?: { debtName?: string }) => void;
   grantBonusXp: (amount: number) => void;
   recordPaymentForStreak: () => void;
+  logDailyAction: (actionType: string) => void;
   resetGame: () => Promise<void>;
   triggerFirstDebtCelebration: () => void;
   hasStreakShield: boolean;
   lastXpGain: { amount: number; seq: number };
   flamePulseSeq: number;
   triggerFlamePulse: () => void;
+  buyStreakShield: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -493,6 +499,31 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [gracePeriodActive, applyState, saveState, triggerCelebration, triggerDex]);
 
+  // ── Shield Purchase ─────────────────────────────────────────────────────────
+  const buyStreakShield = useCallback(async () => {
+    const cur = gameStateRef.current;
+    if (cur.streakShield) return; // Already have one
+    if (cur.totalXp < 500) {
+      triggerDexWithMessage("worried", "You need 500 XP to buy a streak shield!");
+      return;
+    }
+    const updated: GameState = {
+      ...cur,
+      totalXp: cur.totalXp - 500,
+      streakShield: true,
+    };
+    applyState(updated);
+    await saveState(updated);
+    triggerDexWithMessage("celebrating", "Streak Shield activated! 🛡️ You are protected for one missed day.");
+    soundManager.play("level_up");
+  }, [applyState, saveState, triggerDexWithMessage]);
+
+  // Daily Action Logger (treats as streak maintainer)
+  const logDailyAction = useCallback(async (actionType: string) => {
+    // Also counts towards streak
+    recordPaymentForStreak();
+  }, [recordPaymentForStreak]);
+
   // ── Derived values ────────────────────────────────────────────────────────
   const derived = useMemo(() => computeLevel(gameState.totalXp), [gameState.totalXp]);
 
@@ -518,12 +549,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       awardXp,
       grantBonusXp,
       recordPaymentForStreak,
+      logDailyAction,
       resetGame,
       triggerFirstDebtCelebration,
       hasStreakShield: gameState.streakShield,
       lastXpGain,
       flamePulseSeq,
       triggerFlamePulse,
+      buyStreakShield,
     }),
     [
       gameState,
@@ -540,11 +573,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       awardXp,
       grantBonusXp,
       recordPaymentForStreak,
+      logDailyAction,
       resetGame,
       triggerFirstDebtCelebration,
       lastXpGain,
       flamePulseSeq,
       triggerFlamePulse,
+      buyStreakShield,
     ]
   );
 

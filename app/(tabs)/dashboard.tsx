@@ -39,8 +39,9 @@ import { XPProgressBar } from "@/components/XPProgressBar";
 import { DexCard } from "@/components/DexCard";
 import { StreakWidget } from "@/components/StreakWidget";
 import { ImpactCounter } from "@/components/ImpactCounter";
-import { PayoffDateWidget } from "@/components/PayoffDateWidget";
 import { InterestSavingsBar } from "@/components/InterestSavingsBar";
+import { DailyActionList } from "@/components/DailyActionList";
+import { PathToFreedomMap } from "@/components/PathToFreedomMap";
 import { useGame } from "@/context/GameContext";
 import { useStreakReminder } from "@/context/StreakReminderContext";
 import { useGoal } from "@/context/GoalContext";
@@ -103,7 +104,9 @@ export default function DashboardScreen() {
     logPayment,
   } = useDebts();
   const { fmt } = useCurrency();
-  const { triggerDex, triggerDexWithMessage, awardXp, recordPaymentForStreak, grantBonusXp, triggerFlamePulse } = useGame();
+  const {
+    triggerDex, triggerDexWithMessage, awardXp, recordPaymentForStreak, grantBonusXp, triggerFlamePulse, streakCount,
+  } = useGame();
   const {
     btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
   } = usePaymentEffects();
@@ -114,6 +117,8 @@ export default function DashboardScreen() {
 
   const [whatIfCollapsed, setWhatIfCollapsed] = useState(false);
   const [logModalVisible, setLogModalVisible] = useState(false);
+  const [dailySavingModalVisible, setDailySavingModalVisible] = useState(false);
+  const [dailySavingAmount, setDailySavingAmount] = useState("");
   const [paymentLogSeq, setPaymentLogSeq] = useState(0);
   const [logDebtId, setLogDebtId] = useState<string>(debts[0]?.id ?? "");
   const [logAmount, setLogAmount] = useState("");
@@ -197,6 +202,22 @@ export default function DashboardScreen() {
       1000: "You just crossed $1,000 saved! You are absolutely crushing debt! 🏆",
     };
     triggerDexWithMessage("celebrating", milestoneLabels[amount] ?? `You just crossed $${amount} saved!`, 7000);
+  };
+
+  const handleLogDailySaving = async (amount: number) => {
+    if (debts.length === 0 || amount <= 0) return;
+    const targetDebtId = [...debts].sort((a, b) => b.apr - a.apr)[0].id;
+    await logPayment({ debtId: targetDebtId, amount, date: new Date().toISOString(), isMissed: false });
+    recordPaymentForStreak();
+    grantBonusXp(25);
+    triggerDex("happy");
+    triggerFlamePulse();
+    cancelTonightsReminder();
+    setPaymentLogSeq((s) => s + 1);
+    setDailySavingModalVisible(false);
+    setDailySavingAmount("");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    soundManager.play("payment_logged");
   };
 
   const handleLogPayment = async () => {
@@ -441,18 +462,35 @@ export default function DashboardScreen() {
         {/* Priority 4: Payoff date + impact counter (compact) */}
         <ImpactCounter compact />
 
-        {/* Priority 5: LOG PAYMENT TODAY — most prominent element */}
+        {/* Priority 5: LOG PAYMENT TODAY + LOG DAILY SAVING */}
         {debts.length > 0 && (
-          <Pressable
-            onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }}
-            style={styles.logPayBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Log a payment today"
-          >
-            <Ionicons name="flash" size={18} color="#FFFFFF" />
-            <Text style={styles.logPayBtnText}>LOG PAYMENT TODAY</Text>
-          </Pressable>
+          <View style={{ gap: 10 }}>
+            <Pressable
+              onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }}
+              style={styles.logPayBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Log a payment today"
+            >
+              <Ionicons name="flash" size={18} color="#FFFFFF" />
+              <Text style={styles.logPayBtnText}>LOG PAYMENT TODAY</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { setDailySavingModalVisible(true); setDailySavingAmount(""); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              style={[styles.logPayBtn, { backgroundColor: Colors.accent + "E6", borderWidth: 2, borderColor: Colors.accent }]}
+              accessibilityRole="button"
+              accessibilityLabel="Log daily saving"
+            >
+              <Ionicons name="wallet" size={18} color="#FFFFFF" />
+              <Text style={styles.logPayBtnText}>LOG DAILY SAVING</Text>
+            </Pressable>
+          </View>
         )}
+
+        {/* Priority 6: New Gamified Daily Actions */}
+        <DailyActionList isDark={isDark} />
+
+        {/* Priority 7: Visual Map */}
+        <PathToFreedomMap isDark={isDark} streak={streakCount} />
 
         {/* Interest savings bar — grows with every payment */}
         {interestSaved > 0 && <InterestSavingsBar interestSaved={interestSaved} onMilestone={handleMilestone} />}
@@ -475,12 +513,9 @@ export default function DashboardScreen() {
                     {fmt(totalBalance)}
                   </Text>
                   <View style={styles.heroMeta}>
-                    <PayoffDateWidget
-                      currentDate={payoffDate}
-                      baselineDate={baselineResult.payoffDate}
-                      hasExtraPayment={extraPayment > 0 || extraThisMonth > 0}
-                      paymentTrigger={paymentLogSeq}
-                    />
+                    <Text style={[styles.heroMetaText, { color: C.textSecondary }]}>
+                      Debt-free date: <Text style={{ color: Colors.green, fontFamily: Fonts.semiBold }}>{formatPayoffDate(payoffDate)}</Text>
+                    </Text>
                   </View>
                 </View>
 
@@ -909,6 +944,69 @@ export default function DashboardScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={dailySavingModalVisible}
+        animationType="slide"
+        presentationStyle="formSheet"
+        onRequestClose={() => setDailySavingModalVisible(false)}
+      >
+        <View style={[styles.logModal, { backgroundColor: C.surface }]}>
+          <View style={[styles.logModalHeader, { borderBottomColor: C.border }]}>
+            <Pressable onPress={() => setDailySavingModalVisible(false)} hitSlop={12} style={styles.logModalHeaderBtn}>
+              <Ionicons name="close" size={24} color={C.textSecondary} />
+            </Pressable>
+            <Text style={[styles.logModalTitle, { color: C.text }]}>Log Daily Saving</Text>
+            <View style={styles.logModalHeaderBtn} />
+          </View>
+          <ScrollView contentContainerStyle={[styles.logModalContent, { padding: 20 }]} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.logModalLabel, { color: C.textSecondary, marginBottom: 14 }]}>Quick options — tap to log</Text>
+            <View style={styles.dailySavingGrid}>
+              {[
+                { label: "Skipped coffee", amount: 5, icon: "cafe-outline" as const },
+                { label: "Packed lunch", amount: 8, icon: "restaurant-outline" as const },
+                { label: "Skipped takeout", amount: 12, icon: "fast-food-outline" as const },
+                { label: "Cooked at home", amount: 15, icon: "home-outline" as const },
+                { label: "Used coupon", amount: 10, icon: "pricetag-outline" as const },
+                { label: "Skipped dessert", amount: 7, icon: "ice-cream-outline" as const },
+              ].map(({ label, amount, icon }) => (
+                <Pressable
+                  key={`${label}-${amount}`}
+                  onPress={() => handleLogDailySaving(amount)}
+                  style={({ pressed }) => [
+                    styles.dailySavingCard,
+                    { backgroundColor: C.surfaceSecondary, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <View style={[styles.dailySavingIconWrap, { backgroundColor: Colors.green + "22" }]}>
+                    <Ionicons name={icon} size={22} color={Colors.green} />
+                  </View>
+                  <Text style={[styles.dailySavingLabel, { color: C.text }]} numberOfLines={2}>{label}</Text>
+                  <Text style={[styles.dailySavingAmount, { color: Colors.green }]}>+${amount}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[styles.logModalLabel, { color: C.textSecondary }]}>Custom amount ($)</Text>
+            <TextInput
+              style={[styles.logInput, { backgroundColor: C.surfaceSecondary, color: C.text, borderColor: C.border }]}
+              value={dailySavingAmount}
+              onChangeText={setDailySavingAmount}
+              placeholder="0.50"
+              placeholderTextColor={C.textSecondary}
+              keyboardType="decimal-pad"
+            />
+            <Pressable
+              onPress={() => {
+                const amt = parseFloat(dailySavingAmount) || 0;
+                if (amt > 0) handleLogDailySaving(amt);
+              }}
+              style={[styles.logPayBtn, { marginTop: 16 }]}
+            >
+              <Text style={styles.logPayBtnText}>LOG CUSTOM AMOUNT</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
+
       <PaymentEffectsOverlay
         xpFloatActive={xpFloatActive}
         xpAmount={xpAmount}
@@ -1199,6 +1297,18 @@ const styles = StyleSheet.create({
   debtSelectRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   debtSelectChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, maxWidth: "48%", alignItems: "center", justifyContent: "center" },
   debtSelectText: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },
+  dailySavingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 },
+  dailySavingCard: {
+    width: "47%",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(30, 122, 69, 0.2)",
+    minHeight: 96,
+  },
+  dailySavingIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  dailySavingLabel: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600", marginBottom: 4 },
+  dailySavingAmount: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700" },
   typeRow: { flexDirection: "row", gap: 10 },
   typeChip: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   typeChipText: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },

@@ -20,6 +20,7 @@ import Animated, {
   withSpring,
   interpolate,
   useAnimatedProps,
+  SharedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -31,14 +32,22 @@ const TAB_CONFIG = [
   {
     name: "index",
     label: "Debts",
-    icon: "card" as const,
+    icon: "card-outline" as const,
     iconActive: "card" as const,
     sfDefault: "creditcard",
     sfSelected: "creditcard.fill",
   },
   {
+    name: "dashboard",
+    label: "Home",
+    icon: "home-outline" as const,
+    iconActive: "home" as const,
+    sfDefault: "house",
+    sfSelected: "house.fill",
+  },
+  {
     name: "strategy",
-    label: "Strategy",
+    label: "Methods",
     icon: "bar-chart-outline" as const,
     iconActive: "bar-chart" as const,
     sfDefault: "chart.bar",
@@ -53,20 +62,12 @@ const TAB_CONFIG = [
     sfSelected: "calendar.fill",
   },
   {
-    name: "dashboard",
-    label: "Tracking",
-    icon: "stats-chart-outline" as const,
-    iconActive: "stats-chart" as const,
-    sfDefault: "gauge.medium",
-    sfSelected: "gauge.medium",
-  },
-  {
     name: "more",
-    label: "More",
-    icon: "grid-outline" as const,
-    iconActive: "grid" as const,
-    sfDefault: "square.grid.2x2",
-    sfSelected: "square.grid.2x2.fill",
+    label: "Settings",
+    icon: "settings-outline" as const,
+    iconActive: "settings" as const,
+    sfDefault: "gearshape",
+    sfSelected: "gearshape.fill",
   },
 ];
 
@@ -84,7 +85,7 @@ function NativeTabLayout() {
     >
       {TAB_CONFIG.map((tab) => (
         <NativeTabs.Trigger key={tab.name} name={tab.name}>
-          <Icon sf={{ default: tab.sfDefault, selected: tab.sfSelected }} />
+          <Icon sf={{ default: tab.sfDefault as any, selected: tab.sfSelected as any }} />
           <Label>{tab.label}</Label>
         </NativeTabs.Trigger>
       ))}
@@ -213,7 +214,7 @@ function TabItem({
 }: {
   tab: (typeof TAB_CONFIG)[0];
   isActive: boolean;
-  activeIndex: Animated.SharedValue<number>;
+  activeIndex: SharedValue<number>;
   index: number;
   isDark: boolean;
   onPress: () => void;
@@ -245,7 +246,7 @@ function TabItem({
       <Animated.View style={[styles.tabItemInner, animStyle]}>
         {Platform.OS === "ios" ? (
           <SymbolView
-            name={isActive ? tab.sfSelected : tab.sfDefault}
+            name={isActive ? (tab.sfSelected as any) : (tab.sfDefault as any)}
             tintColor={iconColor}
             size={22}
           />
