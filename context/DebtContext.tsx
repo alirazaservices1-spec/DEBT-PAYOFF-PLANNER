@@ -25,6 +25,8 @@ const SELECTED_STRATEGY_KEY = "@debtfree_strategy";
 const CUSTOM_ORDER_KEY = "@debtfree_custom_order";
 const LEAD_SUBMITTED_KEY = "@debtfree_lead_submitted";
 const ONBOARDING_KEY = "@debtfree_onboarding_done";
+/** User chose "Skip to home" on splash — show CTA to run full welcome flow */
+const WELCOME_SKIPPED_KEY = "@debtpath_welcome_skipped_explore";
 
 export interface PaymentLog {
   id: string;
@@ -42,6 +44,8 @@ interface DebtContextValue {
   selectedStrategy: Strategy;
   customOrder: string[];
   onboardingDone: boolean;
+  /** True if user skipped splash welcome; cleared when they finish onboarding */
+  welcomeSkipped: boolean;
   leadSubmittedAt: string | null;
 
   avalancheResult: StrategyResult;
@@ -66,6 +70,7 @@ interface DebtContextValue {
   setCustomOrder: (order: string[]) => Promise<void>;
   logPayment: (log: Omit<PaymentLog, "id">) => Promise<void>;
   setOnboardingDone: () => Promise<void>;
+  setWelcomeSkipped: (value: boolean) => Promise<void>;
   setLeadSubmitted: () => Promise<void>;
   clearAllData: () => Promise<void>;
 }
@@ -79,14 +84,19 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
   const [selectedStrategy, setSelectedStrategyState] = useState<Strategy>("avalanche");
   const [customOrder, setCustomOrderState] = useState<string[]>([]);
   const [onboardingDone, setOnboardingDoneState] = useState(false);
+  const [welcomeSkipped, setWelcomeSkippedState] = useState(false);
   const [leadSubmittedAt, setLeadSubmittedAtState] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const od = await AsyncStorage.getItem(ONBOARDING_KEY);
+        const [od, ws] = await Promise.all([
+          AsyncStorage.getItem(ONBOARDING_KEY),
+          AsyncStorage.getItem(WELCOME_SKIPPED_KEY),
+        ]);
         if (od) setOnboardingDoneState(true);
+        if (ws === "1") setWelcomeSkippedState(true);
         const [dRaw, pRaw] = await Promise.all([
           secureGetItem(DEBTS_KEY),
           secureGetItem(PAYMENTS_KEY),
@@ -167,10 +177,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     [debts]
   );
 
-  const hasTaxDebt = useMemo(
-    () => debts.some((d) => d.debtType === "taxDebt" && d.balance > 10000),
-    [debts]
-  );
+  const hasTaxDebt = useMemo(() => {
+    const taxTotal = debts
+      .filter((d) => d.debtType === "taxDebt")
+      .reduce((s, d) => s + d.balance, 0);
+    return taxTotal > 10000;
+  }, [debts]);
 
   const creditCardCount = useMemo(
     () => debts.filter((d) => d.debtType === "creditCard").length,
@@ -187,30 +199,14 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     [payments]
   );
 
-  const addDebt = useCallback(
-    async (debt: Omit<Debt, "id" | "dateAdded">) => {
-      const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-      const newDebt: Debt = {
-        ...debt,
-        id,
-        dateAdded: new Date().toISOString(),
-        isSecured: debt.isSecured ?? isSecuredByType(debt.debtType),
-      };
-      const updated = [...debts, newDebt];
-      setDebts(updated);
-      // Persist in background so UI (modal close, list update) isn’t blocked
-      secureSetItem(DEBTS_KEY, JSON.stringify(updated)).catch(() => {});
-    },
-    [debts]
-  );
-
   const updateDebt = useCallback(
     async (id: string, partial: Partial<Debt>) => {
       const updated = debts.map((d) =>
         d.id === id ? { ...d, ...partial } : d
       );
       setDebts(updated);
-      secureSetItem(DEBTS_KEY, JSON.stringify(updated)).catch(() => {});
+      // Await so abrupt crash/restart doesn't leave the secure store behind.
+      await secureSetItem(DEBTS_KEY, JSON.stringify(updated));
     },
     [debts]
   );
@@ -259,6 +255,35 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     [payments, debts, updateDebt]
   );
 
+  const setWelcomeSkipped = useCallback(async (value: boolean) => {
+    setWelcomeSkippedState(value);
+    if (value) await AsyncStorage.setItem(WELCOME_SKIPPED_KEY, "1");
+    else await AsyncStorage.removeItem(WELCOME_SKIPPED_KEY);
+  }, []);
+
+  const addDebt = useCallback(
+    async (debt: Omit<Debt, "id" | "dateAdded">) => {
+      const newDebt: Debt = {
+        ...debt,
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        dateAdded: new Date().toISOString(),
+        isSecured: debt.isSecured ?? isSecuredByType(debt.debtType),
+      };
+      let nextList: Debt[] = [];
+      let wasEmpty = false;
+      setDebts((prev) => {
+        wasEmpty = prev.length === 0;
+        nextList = [...prev, newDebt];
+        return nextList;
+      });
+      if (wasEmpty) {
+        await setWelcomeSkipped(false);
+      }
+      await secureSetItem(DEBTS_KEY, JSON.stringify(nextList));
+    },
+    [setWelcomeSkipped]
+  );
+
   const setOnboardingDone = useCallback(async () => {
     setOnboardingDoneState(true);
     await AsyncStorage.setItem(ONBOARDING_KEY, "1");
@@ -277,6 +302,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     setSelectedStrategyState("avalanche");
     setCustomOrderState([]);
     setOnboardingDoneState(false);
+    setWelcomeSkippedState(false);
     setLeadSubmittedAtState(null);
     await Promise.all([
       secureRemoveItem(DEBTS_KEY),
@@ -286,6 +312,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem(CUSTOM_ORDER_KEY),
       AsyncStorage.removeItem(LEAD_SUBMITTED_KEY),
       AsyncStorage.removeItem(ONBOARDING_KEY),
+      AsyncStorage.removeItem(WELCOME_SKIPPED_KEY),
     ]);
   }, []);
 
@@ -297,6 +324,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       selectedStrategy,
       customOrder,
       onboardingDone,
+      welcomeSkipped,
       leadSubmittedAt,
       avalancheResult,
       snowballResult,
@@ -318,6 +346,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       setCustomOrder,
       logPayment,
       setOnboardingDone,
+      setWelcomeSkipped,
       setLeadSubmitted,
       clearAllData,
     }),
@@ -328,6 +357,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       selectedStrategy,
       customOrder,
       onboardingDone,
+      welcomeSkipped,
       leadSubmittedAt,
       avalancheResult,
       snowballResult,
@@ -349,6 +379,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       setCustomOrder,
       logPayment,
       setOnboardingDone,
+      setWelcomeSkipped,
       setLeadSubmitted,
       clearAllData,
     ]

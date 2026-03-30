@@ -3,9 +3,8 @@ import { View, Text, StyleSheet, Dimensions, Animated, Easing, Pressable } from 
 import Svg, { Path, Circle } from "react-native-svg";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
-import { DexMascot } from "./DexMascot";
+import { DexMascot } from "@/components/DexMascot";
 import { useGame } from "@/context/GameContext";
-import { Ionicons } from "@expo/vector-icons";
 
 const SW = Dimensions.get("window").width;
 
@@ -17,9 +16,22 @@ interface Props {
 export function PathToFreedomMap({ streak, isDark }: Props) {
   const { buyStreakShield, hasStreakShield, totalXp } = useGame();
   
+  const AMBER = isDark ? "#E8A030" : "#C07820";
   const C = isDark 
-    ? { surface: "#161719", border: "#2E3338", text: "#F0F1F3", path: "#3A4048", fill: Colors.green }
-    : { surface: "#FFFFFF", border: "#DDE2E8", text: "#111318", path: "#E8E8E8", fill: Colors.green };
+    ? { surface: "#2C2014", border: "rgba(232,160,48,0.22)", text: "#F0E8D0", path: "#4A3828", fill: AMBER }
+    : { surface: "#FFFFFF", border: "rgba(192,120,32,0.22)", text: "#1A0E04", path: "#E8D8B8", fill: AMBER };
+  const shieldTextColor = hasStreakShield
+    ? "#1A0E04"
+    : isDark
+      ? C.text
+      : Colors.WarmContrast.textMuted;
+
+  // Button icon state (matches onboarding "Dex" language)
+  const dexBtnState = hasStreakShield
+    ? "happy"
+    : totalXp >= 500
+      ? "celebrating"
+      : "idle";
 
   // Calculate position along the path (0 to 1) based on a 7-day cycle
   const currentLevelProgress = (streak % 7) / 7;
@@ -36,9 +48,20 @@ export function PathToFreedomMap({ streak, isDark }: Props) {
     }).start();
   }, [currentLevelProgress]);
 
+  // Gentle float animation for Dex
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -6, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+      ])
+    ).start();
+  }, []);
+
   // Winding path SVG details
   const pathData = "M 40 120 Q 80 120 120 80 T 200 60 T 280 100";
-  
+
   return (
     <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
       <Text style={[s.title, { color: C.text }]}>Path to Freedom</Text>
@@ -63,10 +86,10 @@ export function PathToFreedomMap({ streak, isDark }: Props) {
           <Circle cx={40} cy={120} r={8} fill={C.surface} stroke={C.border} strokeWidth={3} />
           
           {/* End chest node */}
-          <Circle cx={280} cy={100} r={12} fill={Colors.gold} stroke="#FFF" strokeWidth={2} />
+          <Circle cx={280} cy={100} r={12} fill={isDark ? "#E8A030" : "#C07820"} stroke={isDark ? "#F0E8D0" : "#FAF6EE"} strokeWidth={2} />
         </Svg>
 
-        {/* Character Avatar */}
+        {/* Character Avatar — older bear icon via `DexMascot` */}
         <Animated.View style={[s.avatar, {
            transform: [{
              translateX: posAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 280] })
@@ -74,7 +97,9 @@ export function PathToFreedomMap({ streak, isDark }: Props) {
              translateY: posAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [90, 30, 70] })
            }]
         }]}>
-          <DexMascot state="happy" size={40} />
+          <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+            <DexMascot state={streak >= 3 ? "happy" : "idle"} size={48} />
+          </Animated.View>
         </Animated.View>
       </View>
 
@@ -93,8 +118,8 @@ export function PathToFreedomMap({ streak, isDark }: Props) {
             totalXp < 500 ? s.shieldBtnDisabled : s.shieldBtnAvailable
           ]}
         >
-          <Ionicons name="shield-checkmark" size={16} color={hasStreakShield ? "#FFF" : "#72A0D4"} />
-          <Text style={[s.shieldText, hasStreakShield && { color: "#FFF" }]}>
+          <DexMascot state={dexBtnState as any} size={24} />
+          <Text style={[s.shieldText, { color: shieldTextColor }]}>
             {hasStreakShield ? "Shield Active" : "Freeze Streak (500 XP)"}
           </Text>
         </Pressable>
@@ -149,20 +174,20 @@ const s = StyleSheet.create({
     gap: 6,
   },
   shieldBtnAvailable: {
-    borderColor: "#72A0D4",
-    backgroundColor: "rgba(114,160,212,0.1)",
+    borderColor: "#C07820",
+    backgroundColor: "rgba(192,120,32,0.10)",
   },
   shieldBtnDisabled: {
-    borderColor: "#4A5568",
+    borderColor: "#9A7240",
     opacity: 0.5,
   },
   shieldBtnActive: {
-    backgroundColor: "#2E7C31",
-    borderColor: "#2E7C31",
+    backgroundColor: "#C07820",
+    borderColor: "#C07820",
   },
   shieldText: {
     fontSize: 12,
     fontFamily: Fonts.bold,
-    color: "#72A0D4",
+    color: Colors.WarmContrast.textMuted,
   }
 });

@@ -17,8 +17,8 @@ export function DailyActionList({ isDark }: { isDark: boolean }) {
   const [shared, setShared] = useState(false);
   
   const C = isDark 
-    ? { bg: "#0D1520", border: "#2A3D55", text: "#FFFFFF", textSec: "rgba(255,255,255,0.6)" }
-    : { bg: "#FFFFFF", border: "#E8E8E8", text: "#05130A", textSec: "#8FA89A" };
+    ? { bg: "#2C2014", border: "rgba(232,160,48,0.22)", text: "#F0E8D0", textSec: "rgba(240,232,208,0.6)" }
+    : { bg: "#FFFFFF", border: "rgba(192,120,32,0.22)", text: "#1A0E04", textSec: Colors.light.textTertiary };
 
   const handleAction = (type: XPEventType, xp: number, setter: (val: boolean) => void) => {
     setter(true);
@@ -59,7 +59,7 @@ export function DailyActionList({ isDark }: { isDark: boolean }) {
       </View>
 
       <ActionItem 
-        icon="wallet" color={Colors.green} 
+        icon="wallet" color={Colors.amber} 
         title="Saved $0.50 today" xp={20}
         done={savedMoney}
         onPress={() => handleAction("DAILY_SAVING", 20, setSavedMoney)}
@@ -117,7 +117,7 @@ function ActionItem({ icon, color, title, xp, done, onPress, C }: any) {
         <Text style={[s.itemXp, { color: color }]}>+{xp} XP</Text>
       </View>
 
-      <View style={[s.checkbox, done && { backgroundColor: Colors.green, borderColor: Colors.green }]}>
+      <View style={[s.checkbox, done && { backgroundColor: Colors.amber, borderColor: Colors.amber }]}>
         {done && <Ionicons name="checkmark" size={16} color="#FFF" />}
       </View>
     </Pressable>

@@ -47,13 +47,15 @@ function isUnsecured(d: RecommendationDebt): boolean {
 const LINK_TEXT = "Check if you qualify.";
 const MEANS_TEST_LINK_TEXT = "Check the means test →";
 
+/** Minimum balance for that debt category before we show a recommendation (per product rules). */
+export const RECOMMENDATION_MIN_BALANCE = 10000;
+
 const fmtDollars = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const fmtApr = (n: number) => `${Number(n.toFixed(2))}`;
 
 /**
  * Recommendation engine — exact client rules. Only returns cards whose threshold is met.
- * 1. Tax debt > $5k  2. Unsecured > $10k  3. Business/MCA > $15k  4. Any debt APR >= 18%
- * 5. Total debt > $15k — means test bankruptcy eligibility warning
+ * Each rule applies only when that category's total balance exceeds RECOMMENDATION_MIN_BALANCE.
  */
 export function getRecommendations(
   debts: RecommendationDebt[],
@@ -61,52 +63,64 @@ export function getRecommendations(
 ): Recommendation[] {
   if (debts.length === 0) return [];
 
-  const taxTotal = debts.filter(isTaxDebt).reduce((s, d) => s + d.balance, 0);
-  const businessTotal = debts.filter(isBusinessMCA).reduce((s, d) => s + d.balance, 0);
-  const unsecuredTotal = debts.filter(isUnsecured).reduce((s, d) => s + d.balance, 0);
+  const taxDebts = debts.filter(isTaxDebt);
+  const businessDebts = debts.filter(isBusinessMCA);
+  const unsecuredDebts = debts.filter(isUnsecured);
+  const taxTotal = taxDebts.reduce((s, d) => s + d.balance, 0);
+  const businessTotal = businessDebts.reduce((s, d) => s + d.balance, 0);
+  const unsecuredTotal = unsecuredDebts.reduce((s, d) => s + d.balance, 0);
+  const unsecuredCount = unsecuredDebts.length;
+  const taxCount = taxDebts.length;
   const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
   const highestApr = debts.reduce((max, d) => Math.max(max, d.apr || 0), 0);
+  const highAprBalanceTotal = debts
+    .filter((d) => (d.apr || 0) >= 18)
+    .reduce((s, d) => s + d.balance, 0);
 
   const out: Recommendation[] = [];
 
-  // 1. IRS / State tax debt — trigger: total tax debt > $5,000
-  if (taxTotal > 5000) {
+  // 1. IRS / State tax debt
+  if (taxTotal > RECOMMENDATION_MIN_BALANCE) {
+    const taxAcct =
+      taxCount === 1 ? "1 tax account" : `${taxCount} tax accounts`;
     out.push({
       id: "tax",
       icon: "🏛️",
       header: "Tax debt relief",
-      body: `Because you have ${fmtDollars(taxTotal)} in tax debt, you may benefit from tax debt relief.`,
+      body: `About ${fmtDollars(taxTotal)} across ${taxAcct} in your list (IRS / tax only—not credit cards). You may benefit from tax debt relief.`,
       linkText: LINK_TEXT,
       affiliateKey: "TAX_RELIEF",
     });
   }
 
-  // 2. Unsecured debt — trigger: total unsecured > $10,000
-  if (unsecuredTotal > 10000) {
+  // 2. Unsecured debt (credit cards, personal loans, etc.—not tax, not secured, not business/MCA)
+  if (unsecuredTotal > RECOMMENDATION_MIN_BALANCE) {
+    const acct =
+      unsecuredCount === 1 ? "1 unsecured account" : `${unsecuredCount} unsecured accounts`;
     out.push({
       id: "relief",
       icon: "✨",
       header: "Debt relief",
-      body: `Because you have ${fmtDollars(unsecuredTotal)} in unsecured debts, you may benefit from debt relief.`,
+      body: `About ${fmtDollars(unsecuredTotal)} across ${acct} (cards & similar—tax and secured loans are separate). You may benefit from debt relief.`,
       linkText: LINK_TEXT,
       affiliateKey: "DEBT_RELIEF",
     });
   }
 
-  // 3. Business / MCA — trigger: total business or MCA debt > $15,000
-  if (businessTotal > 15000) {
+  // 3. Business / MCA
+  if (businessTotal > RECOMMENDATION_MIN_BALANCE) {
     out.push({
       id: "business",
       icon: "🏢",
       header: "Business debt relief",
-      body: `Because you have ${fmtDollars(businessTotal)} in business debts, you may benefit from business debt relief.`,
+      body: `About ${fmtDollars(businessTotal)} in business-related debts in your list. You may benefit from business debt relief.`,
       linkText: LINK_TEXT,
       affiliateKey: "BUSINESS_RELIEF",
     });
   }
 
-  // 4. High interest — trigger: ANY debt has APR >= 18%
-  if (highestApr >= 18) {
+  // 4. High interest — balance on APR ≥ 18% debts must exceed threshold
+  if (highestApr >= 18 && highAprBalanceTotal > RECOMMENDATION_MIN_BALANCE) {
     out.push({
       id: "rate",
       icon: "📉",
@@ -117,13 +131,14 @@ export function getRecommendations(
     });
   }
 
-  // 5. Means test — trigger: total debt > $15,000
-  if (totalDebt > 15000) {
+  // 5. Means test (everything in the list, including tax)
+  if (totalDebt > RECOMMENDATION_MIN_BALANCE) {
+    const acct = debts.length === 1 ? "1 account" : `${debts.length} accounts`;
     out.push({
       id: "means_test",
       icon: "⚖️",
       header: "Bankruptcy means test",
-      body: `Because you have ${fmtDollars(totalDebt)} in debt, you may want to check the means test.`,
+      body: `About ${fmtDollars(totalDebt)} total across ${acct} in your debt list (all types). You may want to check the means test.`,
       linkText: MEANS_TEST_LINK_TEXT,
       affiliateKey: "MEANS_TEST",
     });

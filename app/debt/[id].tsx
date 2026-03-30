@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  useColorScheme,
   Platform,
   Modal,
   Alert,
@@ -34,6 +33,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { soundManager } from "@/utils/SoundManager";
 import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
@@ -41,6 +41,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { useGame } from "@/context/GameContext";
 import { useStreakReminder } from "@/context/StreakReminderContext";
 import { useGoal } from "@/context/GoalContext";
+import { useNotifications } from "@/context/NotificationContext";
 import {
   Debt,
   DebtType,
@@ -57,6 +58,10 @@ import {
   usePaymentEffects,
   PaymentEffectsOverlay,
 } from "@/components/PaymentSuccessEffects";
+import {
+  shouldOfferAutoRouteToDayComplete,
+  markDayCompleteAutoRoutedToday,
+} from "@/lib/dayCompleteGate";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 // Chart fits inside card: scroll 32 + card 32 + Y label ~48 + gap 4 = 116
@@ -69,7 +74,7 @@ const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   personalLoan: "#9B59B6",
   studentLoan: "#E67E22",
   medical: "#E74C3C",
-  auto: "#1F4E8C",
+  auto: "#C07820",
   taxDebt: "#F39C12",
   businessDebt: "#34495E",
   other: "#95A5A6",
@@ -222,9 +227,13 @@ function AmortizationChart({
 }
 
 export default function DebtDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const { id, tab: tabParam, openMarkPaid, openEdit } = useLocalSearchParams<{
+    id: string;
+    tab?: TabKey;
+    openMarkPaid?: string;
+    openEdit?: string;
+  }>();
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const { debts, payments, updateDebt, deleteDebt, logPayment } = useDebts();
@@ -234,13 +243,25 @@ export default function DebtDetailScreen() {
     btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
   } = usePaymentEffects();
   const { cancelTonightsReminder } = useStreakReminder();
+  const { dismiss } = useNotifications();
   const { addGoalProgress } = useGoal();
 
   const debt = useMemo(() => debts.find((d) => d.id === id), [debts, id]);
 
-  const [activeTab, setActiveTab] = useState<TabKey>("progress");
-  const [editVisible, setEditVisible] = useState(false);
-  const [markPaidVisible, setMarkPaidVisible] = useState(false);
+  const shouldOpenMarkPaid = openMarkPaid === "1";
+  const shouldOpenEdit = String(openEdit ?? "") === "1" && !shouldOpenMarkPaid;
+  const initialTab: TabKey =
+    shouldOpenMarkPaid
+      ? "transactions"
+      : shouldOpenEdit
+        ? "details"
+        : tabParam === "progress" || tabParam === "transactions" || tabParam === "details"
+          ? tabParam
+          : "progress";
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [editVisible, setEditVisible] = useState(shouldOpenEdit);
+  const [markPaidVisible, setMarkPaidVisible] = useState(shouldOpenMarkPaid);
   const [markPaidAmount, setMarkPaidAmount] = useState("");
   const [whatIfExtra, setWhatIfExtra] = useState(0);
   const [whatIfInput, setWhatIfInput] = useState("");
@@ -334,6 +355,16 @@ export default function DebtDetailScreen() {
     return debt.apr * (1 - debt.taxRate / 100);
   }, [debt.apr, debt.taxRate]);
 
+  // If the user navigated here specifically to log a payment, ensure
+  // the transactions tab is active (so the "Mark as Paid" flow makes sense).
+  useEffect(() => {
+    if (!shouldOpenMarkPaid) return;
+    setActiveTab("transactions");
+    // Small delay to let tab header layout settle before modal animates.
+    const t = setTimeout(() => setMarkPaidVisible(true), 60);
+    return () => clearTimeout(t);
+  }, [shouldOpenMarkPaid]);
+
   const taxAdjustedResult = useMemo(() => {
     if (!debt.taxRate || debt.taxRate <= 0) return null;
     const adjusted = { ...debt, apr: effectiveApr };
@@ -368,13 +399,27 @@ export default function DebtDetailScreen() {
     const amount = parseFloat(markPaidAmount) || debt.minimumPayment;
     const isPayingOff = amount >= debt.balance;
     const debtName = debt.name;
+    const paymentDate = new Date();
+    const paymentIso = paymentDate.toISOString();
+    // Notification reminders are keyed by the due-month (current month if due hasn't happened yet; otherwise next month).
+    let dueDateForReminder = new Date(paymentDate.getFullYear(), paymentDate.getMonth(), debt.dueDate);
+    if (dueDateForReminder < paymentDate) {
+      dueDateForReminder = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, debt.dueDate);
+    }
+    const reminderId = `${debt.id}-${dueDateForReminder.getFullYear()}-${dueDateForReminder.getMonth() + 1}`;
 
     await runPayment(
       async () => {
-        await logPayment({ debtId: debt.id, amount, date: new Date().toISOString(), isMissed: false });
+        await logPayment({ debtId: debt.id, amount, date: paymentIso, isMissed: false });
+        // Stop the specific due-month payment reminder once the user logs payment.
+        try {
+          await dismiss(reminderId);
+        } catch (_) {}
         awardXp("LOG_PAYMENT");
         if (isPayingOff) awardXp("PAY_OFF_DEBT", { debtName });
         recordPaymentForStreak();
+        // Matches `day-complete` breakdown: "+10 XP — Showed up today"
+        grantBonusXp(10);
         cancelTonightsReminder();
         const milestoneHit = await addGoalProgress(amount);
         if (milestoneHit !== null) awardXp("HIT_MILESTONE");
@@ -397,10 +442,17 @@ export default function DebtDetailScreen() {
           setMarkPaidVisible(false);
           setMarkPaidAmount("");
         },
-        onSuccessAfterSheetClosed: (_isBonus, milestoneHit) => {
+        onSuccessAfterSheetClosed: async (_isBonus, milestoneHit) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           soundManager.play("payment_logged");
           if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+          // Immediately show the celebration moment for "today is complete"
+          const paidToday =
+            paymentIso.split("T")[0] === new Date().toISOString().split("T")[0];
+          if (paidToday && await shouldOfferAutoRouteToDayComplete()) {
+            await markDayCompleteAutoRoutedToday();
+            router.replace(`/day-complete?closeTo=debt&debtId=${debt.id}` as any);
+          }
         },
       }
     );
@@ -597,7 +649,7 @@ export default function DebtDetailScreen() {
               style={({ pressed }) => [styles.paidConfirmBtnWrap, { opacity: pressed ? 0.9 : 1 }]}
             >
               <LinearGradient
-                colors={btnState === "success" ? ["#1E7A45", "#155e33"] : [Colors.buttonGreen, Colors.buttonGreenDark]}
+                colors={btnState === "success" ? [Colors.amber, Colors.amberDark] : [Colors.buttonGreen, Colors.buttonGreenDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.paidConfirmBtn}
@@ -943,6 +995,27 @@ function TransactionsTab({
 }: any) {
   const { fmt, fmtFull } = useCurrency();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const paidByKey = useMemo(() => {
+    const set = new Set<string>();
+    const list = Array.isArray(allPayments) ? allPayments : [];
+    for (const p of list) {
+      if (!p || p.debtId !== debt.id || p.isMissed) continue;
+      const d = new Date(p.date);
+      if (Number.isNaN(d.getTime())) continue;
+      set.add(`${p.debtId}-${d.getFullYear()}-${d.getMonth() + 1}`);
+    }
+    return set;
+  }, [allPayments, debt.id]);
+
+  const upcomingPaymentsToShow = useMemo(() => {
+    const list = Array.isArray(upcomingPayments) ? upcomingPayments : [];
+    return list.filter((p: any) => {
+      const d = new Date(p.date);
+      if (Number.isNaN(d.getTime())) return false;
+      const key = `${debt.id}-${d.getFullYear()}-${d.getMonth() + 1}`;
+      return !paidByKey.has(key);
+    });
+  }, [upcomingPayments, paidByKey, debt.id]);
 
   return (
     <View style={styles.tabContent}>
@@ -981,11 +1054,11 @@ function TransactionsTab({
           </Pressable>
 
           <View style={styles.timelineContainer}>
-            {upcomingPayments.map((p: any, i: number) => (
+            {upcomingPaymentsToShow.map((p: any, i: number) => (
               <View key={i} style={styles.timelineItem}>
                 <View style={styles.timelineLeft}>
                   <View style={[styles.timelineDot, { borderColor: typeColor, backgroundColor: i === 0 ? typeColor : "transparent" }]} />
-                  {i < upcomingPayments.length - 1 && (
+                  {i < upcomingPaymentsToShow.length - 1 && (
                     <View style={[styles.timelineLine, { backgroundColor: typeColor + "30" }]} />
                   )}
                 </View>
@@ -1009,7 +1082,7 @@ function TransactionsTab({
                 </View>
               </View>
             ))}
-            {upcomingPayments.length === 0 && (
+            {upcomingPaymentsToShow.length === 0 && (
               <View style={styles.emptyTransactions}>
                 <Ionicons name="checkmark-done-circle" size={40} color={Colors.progressGreen} />
                 <Text style={[styles.emptyTransText, { color: C.textSecondary }]}>

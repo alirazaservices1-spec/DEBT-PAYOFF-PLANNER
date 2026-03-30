@@ -2,10 +2,11 @@
 // Designer handoff: orange=#E8600A, monospaced streak count, proper tier labels
 
 import React, { useRef, useEffect } from "react";
-import { StyleSheet, Text, View, useColorScheme, ViewStyle, Animated } from "react-native";
+import { StyleSheet, Text, View, ViewStyle, Animated } from "react-native";
 import Colors, { D } from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
 import { useGame } from "@/context/GameContext";
+import { useIsDark } from "@/context/ThemeContext";
 import { FlameIcon } from "@/components/FlameIcon";
 
 interface Props {
@@ -24,8 +25,7 @@ function getFlameLabel(streakCount: number): string {
 
 export function StreakWidget({ style }: Props) {
   const { streakCount, gracePeriodActive, hasStreakShield, flamePulseSeq } = useGame();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
 
   const flameScale = useRef(new Animated.Value(1)).current;
@@ -118,8 +118,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 0,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,

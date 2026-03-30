@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  useColorScheme,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useIsDark } from "@/context/ThemeContext";
 import { RecommendationBar } from "@/components/RecommendationBar";
 
 function parseNum(s: string): number {
@@ -22,7 +22,7 @@ function parseNum(s: string): number {
 }
 
 function monthsToStr(m: number): string {
-  if (m <= 0) return "—";
+  if (m <= 0) return "-";
   const yrs = Math.floor(m / 12);
   const mos = Math.round(m % 12);
   if (yrs === 0) return `${mos} mo`;
@@ -298,7 +298,7 @@ function RefinanceCalculator({ C, fmt }: { C: typeof Colors.light; fmt: (n: numb
           <ResultRow label="New Payment" value={fmt(result.newMonthly)} highlight C={C} />
           <ResultRow
             label="Monthly Savings"
-            value={result.monthlySavings > 0 ? fmt(result.monthlySavings) : `−${fmt(-result.monthlySavings)}`}
+            value={result.monthlySavings > 0 ? fmt(result.monthlySavings) : `-${fmt(-result.monthlySavings)}`}
             highlight={result.monthlySavings > 0}
             C={C}
           />
@@ -307,7 +307,7 @@ function RefinanceCalculator({ C, fmt }: { C: typeof Colors.light; fmt: (n: numb
           )}
           <ResultRow
             label="Lifetime Savings"
-            value={result.lifetimeSavings > 0 ? fmt(result.lifetimeSavings) : `−${fmt(-result.lifetimeSavings)}`}
+            value={result.lifetimeSavings > 0 ? fmt(result.lifetimeSavings) : `-${fmt(-result.lifetimeSavings)}`}
             highlight={result.lifetimeSavings > 0}
             C={C}
           />
@@ -340,8 +340,7 @@ const calcStyles = StyleSheet.create({
 });
 
 export default function CalculatorsScreen() {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const { fmt } = useCurrency();

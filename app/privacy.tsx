@@ -6,18 +6,17 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
+import { useIsDark } from "@/context/ThemeContext";
 
 export default function PrivacyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
 
   return (

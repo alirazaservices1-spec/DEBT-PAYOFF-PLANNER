@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -14,12 +13,12 @@ import Animated, {
   withSpring,
   withDelay,
   withRepeat,
-  withSequence,
   Easing,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
-import { DexMascot } from "@/components/DexMascot";
+import { SpinningDexFirstStep } from "@/components/SpinningDexFirstStep";
 
 interface Confetti {
   x: number;
@@ -50,6 +49,9 @@ function makeConfetti(count: number): Confetti[] {
 }
 
 const PIECES = makeConfetti(28);
+
+/** Let the card spring finish before showing the XP row so text isn’t drawn mid-scale. */
+const PILL_ENTRANCE_DELAY_MS = 520;
 
 function ConfettiPiece({ piece }: { piece: Confetti }) {
   const y = useSharedValue(-20);
@@ -83,27 +85,38 @@ interface Props {
 }
 
 export function FirstPaymentCelebration({ visible, onDismiss }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
 
   const backdropOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.5);
   const cardOpacity = useSharedValue(0);
-  const pillScale = useSharedValue(0);
+  /** Avoid scale on the XP pill — nested scale (card + pill) rasterizes text blurry. */
+  const pillOpacity = useSharedValue(0);
+  const pillTranslateY = useSharedValue(10);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (visible) {
+      pillOpacity.value = 0;
+      pillTranslateY.value = 10;
       backdropOpacity.value = withTiming(1, { duration: 300 });
       cardOpacity.value = withTiming(1, { duration: 300 });
       cardScale.value = withSpring(1, { damping: 14, stiffness: 200 });
-      pillScale.value = withDelay(400, withSpring(1, { damping: 12, stiffness: 180 }));
+      pillOpacity.value = withDelay(
+        PILL_ENTRANCE_DELAY_MS,
+        withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) })
+      );
+      pillTranslateY.value = withDelay(
+        PILL_ENTRANCE_DELAY_MS,
+        withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) })
+      );
       timerRef.current = setTimeout(onDismiss, 4000);
     } else {
       backdropOpacity.value = withTiming(0, { duration: 200 });
       cardScale.value = withTiming(0.8, { duration: 200 });
       cardOpacity.value = withTiming(0, { duration: 200 });
-      pillScale.value = withTiming(0, { duration: 150 });
+      pillOpacity.value = withTiming(0, { duration: 150 });
+      pillTranslateY.value = withTiming(8, { duration: 150 });
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -112,7 +125,10 @@ export function FirstPaymentCelebration({ visible, onDismiss }: Props) {
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value }));
   const cardStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.value, transform: [{ scale: cardScale.value }] }));
-  const pillStyle = useAnimatedStyle(() => ({ transform: [{ scale: pillScale.value }] }));
+  const pillStyle = useAnimatedStyle(() => ({
+    opacity: pillOpacity.value,
+    transform: [{ translateY: pillTranslateY.value }],
+  }));
 
   if (!visible) return null;
 
@@ -127,7 +143,7 @@ export function FirstPaymentCelebration({ visible, onDismiss }: Props) {
 
         <Pressable onPress={onDismiss}>
           <Animated.View style={[styles.card, { backgroundColor: isDark ? "#0D1F12" : "#fff" }, cardStyle]}>
-            <DexMascot state="celebrating" size={90} />
+            <SpinningDexFirstStep size={108} />
 
             <Text style={[styles.title, { color: isDark ? "#fff" : "#05130A" }]}>
               First Step Taken! 🎉
@@ -199,8 +215,10 @@ const styles = StyleSheet.create({
   xpPillText: {
     color: "#fff",
     fontSize: 15,
-    fontFamily: Fonts.extraBold, fontWeight: "800",
+    fontFamily: Fonts.extraBold,
+    fontWeight: "800",
     letterSpacing: 0.4,
+    includeFontPadding: false,
   },
   hint: {
     fontSize: 12,

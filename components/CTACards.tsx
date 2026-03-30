@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  useColorScheme,
   ScrollView,
   Dimensions,
 } from "react-native";
@@ -14,11 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { withAppUtmParams } from "@/lib/utm";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
-import { approximateDebtRange } from "@/lib/calculations";
 import { useCurrency } from "@/context/CurrencyContext";
 import { LeadForm } from "./LeadForm";
+import { RECOMMENDATION_MIN_BALANCE } from "@/lib/MonetizationRules";
 
 const SCREEN_W = Dimensions.get("window").width;
 const CARD_W = Math.min(SCREEN_W - 48, 340);
@@ -37,19 +37,15 @@ interface CTACardData {
 }
 
 export function CTACards() {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const {
     totalUnsecuredBalance,
-    hasTaxDebt,
-    hasHighAprDebt,
     creditCardCount,
     hasMissedPayment,
     debts,
     leadSubmittedAt,
     totalMinimums,
-    avalancheResult,
   } = useDebts();
 
   const { fmt } = useCurrency();
@@ -71,7 +67,7 @@ export function CTACards() {
 
   const cards: CTACardData[] = [];
 
-  if (totalUnsecuredBalance >= 10000) {
+  if (totalUnsecuredBalance >= RECOMMENDATION_MIN_BALANCE) {
     cards.push({
       id: "settlement",
       title: isUrgent
@@ -90,7 +86,11 @@ export function CTACards() {
     });
   }
 
-  if (hasTaxDebt) {
+  const taxDebtTotal = debts
+    .filter((d) => d.debtType === "taxDebt")
+    .reduce((s, d) => s + d.balance, 0);
+
+  if (taxDebtTotal >= RECOMMENDATION_MIN_BALANCE) {
     const taxDebt = debts.find((d) => d.debtType === "taxDebt");
     cards.push({
       id: "tax",
@@ -114,7 +114,7 @@ export function CTACards() {
     0
   );
 
-  if (totalBusinessBalance > 0) {
+  if (totalBusinessBalance >= RECOMMENDATION_MIN_BALANCE) {
     cards.push({
       id: "business",
       title: "Business Debt Relief",
@@ -130,8 +130,12 @@ export function CTACards() {
     });
   }
 
-  if (hasHighAprDebt) {
-    const highDebt = debts.find((d) => d.apr > 10);
+  const highAprBalance = debts
+    .filter((d) => (d.apr || 0) >= 18)
+    .reduce((s, d) => s + d.balance, 0);
+
+  if (highAprBalance >= RECOMMENDATION_MIN_BALANCE) {
+    const highDebt = debts.find((d) => d.apr >= 18);
     cards.push({
       id: "highApr",
       title: "Lower Interest Rate Loan",
@@ -146,7 +150,11 @@ export function CTACards() {
     });
   }
 
-  if (creditCardCount >= 3) {
+  const creditCardBalance = debts
+    .filter((d) => d.debtType === "creditCard")
+    .reduce((s, d) => s + d.balance, 0);
+
+  if (creditCardCount >= 3 && creditCardBalance >= RECOMMENDATION_MIN_BALANCE) {
     cards.push({
       id: "multipleCards",
       title: "Simplify Your Payments",
@@ -160,26 +168,11 @@ export function CTACards() {
     });
   }
 
-  if (totalUnsecuredBalance >= 3000) {
-    cards.push({
-      id: "debtRelief",
-      title: "Debt Relief Program",
-      body: `Debt negotiation may be an alternative path — a certified specialist could work with your creditors to potentially lower what you owe and create a manageable repayment plan.`,
-      ctaLabel: "Learn More",
-      icon: "shield-checkmark",
-      triggerType: "settlement",
-      debtType: "Unsecured Debt",
-      amount: totalUnsecuredBalance,
-      gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
-      url: "https://www.curadebt.com/debtpps",
-    });
-  }
-
   if (hasMissedPayment) {
     cards.push({
       id: "missed",
       title: "Falling Behind?",
-      body: `There are options. A certified debt specialist can review programs that may stop collection calls and reduce what you owe — free and confidential.`,
+      body: `There are options. A certified debt specialist can review programs that may stop collection calls and reduce what you owe - free and confidential.`,
       ctaLabel: "Talk to an Expert",
       icon: "alert-circle",
       triggerType: "missed",

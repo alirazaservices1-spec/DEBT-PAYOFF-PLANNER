@@ -10,12 +10,17 @@ import {
   StyleSheet,
   Animated,
   Pressable,
-  useColorScheme,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useGame, DexState } from "@/context/GameContext";
+import { useIsDark } from "@/context/ThemeContext";
 import { useDebts } from "@/context/DebtContext";
+import { useGoal } from "@/context/GoalContext";
 import { DexMascot } from "@/components/DexMascot";
+import { DexWelcome } from "@/components/DexWelcome";
+import { DexExcited } from "@/components/DexExcited";
+import { DexLoving } from "@/components/DexLoving";
+import { DexLaunch } from "@/components/DexLaunch";
 import { FlameIcon } from "@/components/FlameIcon";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
@@ -25,34 +30,34 @@ const DEX_MESSAGES: Record<DexState, string> = {
   idle:                 "Ready to tackle your debt today? Let's go! 💪",
   happy:               "That payment just earned you XP! You're building momentum. 🎉",
   celebrating:         "You're absolutely crushing it right now! 🔥",
-  worried:             "Hey, no judgment here — let's get back on track together! 🤍",
+  worried:             "Hey, no judgment here - let's get back on track together! 🤍",
   sleeping:            "Welcome back! Even rest days count. Let's pick it back up. 🌟",
   encouraging:         "Every payment matters. You've got this, no matter how small. 👊",
-  onboarding_clipboard:"Let me show you how this all works — I'm your debt coach! 📋",
-  surprised:           "Whoa — bonus XP incoming! You earned a little extra today. ✨",
+  onboarding_clipboard:"Let me show you how this all works - I'm your debt coach! 📋",
+  surprised:           "Whoa - bonus XP incoming! You earned a little extra today. ✨",
 };
 
 // ─── 8 tappable encouraging messages ─────────────────────────────────────────
 const TAP_MESSAGES = [
-  "You're doing amazing — keep going! 🌟",
+  "You're doing amazing - keep going! 🌟",
   "Every payment counts. You've got this! 💪",
   "Small steps lead to big wins. Stay strong!",
   "Progress, not perfection. Keep it up! ✨",
   "You're closer than you think! 🎯",
   "Debt freedom is earned one payment at a time. 🏆",
   "I believe in you! One step at a time. 🦊",
-  "No judgment here — just keep moving forward! 🌈",
+  "No judgment here - just keep moving forward! 🌈",
 ];
 
 // ─── Daily tips ───────────────────────────────────────────────────────────────
 const TIPS = [
   "Paying $10 extra per month can save hundreds in interest.",
-  "The avalanche method saves the most money — hit high APR debts first.",
+  "The avalanche method saves the most money - hit high APR debts first.",
   "Even small extra payments make a big difference over time.",
   "Automating minimums avoids late fees and protects your credit.",
   "Paying bi-weekly instead of monthly can shave months off your payoff date.",
   "Every dollar not spent on interest is a dollar toward your future.",
-  "Celebrating small wins keeps you motivated — you're doing great!",
+  "Celebrating small wins keeps you motivated - you're doing great!",
 ];
 
 const TIP_KEY = "@debtfree_tip_v1";
@@ -172,6 +177,14 @@ function SpeechBubble({ message }: BubbleProps) {
   );
 }
 
+// ─── Situational mascot selector ─────────────────────────────────────────────
+function SituationalDex({ state, size }: { state: DexState; size: number }) {
+  // Client request: remove the new dex character style across the app.
+  // Always render the (older) bear via `DexMascot`, and keep expressiveness
+  // through the existing state-driven motion + speech bubble text.
+  return <DexMascot state={state} size={size} />;
+}
+
 // ─── DexCard main ─────────────────────────────────────────────────────────────
 const GRACE_DAYS = 3;
 const SLEEP_DAYS = 7;
@@ -180,13 +193,20 @@ function daysBetween(a: Date, b: Date) {
 }
 
 export function DexCard() {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
 
-  const { dexState, dexOverrideMessage, triggerDex, prevLastOpenedAt, celebration } = useGame();
+  const {
+    dexState,
+    dexOverrideMessage,
+    triggerDex,
+    prevLastOpenedAt,
+    celebration,
+    streakCount,
+  } = useGame();
   const { debts, payments } = useDebts();
   const tip = useDailyTip();
+  const { goalName, hasGoal } = useGoal();
 
   // Tap state
   const [tapMessage, setTapMessage] = useState<string | null>(null);
@@ -213,6 +233,16 @@ export function DexCard() {
         return;
       }
     }
+
+    // If the user is already in a streak (and we didn't pick a special state),
+    // reflect "where they are" with a more expressive Dex.
+    if (streakCount >= 7) {
+      triggerDex("celebrating", 6000);
+    } else if (streakCount >= 3) {
+      triggerDex("happy", 6000);
+    } else if (streakCount >= 1) {
+      triggerDex("encouraging", 6000);
+    }
   }, []);
 
   useEffect(() => {
@@ -238,9 +268,42 @@ export function DexCard() {
     ]).start();
   }, []);
 
-  const displayMessage = tapMessage
-    ?? dexOverrideMessage
-    ?? (debts.length === 0 ? "Add a debt to start your payoff journey! 🌱" : DEX_MESSAGES[dexState]);
+  const dreamsBuiltLine = "You showed up today. That's how dreams get built. 🌟";
+  const goalWithYour = (n: string) => {
+    const t = n.trim();
+    if (!t) return t;
+    if (/^(your|my|our|the)\s/i.test(t)) return t;
+    return `your ${t}`;
+  };
+  const goalStepLine =
+    hasGoal && goalName
+      ? `Every payment is one step closer to ${goalWithYour(goalName)}! 🌟`
+      : dreamsBuiltLine;
+  const funStreakLine =
+    streakCount >= 7
+      ? "You're unstoppable. Keep stacking wins. 🔥"
+      : streakCount >= 3
+        ? "Momentum looks good on you. 🎉"
+        : streakCount >= 1
+          ? "Small steps daily. Big dream energy. 💪"
+          : "Start your streak today - one day at a time! 🔥";
+
+  const homeMessage = (() => {
+    if (debts.length === 0) return "Add a debt to start your payoff journey! 🌱";
+
+    if (dexState === "celebrating") return hasGoal ? goalStepLine : dreamsBuiltLine;
+    if (dexState === "surprised") return DEX_MESSAGES.surprised;
+    if (dexState === "worried") return DEX_MESSAGES.worried;
+    if (dexState === "sleeping") return DEX_MESSAGES.sleeping;
+
+    if (dexState === "happy" || dexState === "encouraging" || dexState === "idle") {
+      return hasGoal ? goalStepLine : dreamsBuiltLine;
+    }
+
+    return funStreakLine;
+  })();
+
+  const displayMessage = tapMessage ?? dexOverrideMessage ?? homeMessage;
 
   return (
     <View
@@ -262,7 +325,7 @@ export function DexCard() {
               </View>
             )}
             <Animated.View style={{ transform: [{ scale: tapScale }] }}>
-              <DexMascot state={dexState} size={72} />
+              <SituationalDex state={dexState} size={72} />
             </Animated.View>
           </View>
           <Text style={[styles.tapHint, { color: C.textSecondary }]}>tap me</Text>
@@ -290,7 +353,6 @@ const BUBBLE_BORDER = "#E8600A";
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 20,
     borderWidth: 1,

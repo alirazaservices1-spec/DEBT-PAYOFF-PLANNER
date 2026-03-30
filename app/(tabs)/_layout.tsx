@@ -7,13 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   Platform,
   StyleSheet,
-  useColorScheme,
   View,
   Text,
   Pressable,
   Dimensions,
+  Modal,
 } from "react-native";
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -27,16 +27,17 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import DebtsScreen from "./debts";
+
+/** Default tab when opening `/(tabs)` — Home first (leftmost in tab bar). */
+export const unstable_settings = {
+  initialRouteName: "dashboard",
+};
+
+// Evaluated once at module load — never re-checked on re-renders, preventing layout flicker
+const IS_GLASS = isLiquidGlassAvailable();
 
 const TAB_CONFIG = [
-  {
-    name: "index",
-    label: "Debts",
-    icon: "card-outline" as const,
-    iconActive: "card" as const,
-    sfDefault: "creditcard",
-    sfSelected: "creditcard.fill",
-  },
   {
     name: "dashboard",
     label: "Home",
@@ -44,6 +45,14 @@ const TAB_CONFIG = [
     iconActive: "home" as const,
     sfDefault: "house",
     sfSelected: "house.fill",
+  },
+  {
+    name: "debts",
+    label: "Debts",
+    icon: "card-outline" as const,
+    iconActive: "card" as const,
+    sfDefault: "creditcard",
+    sfSelected: "creditcard.fill",
   },
   {
     name: "strategy",
@@ -71,16 +80,25 @@ const TAB_CONFIG = [
   },
 ];
 
-function NativeTabLayout() {
+function NativeTabLayout({ onOpenDebts }: { onOpenDebts: () => void }) {
   return (
     <NativeTabs
       iconColor={{
         default: "#8E8E93",
-        selected: Colors.primary,
+        selected: "#1A6FC4",
       }}
       labelStyle={{
         default: { color: "#8E8E93" },
-        selected: { color: Colors.primary },
+        selected: { color: "#1A6FC4" },
+      }}
+      screenListeners={{
+        tabPress: (e: any) => {
+          const routeName = (e.target as string)?.split?.("-")[0] ?? "";
+          if (routeName === "debts") {
+            e.preventDefault?.();
+            onOpenDebts();
+          }
+        },
       }}
     >
       {TAB_CONFIG.map((tab) => (
@@ -93,9 +111,18 @@ function NativeTabLayout() {
   );
 }
 
-function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+// Light-mode-only tab bar colours — never derived from isDark so there is
+// no context timing window that could briefly flip the bar dark on first render.
+const TAB_BAR_BORDER     = "rgba(192,120,32,0.22)";
+const TAB_BAR_BG         = "rgba(250,244,234,0.98)";  // near-opaque so nothing bleeds through
+const TAB_BAR_BLUR_BG    = "rgba(253,248,238,0.95)";
+const TAB_PILL_BG        = "rgba(192,120,32,0.14)";
+
+function CustomTabBar({
+  state,
+  navigation,
+  onOpenDebts,
+}: BottomTabBarProps & { onOpenDebts: () => void }) {
   const insets = useSafeAreaInsets();
   const { width } = Dimensions.get("window");
 
@@ -107,10 +134,16 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const currentRouteName = state.routes[state.index]?.name ?? "";
   const moreTabIndex = TAB_CONFIG.findIndex((t) => t.name === "more");
 
+  // The app has some screens (like day-complete) that live under the tabs group
+  // but aren't real tab entries. We map them to a tab for highlighting/pill position.
+  const tabHighlightRouteName = currentRouteName === "day-complete"
+    ? "dashboard"
+    : currentRouteName;
+
   // Effective index for pill animation: map sub-routes to the More tab position
   const effectiveIndex = MORE_ROUTES.includes(currentRouteName)
     ? moreTabIndex
-    : state.index;
+    : Math.max(0, TAB_CONFIG.findIndex((t) => t.name === tabHighlightRouteName));
 
   const activeIndex = useSharedValue(effectiveIndex);
 
@@ -136,41 +169,30 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           bottom: bottomPad,
           left: 16,
           right: 16,
-          borderColor: isDark
-            ? "rgba(31,78,140,0.35)"
-            : "rgba(31,78,140,0.20)",
+          borderColor: TAB_BAR_BORDER,
+          backgroundColor: TAB_BAR_BG,
         },
       ]}
     >
       <BlurView
-        intensity={isDark ? 85 : 80}
-        tint={isDark ? "dark" : "light"}
+        intensity={80}
+        tint="light"
         style={[
           styles.tabBarBlur,
-          {
-            backgroundColor: isDark
-              ? "rgba(22,23,25,0.75)"
-              : "rgba(255,255,255,0.82)",
-          },
+          { backgroundColor: TAB_BAR_BLUR_BG },
         ]}
       >
         <Animated.View
           style={[
             styles.pill,
             pillStyle,
-            {
-              width: tabWidth,
-            },
+            { width: tabWidth },
           ]}
         >
           <View
             style={[
               styles.pillInner,
-            {
-              backgroundColor: isDark
-                ? "rgba(31,78,140,0.35)"
-                : "rgba(31,78,140,0.14)",
-            },
+              { backgroundColor: TAB_PILL_BG },
             ]}
           />
         </Animated.View>
@@ -180,7 +202,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             const isActive =
               tab.name === "more"
                 ? MORE_ROUTES.includes(currentRouteName)
-                : state.index === index;
+                : tab.name === tabHighlightRouteName;
             return (
               <TabItem
                 key={tab.name}
@@ -188,10 +210,11 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 isActive={isActive}
                 activeIndex={activeIndex}
                 index={index}
-                isDark={isDark}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (!isActive) {
+                  if (tab.name === "debts") {
+                    onOpenDebts();
+                  } else if (!isActive) {
                     navigation.navigate(tab.name);
                   }
                 }}
@@ -209,14 +232,12 @@ function TabItem({
   isActive,
   activeIndex,
   index,
-  isDark,
   onPress,
 }: {
   tab: (typeof TAB_CONFIG)[0];
   isActive: boolean;
   activeIndex: SharedValue<number>;
   index: number;
-  isDark: boolean;
   onPress: () => void;
 }) {
   const animStyle = useAnimatedStyle(() => {
@@ -225,17 +246,9 @@ function TabItem({
     return { transform: [{ scale }] };
   });
 
-  const iconColor = isActive
-    ? Colors.primary
-    : isDark
-    ? Colors.dark.tabIconDefault
-    : Colors.light.tabIconDefault;
-
-  const labelColor = isActive
-    ? Colors.primary
-    : isDark
-    ? Colors.dark.tabIconDefault
-    : Colors.light.tabIconDefault;
+  // Always light mode — no isDark dependency prevents any first-render colour flash
+  const iconColor = isActive ? "#1A6FC4" : Colors.light.tabIconDefault;
+  const labelColor = isActive ? "#1A6FC4" : Colors.light.tabIconDefault;
 
   return (
     <Pressable
@@ -275,28 +288,73 @@ function TabItem({
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ onOpenDebts }: { onOpenDebts: () => void }) {
+  const renderTabBarWithDebts = React.useCallback(
+    (props: BottomTabBarProps) => <CustomTabBar {...props} onOpenDebts={onOpenDebts} />,
+    [onOpenDebts]
+  );
+
   return (
     <Tabs
+      initialRouteName="dashboard"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
+        tabBarActiveTintColor: "#1A6FC4",
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
       }}
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={renderTabBarWithDebts}
     >
       {TAB_CONFIG.map((tab) => (
         <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.label }} />
       ))}
+      {/* Not a real tab entry; included so routes under the tabs group still have tab bar state */}
+      <Tabs.Screen name="day-complete" options={{ href: null, title: "Day Complete" }} />
     </Tabs>
   );
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  const [debtsVisible, setDebtsVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const openDebts = React.useCallback(() => setDebtsVisible(true), []);
+  const closeDebts = React.useCallback(() => setDebtsVisible(false), []);
+
+  return (
+    <>
+      {IS_GLASS ? (
+        <NativeTabLayout onOpenDebts={openDebts} />
+      ) : (
+        <ClassicTabLayout onOpenDebts={openDebts} />
+      )}
+
+      <Modal
+        visible={debtsVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeDebts}
+      >
+        <View style={{ flex: 1 }}>
+          <DebtsScreen />
+          <Pressable
+            onPress={closeDebts}
+            hitSlop={12}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              right: 16,
+              zIndex: 999,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              borderRadius: 20,
+              padding: 4,
+            }}
+          >
+            <Ionicons name="close" size={22} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -305,7 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: "hidden",
     borderWidth: 1.5,
-    shadowColor: Colors.blue,
+    shadowColor: Colors.amber,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
     shadowRadius: 24,
@@ -356,7 +414,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.blue,
+    backgroundColor: Colors.amber,
     marginTop: 1,
   },
 });

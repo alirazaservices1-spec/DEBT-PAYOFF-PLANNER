@@ -6,7 +6,6 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  useColorScheme,
   Switch,
   Modal,
 } from "react-native";
@@ -14,6 +13,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { apiRequest } from "@/lib/query-client";
@@ -36,8 +36,7 @@ interface Props {
 }
 
 export function LeadForm({ visible, onClose, triggerType, prefilledDebtType, prefilledAmount }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const router = useRouter();

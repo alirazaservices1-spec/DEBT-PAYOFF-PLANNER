@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debt-Free App — Day 1 Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/dm-serif-display@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@8/index.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#F5F0E8;display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(0.72)}to{opacity:1;transform:scale(1)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-22px)}55%{transform:translateY(-10px)}75%{transform:translateY(-16px)}90%{transform:translateY(-5px)}}
+@keyframes dexIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes dexPop{0%{transform:scale(1)}35%{transform:scale(1.22)}65%{transform:scale(0.94)}100%{transform:scale(1)}}
+@keyframes dexSpin{from{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.15)}to{transform:rotate(360deg) scale(1)}}
+@keyframes dexShake{0%,100%{transform:rotate(0)}20%{transform:rotate(-9deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(6deg)}}
+@keyframes confFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(340px) rotate(720deg);opacity:0}}
+@keyframes xpFloat{0%{opacity:0;transform:scale(0.5) translateY(0)}15%{opacity:1;transform:scale(1.25) translateY(-8px)}70%{opacity:1;transform:scale(1) translateY(-52px)}100%{opacity:0;transform:scale(0.9) translateY(-90px)}}
+@keyframes ringOut{0%{transform:translate(-50%,-50%) scale(0.5);opacity:1}100%{transform:translate(-50%,-50%) scale(2);opacity:0}}
+@keyframes checkDraw{from{stroke-dashoffset:30}to{stroke-dashoffset:0}}
+@keyframes taskDone{0%{transform:translateX(0)}15%{transform:translateX(5px)}30%{transform:translateX(0)}100%{transform:translateX(0)}}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(0.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes toastOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-14px)}}
+@keyframes streakBurst{0%{opacity:0;transform:scale(0.5) translateY(40px)}60%{opacity:1;transform:scale(1.08) translateY(-8px)}80%{transform:scale(0.97) translateY(2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes flamePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@keyframes barFill{from{width:0}to{width:var(--w)}}
+@keyframes bubbleIn{0%{opacity:0;transform:translateX(-50%) translateY(8px) scale(0.8)}10%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}80%{opacity:1}100%{opacity:0}}
+@keyframes allDoneIn{from{opacity:0;transform:scale(0.88) translateY(24px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+.phone{width:355px;background:#EDE8D5;border-radius:46px;border:7px solid #180600;box-shadow:0 28px 72px rgba(0,0,0,0.32),0 6px 16px rgba(0,0,0,0.12);overflow:hidden;position:relative;min-height:740px}
+.phone::before{content:'';position:absolute;top:16px;left:50%;transform:translateX(-50%);width:82px;height:5px;background:rgba(24,6,0,0.16);border-radius:3px;z-index:40}
+.conf-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:30}
+.conf{position:absolute;animation:confFall 1.6s ease-out both}
+
+#toastLayer{position:absolute;bottom:80px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:8px;z-index:50;pointer-events:none}
+.toast{background:#2A1808;color:#EDE8D5;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;border-radius:24px;padding:10px 20px;display:flex;align-items:center;gap:8px;animation:toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+.toast-icon{font-size:18px;line-height:1}
+.xp-pop{position:absolute;font-family:'DM Serif Display',serif;font-size:28px;color:#C07820;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(192,120,32,0.35);animation:xpFloat 1.4s cubic-bezier(0.22,1,0.36,1) both;white-space:nowrap}
+
+.screen{padding:50px 20px 28px;overflow-y:auto;scrollbar-width:none;min-height:740px}
+.screen::-webkit-scrollbar{display:none}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.hdr-day{font-family:'DM Serif Display',serif;font-size:22px;color:#2A1808}
+.hdr-date{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:#9A7240;font-weight:600}
+.streak-badge{display:flex;align-items:center;gap:4px;background:#FAF6EE;border:1.5px solid rgba(192,120,32,0.22);border-radius:20px;padding:5px 11px}
+.streak-num{font-family:'DM Serif Display',serif;font-size:15px;color:#C07820}
+.streak-lbl{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;color:#9A7240}
+
+.xp-card{background:#FAF6EE;border-radius:16px;border:1.5px solid rgba(192,120,32,0.18);padding:11px 13px;margin-bottom:11px}
+.xp-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.xp-level{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:#2A1808}
+.xp-pts{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:#C07820}
+.xp-track{height:9px;background:rgba(192,120,32,0.14);border-radius:5px;overflow:hidden}
+.xp-fill{height:100%;background:linear-gradient(90deg,#C07820,#F0B030);border-radius:5px;transition:width 0.8s cubic-bezier(0.34,1.56,0.64,1)}
+
+.dex-area{display:flex;justify-content:center;align-items:center;height:110px;position:relative;margin-bottom:6px}
+.dex-wrap{position:relative;display:flex;justify-content:center}
+.dex-anim{animation:dexIdle 2.6s ease-in-out infinite}
+.ring{position:absolute;top:50%;left:50%;width:88px;height:88px;border-radius:50%;border:3px solid rgba(192,120,32,0.4);transform:translate(-50%,-50%);animation:ringOut 0.9s ease-out both;pointer-events:none}
+.bubble{position:absolute;top:-38px;left:50%;transform:translateX(-50%);background:#2A1808;color:#EDE8D5;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;padding:5px 12px;border-radius:18px;white-space:nowrap;z-index:10;animation:bubbleIn 2.8s ease both}
+.bubble::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#2A1808;border-bottom:none}
+
+.sec-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;color:#9A7240;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:7px}
+
+.prog-row{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.prog-ring-wrap{position:relative;flex-shrink:0}
+.prog-ring-wrap svg{transform:rotate(-90deg)}
+.prog-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:14px;color:#2A1808}
+.prog-text{flex:1}
+.prog-msg{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;color:#2A1808;margin-bottom:1px}
+.prog-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px;color:#9A7240}
+
+.task-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.task{background:#FAF6EE;border-radius:16px;border:1.5px solid rgba(192,120,32,0.18);padding:11px 13px;display:flex;align-items:center;gap:11px;cursor:pointer;transition:all 0.16s;position:relative;overflow:hidden;animation:slideIn 0.4s ease both}
+.task:hover:not(.done){border-color:#C07820;transform:translateX(3px)}
+.task.done{background:#F0EBD8;border-color:rgba(192,120,32,0.12);opacity:0.82}
+.task.done:hover{transform:none}
+.task-check{width:28px;height:28px;border-radius:50%;border:2px solid rgba(192,120,32,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.22s;background:transparent}
+.task.done .task-check{background:#C07820;border-color:#C07820}
+.task-icon{font-size:20px;flex-shrink:0;line-height:1;transition:transform 0.2s}
+.task:hover:not(.done) .task-icon{transform:scale(1.1)}
+.task-body{flex:1;min-width:0}
+.task-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:#2A1808;display:block;margin-bottom:1px}
+.task.done .task-name{text-decoration:line-through;color:#9A7240}
+.task-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px;color:#9A7240}
+.task-pts{font-family:'DM Serif Display',serif;font-size:14px;color:#C07820;flex-shrink:0}
+.task.done .task-pts{color:#9A7240}
+.task-ripple{position:absolute;border-radius:50%;background:rgba(192,120,32,0.18);animation:ringOut 0.55s ease-out both;pointer-events:none;width:120px;height:120px;top:50%;left:40px;transform:translate(-50%,-50%)}
+
+.all-done-card{background:linear-gradient(135deg,#2A1808,#3D2510);border-radius:22px;padding:20px;text-align:center;margin-bottom:12px;animation:allDoneIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both}
+.ad-streak{font-size:52px;display:block;animation:flamePulse 0.7s ease-in-out infinite alternate;margin-bottom:4px}
+.ad-title{font-family:'DM Serif Display',Georgia,serif;font-size:24px;color:#EDE8D5;margin-bottom:4px}
+.ad-title em{color:#E8960A;font-style:italic}
+.ad-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:rgba(237,232,213,0.65);line-height:1.55;margin-bottom:14px}
+.ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.ad-stat{background:rgba(255,255,255,0.07);border-radius:12px;padding:9px 4px}
+.ad-stat-v{font-family:'DM Serif Display',serif;font-size:16px;color:#EDE8D5;display:block}
+.ad-stat-l{font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;color:rgba(237,232,213,0.5);letter-spacing:0.06em;text-transform:uppercase}
+.ad-streak-row{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
+.ad-chip{width:36px;text-align:center;padding:6px 0;border-radius:10px;background:rgba(255,255,255,0.06)}
+.ad-chip.lit{background:#C07820}
+.ad-chip-d{font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;color:rgba(237,232,213,0.45);text-transform:uppercase;display:block}
+.ad-chip.lit .ad-chip-d{color:rgba(255,255,255,0.7)}
+.ad-chip-ico{font-size:14px;display:block;margin:2px 0}
+.ad-btn{width:100%;background:#C07820;color:white;border:none;border-radius:24px;padding:14px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity 0.12s;position:relative;overflow:hidden}
+.ad-btn:hover{opacity:0.88}
+.ad-btn-shine{position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent);animation:adShimmer 2.2s ease-in-out 0.6s infinite}
+@keyframes adShimmer{0%{left:-100%}100%{left:200%}}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <div class="conf-wrap" id="confWrap"></div>
+  <div id="toastLayer"></div>
+
+  <div class="screen" id="dashScreen">
+    <div class="hdr">
+      <div>
+        <div class="hdr-day">Day 1 🚀</div>
+        <div class="hdr-date" id="hdrDate"></div>
+      </div>
+      <div class="streak-badge">
+        <span style="font-size:15px">🔥</span>
+        <span class="streak-num" id="streakNum">1</span>
+        <span class="streak-lbl">day streak</span>
+      </div>
+    </div>
+
+    <div class="xp-card">
+      <div class="xp-row">
+        <span class="xp-level" id="xpLevel">Level 1 — Rookie</span>
+        <span class="xp-pts" id="xpPts">0 / 100 XP</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="dex-area">
+      <div id="dexWrap" class="dex-wrap">
+        <div id="dexRing" style="display:none" class="ring"></div>
+        <div id="dexBubble" style="display:none" class="bubble"></div>
+        <svg id="dexSvg" class="dex-anim" viewBox="0 0 90 90" width="100" height="100">
+          <ellipse cx="28" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+          <ellipse cx="62" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+          <ellipse cx="16" cy="46" rx="9" ry="16" fill="#EAA835" transform="rotate(18,16,46)"/>
+          <ellipse cx="74" cy="46" rx="9" ry="16" fill="#EAA835" transform="rotate(-18,74,46)"/>
+          <circle cx="45" cy="44" r="33" fill="#EAA835"/>
+          <ellipse cx="45" cy="64" rx="26" ry="15" fill="#C07820" opacity="0.22"/>
+          <circle cx="20" cy="22" r="10" fill="#D09828"/>
+          <circle cx="70" cy="22" r="10" fill="#D09828"/>
+          <ellipse cx="33" cy="37" rx="11" ry="12" fill="white"/>
+          <ellipse cx="57" cy="37" rx="11" ry="12" fill="white"/>
+          <circle cx="35" cy="39" r="7" fill="#1A0800"/>
+          <circle cx="59" cy="39" r="7" fill="#1A0800"/>
+          <circle cx="32" cy="36" r="3" fill="white"/>
+          <circle cx="56" cy="36" r="3" fill="white"/>
+          <path d="M33 55 Q45 65 57 55" stroke="#A86010" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="prog-row" id="progRow">
+      <div class="prog-ring-wrap">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="21" fill="none" stroke="rgba(192,120,32,0.14)" stroke-width="5"/>
+          <circle id="progCircle" cx="26" cy="26" r="21" fill="none" stroke="#C07820" stroke-width="5"
+            stroke-dasharray="132" stroke-dashoffset="132" stroke-linecap="round"
+            style="transition:stroke-dashoffset 0.8s cubic-bezier(0.34,1.56,0.64,1)"/>
+        </svg>
+        <div class="prog-pct" id="progPct">0%</div>
+      </div>
+      <div class="prog-text">
+        <div class="prog-msg" id="progMsg">Let's tackle today's actions!</div>
+        <div class="prog-sub" id="progSub">Complete all 5 to earn your Day 1 streak 🔥</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Today's actions</div>
+    <div class="task-list" id="taskList"></div>
+    <div id="allDoneCard" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+var xp=0,xpMax=100,level=1,streak=1,completedToday=0;
+var LEVELS=['Rookie','Hustler','Fighter','Warrior','Champion','Legend'];
+var bubbleTimer=null;
+
+var TASKS=[
+  {id:'review',icon:'📋',name:'Review your debt list',sub:'Check your 4 debts in the app',pts:10,done:false,speech:'Knowledge is power. You\'ve got this! 📋',dexAnim:'bounce'},
+  {id:'payment',icon:'💸',name:'Log a payment',sub:'Even the minimum counts — every dollar wins',pts:10,done:false,speech:'That payment just got you closer! 🎯',dexAnim:'pop'},
+  {id:'budget',icon:'📊',name:'Check your budget',sub:'5 minutes to review this week\'s spending',pts:10,done:false,speech:'You looked at the numbers. That\'s rare! 💡',dexAnim:'shake'},
+  {id:'boost',icon:'☕',name:'Skip one daily coffee',sub:'Save $0.50–$5 toward your dream goal',pts:15,done:false,speech:'One skip today = one day sooner! ☕→🏖️',dexAnim:'spin'},
+  {id:'learn',icon:'📖',name:'Read one tip from Dex',sub:'30 seconds of financial wisdom',pts:5,done:false,speech:'Smart move. Knowledge compounds too! 🧠',dexAnim:'bounce'},
+];
+
+(function(){
+  var d=new Date();
+  var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('hdrDate').textContent=days[d.getDay()]+', '+months[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  renderTasks();
+})();
+
+function renderTasks(){
+  var list=document.getElementById('taskList'); list.innerHTML='';
+  TASKS.forEach(function(t,i){
+    var el=document.createElement('div');
+    el.className='task'+(t.done?' done':'');
+    el.id='task-'+t.id;
+    el.style.animationDelay=(0.05+i*0.07)+'s';
+    el.onclick=function(){ if(!t.done) completeTask(t,el); };
+    el.innerHTML='<div class="task-check"><svg width="14" height="11" viewBox="0 0 14 11" fill="none"><path class="chk" d="M1.5 5.5L5.5 9.5L12.5 1.5" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"'+(t.done?' style="stroke-dashoffset:0"':'')+'/></svg></div>'+
+      '<span class="task-icon">'+t.icon+'</span>'+
+      '<span class="task-body"><span class="task-name">'+t.name+'</span><span class="task-sub">'+t.sub+'</span></span>'+
+      '<span class="task-pts">'+(t.done?'✓':'+'+t.pts+' XP')+'</span>';
+    list.appendChild(el);
+  });
+}
+
+function completeTask(task,el){
+  task.done=true; completedToday++;
+  el.classList.add('done');
+  var rip=document.createElement('div'); rip.className='task-ripple'; el.appendChild(rip);
+  setTimeout(function(){if(rip.parentNode)rip.parentNode.removeChild(rip);},600);
+  el.querySelector('.task-check').style.cssText='background:#C07820;border-color:#C07820';
+  el.querySelector('.task-name').style.cssText='text-decoration:line-through;color:#9A7240';
+  var ptsEl=el.querySelector('.task-pts'); ptsEl.textContent='✓'; ptsEl.style.color='#9A7240';
+  var rect=el.getBoundingClientRect(), phoneRect=document.getElementById('phone').getBoundingClientRect();
+  var fx=rect.left+rect.width*0.78-phoneRect.left, fy=rect.top+rect.height/2-phoneRect.top;
+  floatXP('+'+task.pts+' XP',fx,fy);
+  playChime(task.pts===15);
+  dexReact(task.dexAnim,task.speech);
+  addXP(task.pts);
+  showToast(task.speech,task.icon);
+  burstConfetti(rect.left+rect.width/2, rect.top+rect.height/2, 16);
+  updateProgress();
+  if(completedToday===TASKS.length) setTimeout(showAllDone,700);
+}
+
+function updateProgress(){
+  var pct=Math.round(completedToday/TASKS.length*100);
+  document.getElementById('progCircle').style.strokeDashoffset=132-(132*pct/100);
+  document.getElementById('progPct').textContent=pct+'%';
+  var msgs=['Let\'s tackle today\'s actions!','Great start — keep going!','You\'re building momentum! 🔥','More than halfway there!','Almost done — one more! 💪','All done! Day 1 complete! 🎉'];
+  var subs=['Complete all 5 to earn your Day 1 streak 🔥',completedToday+' of 5 done — Dex is watching!',completedToday+' of 5 done — you\'re on fire!',completedToday+' of 5 done — unstoppable!',completedToday+' of 5 done — finish strong!','Your streak is locked in for today! 🏆'];
+  var idx=Math.min(completedToday,5);
+  document.getElementById('progMsg').textContent=msgs[idx];
+  document.getElementById('progSub').textContent=subs[idx];
+}
+
+function showAllDone(){
+  streak=2; document.getElementById('streakNum').textContent=streak;
+  var today=new Date(); var days=['Su','Mo','Tu','We','Th','Fr','Sa']; var todayIdx=today.getDay();
+  var chips='';
+  for(var i=0;i<7;i++){
+    var lit=i===0||i===1; var idx=(todayIdx-1+i)%7;
+    chips+='<div class="ad-chip'+(lit?' lit':'')+'"><span class="ad-chip-d">'+days[idx]+'</span><span class="ad-chip-ico">'+(lit?'🔥':'⬜')+'</span></div>';
+  }
+  var totalXP=TASKS.reduce(function(s,t){return s+t.pts;},0);
+  var card=document.getElementById('allDoneCard');
+  card.style.display='block';
+  card.innerHTML='<div class="all-done-card"><span class="ad-streak">🔥</span><div class="ad-title">Day 1 <em>complete!</em></div><div class="ad-sub">You did what most people won\'t. Every action today builds the foundation of your debt-free life. Dex is so proud.</div><div class="ad-stats"><div class="ad-stat"><span class="ad-stat-v">'+totalXP+' XP</span><span class="ad-stat-l">Earned today</span></div><div class="ad-stat"><span class="ad-stat-v">5 / 5</span><span class="ad-stat-l">Actions done</span></div><div class="ad-stat"><span class="ad-stat-v">'+streak+' days</span><span class="ad-stat-l">Streak 🔥</span></div></div><div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:10px;font-weight:700;color:rgba(237,232,213,0.5);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:7px">Your streak</div><div class="ad-streak-row">'+chips+'</div><button class="ad-btn" onclick="alert(\'Day 2 coming soon!\')"><div class="ad-btn-shine"></div>See Day 2 actions →</button></div>';
+  var phoneRect=document.getElementById('phone').getBoundingClientRect();
+  burstConfetti(phoneRect.left+phoneRect.width/2,phoneRect.top+200,60);
+  setTimeout(function(){burstConfetti(phoneRect.left+phoneRect.width*0.25,phoneRect.top+180,30);},250);
+  setTimeout(function(){burstConfetti(phoneRect.left+phoneRect.width*0.75,phoneRect.top+180,30);},450);
+  playFanfare();
+  dexReact('spin','Day 2 streak LOCKED! 🔥 You\'re unstoppable!');
+  setTimeout(function(){card.scrollIntoView({behavior:'smooth',block:'start'});},200);
+}
+
+function dexReact(anim,speech){
+  var svg=document.getElementById('dexSvg');
+  svg.style.animation='none'; void svg.offsetWidth;
+  if(anim==='bounce') svg.style.animation='bounce 1s cubic-bezier(0.36,0.07,0.19,0.97) both';
+  else if(anim==='pop') svg.style.animation='dexPop 0.55s cubic-bezier(0.34,1.56,0.64,1) both';
+  else if(anim==='spin') svg.style.animation='dexSpin 0.85s cubic-bezier(0.34,1.56,0.64,1) both';
+  else if(anim==='shake') svg.style.animation='dexShake 0.7s ease both';
+  setTimeout(function(){svg.style.animation='dexIdle 2.6s ease-in-out infinite';},1300);
+  var ring=document.getElementById('dexRing');
+  ring.style.display='block'; ring.style.animation='none'; void ring.offsetWidth;
+  ring.style.animation='ringOut 0.9s ease-out both';
+  setTimeout(function(){ring.style.display='none';},1000);
+  clearTimeout(bubbleTimer);
+  var bub=document.getElementById('dexBubble');
+  bub.textContent=speech; bub.style.display='block';
+  bub.style.animation='none'; void bub.offsetWidth;
+  bub.style.animation='bubbleIn 2.8s ease both';
+  bubbleTimer=setTimeout(function(){bub.style.display='none';},2900);
+}
+
+function addXP(pts){
+  xp+=pts; if(xp>=xpMax){xp-=xpMax;level++;}
+  var pct=Math.round(xp/xpMax*100);
+  document.getElementById('xpFill').style.width=pct+'%';
+  document.getElementById('xpPts').textContent=xp+' / '+xpMax+' XP';
+  document.getElementById('xpLevel').textContent='Level '+level+' — '+(LEVELS[level-1]||'Legend');
+}
+
+function floatXP(txt,x,y){
+  var el=document.createElement('div'); el.className='xp-pop';
+  el.textContent=txt; el.style.left=x+'px'; el.style.top=y+'px';
+  document.getElementById('phone').appendChild(el);
+  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},1500);
+}
+
+function showToast(msg,icon){
+  var layer=document.getElementById('toastLayer');
+  var el=document.createElement('div'); el.className='toast';
+  el.innerHTML='<span class="toast-icon">'+icon+'</span><span>'+msg+'</span>';
+  layer.appendChild(el);
+  setTimeout(function(){el.style.animation='toastOut 0.35s ease both';setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},380);},2200);
+}
+
+function burstConfetti(cx,cy,n){
+  var wrap=document.getElementById('confWrap');
+  var pr=document.getElementById('phone').getBoundingClientRect();
+  var colors=['#C07820','#E8960A','#EAA835','#7A3A0C','#D09828','#F5C842','#A86010','#639922'];
+  for(var i=0;i<n;i++){(function(){
+    var el=document.createElement('div'); el.className='conf';
+    el.style.left=(cx-pr.left-4+((Math.random()-0.5)*60))+'px';
+    el.style.top=(cy-pr.top-4)+'px';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    var s=5+Math.random()*7; el.style.width=s+'px'; el.style.height=s+'px';
+    el.style.borderRadius=Math.random()>0.45?'50%':'2px';
+    el.style.animationDelay=(Math.random()*0.5)+'s';
+    el.style.animationDuration=(1.1+Math.random()*0.7)+'s';
+    wrap.appendChild(el);
+    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},2200);
+  })();}
+}
+
+function playChime(big){
+  try{
+    var ac=new(window.AudioContext||window.webkitAudioContext)();
+    var notes=big?[[523,0],[659,0.07],[784,0.14],[1047,0.22],[1319,0.32]]:[[659,0],[784,0.07],[1047,0.16]];
+    notes.forEach(function(n){var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=n[0];o.type='sine';g.gain.setValueAtTime(0.1,ac.currentTime+n[1]);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n[1]+0.4);o.start(ac.currentTime+n[1]);o.stop(ac.currentTime+n[1]+0.45);});
+  }catch(e){}
+}
+
+function playFanfare(){
+  try{
+    var ac=new(window.AudioContext||window.webkitAudioContext)();
+    [[392,0],[494,0.09],[587,0.18],[784,0.28],[1047,0.4],[1319,0.54]].forEach(function(n){var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=n[0];o.type=n[1]>0.3?'sine':'triangle';g.gain.setValueAtTime(0.09,ac.currentTime+n[1]);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n[1]+0.5);o.start(ac.currentTime+n[1]);o.stop(ac.currentTime+n[1]+0.55);});
+  }catch(e){}
+}
+</script>
+</body>
+</html>

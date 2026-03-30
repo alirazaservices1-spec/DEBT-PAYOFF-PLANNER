@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { Fonts } from "@/constants/fonts";
 import { useReduceMotion } from "@/hooks/useReduceMotion";
+import { soundManager } from "@/utils/SoundManager";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
@@ -27,7 +28,7 @@ const CONFETTI_COLORS = [
   "#E8850A","#00C9A7","#F0A500","#A78BFA","#34D399",
 ];
 
-const XP_BLUE = "#1F4E8C";
+const XP_BLUE = "#C07820";
 const BONUS_GOLD = "#D4A017";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -313,6 +314,7 @@ export function usePaymentEffects() {
         callbacks.onFlamePulse?.();
 
         if (isBonus) {
+          void soundManager.play("variable_bonus");
           setBonusActive(true);
           callbacks.onBonus?.();
           setTimeout(() => setBonusActive(false), 3300);

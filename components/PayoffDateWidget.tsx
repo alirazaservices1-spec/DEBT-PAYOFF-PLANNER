@@ -11,9 +11,9 @@ import {
   Text,
   StyleSheet,
   Animated,
-  useColorScheme,
 } from "react-native";
 import { D } from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 
 interface Props {
   currentDate: Date;
@@ -31,8 +31,7 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 export function PayoffDateWidget({ currentDate, baselineDate, hasExtraPayment, paymentTrigger = 0 }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
 
   const daysSaved = daysBetween(currentDate, baselineDate);
   const monthsSaved = Math.round(daysSaved / 30);

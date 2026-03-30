@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Debt-Free — My Debts</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#e5ddd0;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:40px 16px;font-family:'Nunito',sans-serif;}
+  .df-wrap{font-family:'Nunito',sans-serif;max-width:390px;width:100%;margin:0 auto;background:#f4efe5;min-height:700px;border-radius:32px;overflow:hidden;border:1px solid #ddd6c8;position:relative;}
+  .df-status{background:#1a1a1a;padding:10px 20px 6px;display:flex;justify-content:space-between;align-items:center;}
+  .df-status span{color:#fff;font-size:12px;font-weight:700;}
+  .df-header{background:#f4efe5;padding:14px 20px 10px;display:flex;align-items:center;gap:10px;}
+  .df-back{width:34px;height:34px;border-radius:50%;background:#e8e1d4;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .df-header-title{flex:1;text-align:center;font-size:18px;font-weight:800;color:#1a1a1a;letter-spacing:-0.3px;}
+  .df-header-dex{width:36px;height:36px;}
+  .df-total-card{margin:0 16px 14px;background:#1a1a1a;border-radius:20px;padding:18px 20px;}
+  .df-total-label{font-size:11px;color:#888;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+  .df-total-amount{font-size:32px;font-weight:900;color:#e8a020;letter-spacing:-1px;margin-bottom:10px;}
+  .df-total-row{display:flex;gap:16px;}
+  .df-stat{flex:1;}
+  .df-stat-val{font-size:15px;font-weight:800;color:#fff;}
+  .df-stat-lbl{font-size:10px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+  .df-section-header{padding:4px 20px 8px;display:flex;justify-content:space-between;align-items:center;}
+  .df-section-title{font-size:13px;font-weight:800;color:#888;letter-spacing:0.8px;text-transform:uppercase;}
+  .df-sort-btn{font-size:12px;color:#2563eb;font-weight:700;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:8px;}
+  .df-list{padding:0 16px;display:flex;flex-direction:column;gap:10px;}
+  .df-debt-card{background:#fff;border-radius:16px;overflow:hidden;border:1.5px solid #ede7da;}
+  .df-debt-main{padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;}
+  .df-debt-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .df-debt-info{flex:1;min-width:0;}
+  .df-debt-name{font-size:15px;font-weight:800;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .df-debt-sub{font-size:12px;color:#888;font-weight:600;margin-top:1px;}
+  .df-debt-right{text-align:right;}
+  .df-debt-balance{font-size:16px;font-weight:900;color:#1a1a1a;}
+  .df-debt-apr{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:3px;display:inline-block;}
+  .apr-high{background:#fde8e8;color:#c0392b;}
+  .apr-mid{background:#fef3cd;color:#856404;}
+  .apr-low{background:#d4edda;color:#155724;}
+  .df-chevron{font-size:14px;color:#ccc;margin-left:6px;transition:transform 0.2s;}
+  .df-chevron.open{transform:rotate(90deg);}
+  .df-debt-actions{display:none;padding:0 12px 12px;gap:8px;}
+  .df-debt-actions.show{display:flex;}
+  .df-action-btn{flex:1;padding:9px 0;border-radius:12px;font-size:13px;font-weight:800;border:none;cursor:pointer;transition:opacity 0.15s;font-family:'Nunito',sans-serif;}
+  .btn-edit{background:#e8f0fe;color:#1a56db;}
+  .btn-adjust{background:#fff3cd;color:#856404;}
+  .btn-delete{background:#fee2e2;color:#b91c1c;}
+  .df-progress-bar{height:4px;background:#ede7da;overflow:hidden;}
+  .df-progress-fill{height:100%;background:linear-gradient(90deg,#22c55e,#16a34a);}
+  .df-add-btn{margin:16px;background:#2563eb;color:#fff;border:none;border-radius:16px;padding:16px;width:calc(100% - 32px);font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:'Nunito',sans-serif;}
+  .df-modal-bg{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.5);z-index:10;border-radius:32px;align-items:flex-end;}
+  .df-modal-bg.show{display:flex;}
+  .df-modal{background:#f4efe5;border-radius:24px 24px 0 0;padding:20px;width:100%;}
+  .df-modal-title{font-size:17px;font-weight:900;color:#1a1a1a;margin-bottom:16px;text-align:center;}
+  .df-field{margin-bottom:12px;}
+  .df-field label{display:block;font-size:12px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;}
+  .df-field input,.df-field select{width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid #ddd6c8;background:#fff;font-size:15px;font-weight:700;font-family:'Nunito',sans-serif;box-sizing:border-box;color:#1a1a1a;}
+  .df-field-row{display:flex;gap:10px;}
+  .df-field-row .df-field{flex:1;}
+  .df-modal-btns{display:flex;gap:10px;margin-top:6px;}
+  .df-modal-cancel{flex:1;padding:13px;border-radius:12px;background:#ede7da;border:none;font-size:15px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;color:#666;}
+  .df-modal-save{flex:2;padding:13px;border-radius:12px;background:#2563eb;border:none;font-size:15px;font-weight:800;color:#fff;cursor:pointer;font-family:'Nunito',sans-serif;}
+  .df-delete-modal-bg{display:none;position:absolute;inset:0;background:rgba(0,0,0,0.5);z-index:10;border-radius:32px;align-items:center;justify-content:center;}
+  .df-delete-modal-bg.show{display:flex;}
+  .df-delete-modal{background:#f4efe5;border-radius:20px;padding:24px;margin:20px;text-align:center;}
+  .df-delete-icon{font-size:36px;margin-bottom:10px;}
+  .df-delete-title{font-size:17px;font-weight:900;color:#1a1a1a;margin-bottom:6px;}
+  .df-delete-sub{font-size:14px;color:#888;font-weight:600;margin-bottom:20px;}
+  .df-delete-btns{display:flex;gap:10px;}
+  .df-delete-cancel{flex:1;padding:13px;border-radius:12px;background:#ede7da;border:none;font-size:15px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;color:#666;}
+  .df-delete-confirm{flex:1;padding:13px;border-radius:12px;background:#ef4444;border:none;font-size:15px;font-weight:800;color:#fff;cursor:pointer;font-family:'Nunito',sans-serif;}
+</style>
+</head>
+<body>
+
+<div class="df-wrap">
+
+  <div class="df-status">
+    <span>9:41</span>
+    <span>●●●</span>
+  </div>
+
+  <div class="df-header">
+    <button class="df-back">←</button>
+    <div class="df-header-title">My Debts</div>
+    <svg class="df-header-dex" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="30" cy="34" rx="22" ry="20" fill="#e8a020"/>
+      <ellipse cx="20" cy="16" rx="10" ry="9" fill="#e8a020"/>
+      <ellipse cx="40" cy="16" rx="10" ry="9" fill="#e8a020"/>
+      <ellipse cx="30" cy="32" rx="18" ry="17" fill="#f5c842"/>
+      <ellipse cx="22" cy="38" rx="8" ry="6" fill="#e8a020" opacity="0.5"/>
+      <ellipse cx="22" cy="28" rx="6" ry="6" fill="#fff"/>
+      <ellipse cx="38" cy="28" rx="6" ry="6" fill="#fff"/>
+      <ellipse cx="23" cy="29" rx="3" ry="3" fill="#2c1a00"/>
+      <ellipse cx="39" cy="29" rx="3" ry="3" fill="#2c1a00"/>
+      <ellipse cx="24" cy="28" rx="1" ry="1" fill="#fff"/>
+      <ellipse cx="40" cy="28" rx="1" ry="1" fill="#fff"/>
+      <ellipse cx="30" cy="37" rx="5" ry="3" fill="#e8955a"/>
+      <path d="M27 40 Q30 43 33 40" stroke="#c47040" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="15" y="23" width="14" height="7" rx="3.5" fill="none" stroke="#333" stroke-width="1.8"/>
+      <rect x="31" y="23" width="14" height="7" rx="3.5" fill="none" stroke="#333" stroke-width="1.8"/>
+      <line x1="29" y1="26.5" x2="31" y2="26.5" stroke="#333" stroke-width="1.8"/>
+      <line x1="15" y1="26.5" x2="12" y2="25" stroke="#333" stroke-width="1.8"/>
+      <line x1="45" y1="26.5" x2="48" y2="25" stroke="#333" stroke-width="1.8"/>
+    </svg>
+  </div>
+
+  <div class="df-total-card">
+    <div class="df-total-label">Total Debt</div>
+    <div class="df-total-amount" id="totalAmount">$28,350</div>
+    <div class="df-total-row">
+      <div class="df-stat"><div class="df-stat-val" id="debtCount">4 debts</div><div class="df-stat-lbl">Accounts</div></div>
+      <div class="df-stat"><div class="df-stat-val">$612/mo</div><div class="df-stat-lbl">Min. payment</div></div>
+      <div class="df-stat"><div class="df-stat-val">18.4%</div><div class="df-stat-lbl">Avg. APR</div></div>
+    </div>
+  </div>
+
+  <div class="df-section-header">
+    <span class="df-section-title" id="sectionTitle">4 accounts</span>
+    <button class="df-sort-btn" onclick="toggleSort()">Sort by balance ↕</button>
+  </div>
+
+  <div class="df-list" id="debtList"></div>
+
+  <button class="df-add-btn" onclick="openAdd()">+ Add a Debt</button>
+
+  <div class="df-modal-bg" id="editModal">
+    <div class="df-modal">
+      <div class="df-modal-title" id="modalTitle">Edit Debt</div>
+      <div class="df-field"><label>Creditor name</label><input type="text" id="f-name" placeholder="e.g. Chase Sapphire"/></div>
+      <div class="df-field"><label>Type</label><select id="f-type"><option>Credit Card</option><option>Student Loan</option><option>Auto Loan</option><option>Medical</option><option>Personal Loan</option><option>Other</option></select></div>
+      <div class="df-field-row">
+        <div class="df-field"><label>Balance ($)</label><input type="number" id="f-balance" placeholder="5000"/></div>
+        <div class="df-field"><label>APR (%)</label><input type="number" id="f-apr" placeholder="19.99" step="0.01"/></div>
+      </div>
+      <div class="df-field"><label>Min. Monthly Payment ($)</label><input type="number" id="f-payment" placeholder="150"/></div>
+      <div class="df-modal-btns">
+        <button class="df-modal-cancel" onclick="closeModal()">Cancel</button>
+        <button class="df-modal-save" onclick="saveDebt()">Save Debt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="df-delete-modal-bg" id="deleteModal">
+    <div class="df-delete-modal">
+      <div class="df-delete-icon">🗑️</div>
+      <div class="df-delete-title">Remove this debt?</div>
+      <div class="df-delete-sub" id="deleteSub">This will remove it from your payoff plan.</div>
+      <div class="df-delete-btns">
+        <button class="df-delete-cancel" onclick="closeDeleteModal()">Cancel</button>
+        <button class="df-delete-confirm" onclick="confirmDelete()">Remove</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let debts=[
+  {id:1,name:"Chase Sapphire",type:"Credit Card",balance:12400,apr:22.99,payment:248,icon:"💳",progress:15},
+  {id:2,name:"Sallie Mae",type:"Student Loan",balance:8750,apr:6.8,payment:180,icon:"🎓",progress:40},
+  {id:3,name:"Toyota Financial",type:"Auto Loan",balance:5200,apr:7.9,payment:134,icon:"🚗",progress:62},
+  {id:4,name:"Chase Freedom",type:"Credit Card",balance:2000,apr:19.99,payment:50,icon:"💳",progress:78},
+];
+let sortAsc=false;
+let editIdx=null;
+let deleteIdx=null;
+let openCard=null;
+
+function aprClass(apr){return apr>15?'apr-high':apr>10?'apr-mid':'apr-low';}
+
+function render(){
+  const list=document.getElementById('debtList');
+  list.innerHTML='';
+  debts.forEach((d,i)=>{
+    const isOpen=openCard===i;
+    const div=document.createElement('div');
+    div.className='df-debt-card';
+    div.innerHTML=`
+      <div class="df-progress-bar"><div class="df-progress-fill" style="width:${d.progress}%"></div></div>
+      <div class="df-debt-main" onclick="toggleCard(${i})">
+        <div class="df-debt-icon" style="background:#f4efe5;font-size:20px">${d.icon}</div>
+        <div class="df-debt-info">
+          <div class="df-debt-name">${d.name}</div>
+          <div class="df-debt-sub">${d.type} · $${d.payment}/mo min</div>
+        </div>
+        <div class="df-debt-right">
+          <div class="df-debt-balance">$${d.balance.toLocaleString()}</div>
+          <div class="df-debt-apr ${aprClass(d.apr)}">${d.apr}% APR</div>
+        </div>
+        <span class="df-chevron${isOpen?' open':''}">›</span>
+      </div>
+      <div class="df-debt-actions${isOpen?' show':''}">
+        <button class="df-action-btn btn-edit" onclick="openEdit(${i},event)">✏️ Edit</button>
+        <button class="df-action-btn btn-adjust" onclick="openAdjust(${i},event)">📊 Adjust</button>
+        <button class="df-action-btn btn-delete" onclick="openDelete(${i},event)">🗑️ Delete</button>
+      </div>`;
+    list.appendChild(div);
+  });
+  updateTotals();
+}
+
+function updateTotals(){
+  const total=debts.reduce((s,d)=>s+d.balance,0);
+  document.getElementById('totalAmount').textContent='$'+total.toLocaleString();
+  document.getElementById('debtCount').textContent=debts.length+' debt'+(debts.length===1?'':'s');
+  document.getElementById('sectionTitle').textContent=debts.length+' account'+(debts.length===1?'':'s');
+}
+
+function toggleCard(i){openCard=openCard===i?null:i;render();}
+function toggleSort(){sortAsc=!sortAsc;debts.sort((a,b)=>sortAsc?a.balance-b.balance:b.balance-a.balance);render();}
+
+function openAdd(){
+  editIdx=null;
+  document.getElementById('modalTitle').textContent='Add Debt';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-type').value='Credit Card';
+  document.getElementById('f-balance').value='';
+  document.getElementById('f-apr').value='';
+  document.getElementById('f-payment').value='';
+  document.getElementById('editModal').classList.add('show');
+}
+function openEdit(i,e){
+  e.stopPropagation();editIdx=i;
+  const d=debts[i];
+  document.getElementById('modalTitle').textContent='Edit '+d.name;
+  document.getElementById('f-name').value=d.name;
+  document.getElementById('f-type').value=d.type;
+  document.getElementById('f-balance').value=d.balance;
+  document.getElementById('f-apr').value=d.apr;
+  document.getElementById('f-payment').value=d.payment;
+  document.getElementById('editModal').classList.add('show');
+}
+function openAdjust(i,e){
+  e.stopPropagation();editIdx=i;
+  const d=debts[i];
+  document.getElementById('modalTitle').textContent='Adjust Payment — '+d.name;
+  document.getElementById('f-name').value=d.name;
+  document.getElementById('f-type').value=d.type;
+  document.getElementById('f-balance').value=d.balance;
+  document.getElementById('f-apr').value=d.apr;
+  document.getElementById('f-payment').value=d.payment;
+  document.getElementById('editModal').classList.add('show');
+}
+function closeModal(){document.getElementById('editModal').classList.remove('show');}
+function saveDebt(){
+  const nm=document.getElementById('f-name').value.trim();
+  if(!nm)return;
+  const type=document.getElementById('f-type').value;
+  const obj={
+    id:Date.now(),name:nm,type:type,
+    balance:parseFloat(document.getElementById('f-balance').value)||0,
+    apr:parseFloat(document.getElementById('f-apr').value)||0,
+    payment:parseFloat(document.getElementById('f-payment').value)||0,
+    icon:type==='Credit Card'?'💳':type==='Student Loan'?'🎓':type==='Auto Loan'?'🚗':type==='Medical'?'🏥':'📄',
+    progress:5
+  };
+  if(editIdx!==null)debts[editIdx]=obj;
+  else debts.push(obj);
+  closeModal();openCard=null;render();
+}
+function openDelete(i,e){
+  e.stopPropagation();deleteIdx=i;
+  document.getElementById('deleteSub').textContent='Remove '+debts[i].name+' from your payoff plan?';
+  document.getElementById('deleteModal').classList.add('show');
+}
+function closeDeleteModal(){document.getElementById('deleteModal').classList.remove('show');}
+function confirmDelete(){debts.splice(deleteIdx,1);closeDeleteModal();openCard=null;render();}
+
+render();
+</script>
+</body>
+</html>

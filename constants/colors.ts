@@ -1,10 +1,10 @@
 // ─── DebtPath Official Color System ───────────────────────────────────────────
-// Source: Visual, Animation & Sound Design Brief
+// Theme: Warm Amber/Brown — matches onboarding flow
 // RULES:
 //   Red (#E24B4A) = streak at risk ONLY — never debt balance, never payment due
 //   Interest saved = always Freedom Green
 //   Debt balance = neutral text color — never red
-//   Trust Blue = XP bars, level indicators, primary action buttons, navigation
+//   Amber (#C07820 light / #E8A030 dark) = primary actions, navigation, brand
 //   Freedom Green = payoff date, extra payment wins, interest saved
 //   Achievement Gold = milestones, badges, level-up — use sparingly
 
@@ -15,7 +15,13 @@ export const Colors = {
   orangeLight: "#FFF0E5",
   orangeDark:  "#B34A05",
 
-  // Trust Blue — XP bars, level indicators, primary action buttons, navigation
+  // Amber — primary brand color, navigation, action buttons
+  amber:      "#C07820",
+  amberLight: "#FDF3E3",
+  amberDark:  "#8A5010",
+  amberDarkMode: "#E8A030",
+
+  // Trust Blue — XP bars, level indicators (kept for functional elements)
   blue:      "#1F4E8C",
   blueLight: "#EEF4FB",
   blueDark:  "#163A6A",
@@ -32,20 +38,20 @@ export const Colors = {
   // Risk Red — streak at risk ONLY (max 2 screens)
   red: "#E24B4A",
 
-  // Dark backgrounds (neutral — no green tint)
-  bg:  "#0E0F11",
-  bg2: "#161719",
-  bg3: "#1E2023",
-  bg4: "#262A2E",
+  // Warm dark backgrounds
+  bg:  "#1C1610",
+  bg2: "#2C2014",
+  bg3: "#2A2018",
+  bg4: "#302818",
 
   // Borders
-  border:  "#2E3338",
-  border2: "#3A4048",
+  border:  "#3A2A18",
+  border2: "#4A3828",
 
   // Text
-  text:  "#F0F1F3",
-  text2: "#A8ADB5",
-  text3: "#626870",
+  text:  "#F0E8D0",
+  text2: "#C09050",
+  text3: "#9A7240",
 };
 
 // ─── D alias — keeps existing component imports working ───────────────────────
@@ -78,48 +84,67 @@ export const D = {
   flameTier5White:"#FFF5E0",
 };
 
+/**
+ * Warm/light contrast tokens (WCAG-style thinking).
+ * Use these for text placed on cream/yellow panels (e.g. `#F7F2EA`, `#EDE8DC`, `#FFF8EE`, `#FEF3C7`).
+ */
+export const WarmContrast = {
+  // Section labels / eyebrows on warm cream (dark enough for WCAG on beige/yellow)
+  brandAccent: "#3D2E26",
+  // Secondary body / hints on cream — near-black for readability (avoid brown-on-beige)
+  textMuted: "#171412",
+  // Placeholder text on cream inputs
+  textPlaceholder: "#45403C",
+  // Body text on butter yellow
+  textOnYellow: "#1A1612",
+  // Small badges / caps on butter yellow
+  textOnYellowBold: "#2A2014",
+} as const;
+
 // ─── Theme objects — used by screens: const C = isDark ? Colors.dark : Colors.light
 const dark = {
-  text:             Colors.text,        // #F0F1F3
-  textSecondary:    Colors.text2,       // #A8ADB5
-  textTertiary:     Colors.text3,       // #626870
-  background:       Colors.bg,          // #0E0F11
-  surface:          Colors.bg2,         // #161719
-  surfaceSecondary: Colors.bg3,         // #1E2023
-  card:             Colors.bg2,
-  border:           Colors.border,      // #2E3338
-  border2:          Colors.border2,     // #3A4048
-  tint:             Colors.blue,        // Trust Blue for nav/actions
-  tabIconDefault:   Colors.text3,       // #626870
-  tabIconSelected:  Colors.blue,        // Trust Blue
+  text:             "#F0E8D0",
+  textSecondary:    "#C09050",
+  textTertiary:     "#9A7240",
+  background:       "#1C1610",
+  surface:          "#2C2014",
+  surfaceSecondary: "#2A2018",
+  card:             "#2C2014",
+  border:           "rgba(232,160,48,0.22)",
+  border2:          "rgba(232,160,48,0.40)",
+  tint:             "#E8A030",
+  tabIconDefault:   "#9A7240",
+  tabIconSelected:  "#E8A030",
   cardShadow:       "rgba(0,0,0,0.50)",
 };
 
 const light = {
-  text:             "#111318",
-  textSecondary:    "#484E5A",
-  textTertiary:     "#8C939F",
-  background:       "#F7F8FA",
+  text:             "#1A0E04",
+  /** Body/labels on cream and off-white — high contrast vs old brown #3D2200 */
+  textSecondary:    "#171412",
+  textTertiary:     "#3F3B36",
+  background:       "#FAFAF8",
   surface:          "#FFFFFF",
-  surfaceSecondary: "#EFF2F6",
+  /** Lighter than old #F2EFE8 so brown text isn’t needed on panels */
+  surfaceSecondary: "#FAFAF7",
   card:             "#FFFFFF",
-  border:           "#DDE2E8",
-  border2:          "#C8CDD6",
-  tint:             Colors.blue,
-  tabIconDefault:   "#8C939F",
-  tabIconSelected:  Colors.blue,
-  cardShadow:       "rgba(0,0,0,0.08)",
+  border:           "rgba(192,120,32,0.22)",
+  border2:          "rgba(192,120,32,0.40)",
+  tint:             "#C07820",
+  tabIconDefault:   "#454039",
+  tabIconSelected:  "#C07820",
+  cardShadow:       "rgba(192,120,32,0.15)",
 };
 
 // ─── Default export — backward compat (Colors.primary, Colors.dark, etc.) ─────
 export default {
-  // Mapped from old names → new design system
-  primary:         Colors.green,       // Freedom Green for positive progress
-  primaryDark:     Colors.greenDark,
-  accent:          Colors.blue,        // Trust Blue for XP/engagement
-  progressGreen:   Colors.green,       // Payoff ring stays Freedom Green
-  buttonGreen:     Colors.green,
-  buttonGreenDark: Colors.greenDark,
+  // Amber as the primary brand color (replaces green for nav/buttons)
+  primary:         Colors.amber,
+  primaryDark:     Colors.amberDark,
+  accent:          Colors.amber,
+  progressGreen:   Colors.amber,       // All progress indicators use amber
+  buttonGreen:     Colors.amber,       // Action buttons use amber
+  buttonGreenDark: Colors.amberDark,   // Button press state
   danger:          Colors.red,
   warning:         Colors.orange,
   // Direct access to design tokens
@@ -128,7 +153,10 @@ export default {
   green:   Colors.green,
   gold:    Colors.gold,
   red:     Colors.red,
+  amber:     Colors.amber,
+  amberDark: Colors.amberDark,
   // Theme objects
+  WarmContrast,
   dark,
   light,
 };

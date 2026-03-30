@@ -17,9 +17,9 @@ const NOTIF_CHANNEL = "daily-reminder";
 const MOTIVATIONAL_MESSAGES = [
   "Keep going! You're one day closer to {goal}. Stay on track with your debt payoff today.",
   "Every dollar you put toward debt is a dollar closer to {goal}. You've got this!",
-  "Small steps, big results. Your goal of {goal} is within reach — keep paying it down!",
+  "Small steps, big results. Your goal of {goal} is within reach - keep paying it down!",
   "Don't stop now! {goal} is waiting for you. Log a payment and stay on track.",
-  "You're building momentum toward {goal}. One payment at a time — keep it going!",
+  "You're building momentum toward {goal}. One payment at a time - keep it going!",
   "Financial freedom and {goal} are closer than you think. Great job staying the course!",
 ];
 
@@ -28,7 +28,7 @@ const GENERAL_MESSAGES = [
   "Reminder: one payment at a time is all it takes. Keep going!",
   "You're doing great. Log a payment today and stay on your debt-free path.",
   "Small consistent payments lead to big results. Keep it up!",
-  "Debt-free is the goal. You're one step closer — log today's payment.",
+  "Debt-free is the goal. You're one step closer - log today's payment.",
   "Stay focused and consistent. Your future self will thank you!",
 ];
 
@@ -81,6 +81,14 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/** Silently checks if permission is already granted — never prompts. */
+async function checkPermission(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === "granted";
+}
+
+/** Prompts the user — only call on explicit user action. */
 async function requestPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -116,7 +124,7 @@ async function scheduleDailyReminder(
 ): Promise<void> {
   if (Platform.OS === "web") return;
 
-  const granted = await requestPermission();
+  const granted = await checkPermission();
   if (!granted) return;
 
   await ensureAndroidChannel();
@@ -132,7 +140,7 @@ async function scheduleDailyReminder(
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "DebtPath — Daily Check-in 🔥",
+      title: "DebtPath - Daily Check-in 🔥",
       body,
       data: { type: "daily_reminder" },
     },
@@ -195,7 +203,11 @@ export function GoalProvider({ children }: { children: React.ReactNode }) {
       const next = { ...state, remindersEnabled: enabled };
       await persist(next);
       if (enabled) {
-        await scheduleDailyReminder(state.goalName, state.reminderHour, state.reminderMinute);
+        // User explicitly enabled — prompt for permission here if needed
+        const granted = await requestPermission();
+        if (granted) {
+          await scheduleDailyReminder(state.goalName, state.reminderHour, state.reminderMinute);
+        }
       } else {
         await cancelDailyReminder();
       }
@@ -221,7 +233,7 @@ export function GoalProvider({ children }: { children: React.ReactNode }) {
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "DebtPath — Daily Check-in 🔥 (TEST)",
+      title: "DebtPath - Daily Check-in 🔥 (TEST)",
         body,
         data: { type: "daily_reminder_test" },
         sound: true,

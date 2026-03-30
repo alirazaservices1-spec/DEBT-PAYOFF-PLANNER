@@ -4,16 +4,15 @@ import { LevelUpOverlay } from "@/components/LevelUpOverlay";
 import { DebtClearedOverlay } from "@/components/DebtClearedOverlay";
 import { StreakMilestoneCelebration } from "@/components/StreakMilestoneCelebration";
 import { FirstPaymentCelebration } from "@/components/FirstPaymentCelebration";
-import { OnboardingCelebration } from "@/components/OnboardingCelebration";
-
 export function CelebrationHost() {
-  const { celebration, dismissCelebration } = useGame();
+  const { celebration, dismissCelebration, lastXpGain } = useGame();
 
   return (
     <>
       <LevelUpOverlay
         visible={celebration.type === "level_up"}
         level={celebration.level ?? 2}
+        recentXpGained={celebration.type === "level_up" ? lastXpGain.amount : undefined}
         onDismiss={dismissCelebration}
       />
       <DebtClearedOverlay
@@ -29,10 +28,6 @@ export function CelebrationHost() {
       />
       <FirstPaymentCelebration
         visible={celebration.type === "first_payment"}
-        onDismiss={dismissCelebration}
-      />
-      <OnboardingCelebration
-        visible={celebration.type === "first_debt"}
         onDismiss={dismissCelebration}
       />
     </>

@@ -5,28 +5,31 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  useColorScheme,
   Platform,
   Switch,
   Animated,
   Modal,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { Debt, DebtType, debtTypeLabel, debtTypeIcon, isSecuredByType, isBusinessDebtType } from "@/lib/calculations";
 import { useDebts } from "@/context/DebtContext";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { MonthYearField } from "@/components/MonthYearField";
+import { parseMonthYearString, validateIntroPromoMonthYear } from "@/lib/monthYear";
 
 const PERSONAL_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
   { key: "creditCard", icon: "card", color: "#3498DB" },
   { key: "personalLoan", icon: "cash", color: "#9B59B6" },
   { key: "studentLoan", icon: "school", color: "#E67E22" },
   { key: "medical", icon: "medkit", color: "#E74C3C" },
-  { key: "auto", icon: "car", color: "#1F4E8C" },
+  { key: "auto", icon: "car", color: "#C07820" },
   { key: "taxDebt", icon: "receipt", color: "#F39C12" },
   { key: "collectionAccount", icon: "alert-circle", color: "#C0392B" },
   { key: "repossessedVehicle", icon: "car-outline", color: "#7F8C8D" },
@@ -57,35 +60,45 @@ function formatCurrencyInput(value: string): string {
 }
 
 export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
+  const formTextColor = isDark ? C.text : "#111111";
+  const formMutedColor = isDark ? C.textSecondary : "#2F2F2F";
+  const formPlaceholderColor = isDark ? C.textSecondary + "99" : "#4A4A4A";
   const insets = useSafeAreaInsets();
   const { debts } = useDebts();
 
   const [name, setName] = useState(initial?.name ?? "");
   const [balance, setBalance] = useState(
-    initial?.balance ? initial.balance.toString() : ""
+    initial?.balance !== undefined && initial?.balance !== null
+      ? initial.balance.toString()
+      : ""
   );
   const [apr, setApr] = useState(
-    initial?.apr ? initial.apr.toString() : ""
+    initial?.apr !== undefined && initial?.apr !== null ? initial.apr.toString() : ""
   );
   const [minPayment, setMinPayment] = useState(
-    initial?.minimumPayment ? initial.minimumPayment.toString() : ""
+    initial?.minimumPayment !== undefined && initial?.minimumPayment !== null
+      ? initial.minimumPayment.toString()
+      : ""
   );
   const [debtType, setDebtType] = useState<DebtType>(
     initial?.debtType ?? "creditCard"
   );
   const [isSecured, setIsSecured] = useState(initial?.isSecured ?? false);
   const [dueDate, setDueDate] = useState(
-    initial?.dueDate ? initial.dueDate.toString() : "1"
+    initial?.dueDate !== undefined && initial?.dueDate !== null ? initial.dueDate.toString() : "1"
   );
+  const [hasIntroRate, setHasIntroRate] = useState(false);
+  const [introApr, setIntroApr] = useState("");
+  const [introEnds, setIntroEnds] = useState("");
   const [taxPaymentPlan, setTaxPaymentPlan] = useState(
     initial?.taxPaymentPlan === true || (initial?.debtType === "taxDebt" && (initial?.minimumPayment ?? 0) > 0)
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [dueDayPickerOpen, setDueDayPickerOpen] = useState(false);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const dueDateInputRef = useRef<TextInput | null>(null);
@@ -95,7 +108,14 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
   const handleTypeSelect = (type: DebtType) => {
     setDebtType(type);
     setIsSecured(isSecuredByType(type));
-    if (type !== "taxDebt") setTaxPaymentPlan(false);
+    if (type !== "taxDebt") {
+      setTaxPaymentPlan(false);
+    } else {
+      // Tax debt does not use intro APR fields.
+      setHasIntroRate(false);
+      setIntroApr("");
+      setIntroEnds("");
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -127,6 +147,19 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           "Please enter your minimum payment. If you are not currently making minimum payments, enter $0.";
       const dd = parseInt(dueDate);
       if (isNaN(dd) || dd < 1 || dd > 31) errs.dueDate = "Due date must be between 1 and 31";
+    }
+    if (!isTaxDebt && hasIntroRate) {
+      const intro = parseFloat(introApr);
+      if (isNaN(intro) || intro < 0 || intro > 100) {
+        errs.introApr = "Intro APR must be between 0% and 100%.";
+      }
+      const parsed = parseMonthYearString(introEnds.trim());
+      if (!parsed) {
+        errs.introEnds = "Use MM/YYYY (example: 04/2027).";
+      } else {
+        const vr = validateIntroPromoMonthYear(parsed.month, parsed.year);
+        if (!vr.valid) errs.introEnds = vr.message ?? "Enter a valid intro end date.";
+      }
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -161,12 +194,21 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
 
   const inputBase = {
     backgroundColor: "transparent",
-    color: C.text,
+    color: formTextColor,
   };
 
   return (
     <View style={[styles.container, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { backgroundColor: C.surface, borderBottomColor: C.border }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: C.surface,
+            borderBottomColor: C.border,
+            paddingTop: Math.max(insets.top, 8),
+          },
+        ]}
+      >
         <Pressable
           onPress={onCancel}
           style={({ pressed }) => [styles.headerIconBtn, { opacity: pressed ? 0.6 : 1 }]}
@@ -186,7 +228,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           ]}
           hitSlop={12}
         >
-          <Text style={[styles.headerSaveBtnText, { color: Colors.primary }]}>
+          <Text style={[styles.headerSaveBtnText, { color: formTextColor }]}>
             {saving ? "…" : initial?.id ? "Save" : "Save"}
           </Text>
         </Pressable>
@@ -219,10 +261,14 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           ]}
         >
           {errors.apr && (
-            <View style={[styles.errorSummary, { marginBottom: 12 }]}>
-              <Text style={styles.errorSummaryText}>
-                APR must be between 0% and 100%
-              </Text>
+            <View
+              style={[
+                styles.errorSummary,
+                styles.errorSummaryBox,
+                { marginBottom: 12, backgroundColor: isDark ? "rgba(226,75,74,0.12)" : "#FFEBEE", borderColor: Colors.danger + "33" },
+              ]}
+            >
+              <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#1A1A1A" }]}>{errors.apr}</Text>
             </View>
           )}
           <FormField label="Category" error={errors.debtType} C={C}>
@@ -247,7 +293,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                   {debtTypeLabel(debtType)}
                 </Text>
               </View>
-              <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
+              <Ionicons name="chevron-down" size={18} color={formMutedColor} />
             </Pressable>
           </FormField>
 
@@ -261,7 +307,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                   ? "e.g. IRS (Federal), State tax"
                   : "e.g. Chase Sapphire, Student Aid"
               }
-              placeholderTextColor={C.textSecondary + "99"}
+              placeholderTextColor={formPlaceholderColor}
               autoCapitalize="words"
               returnKeyType="next"
               onFocus={() => Haptics.selectionAsync()}
@@ -277,7 +323,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 if (errors.balance) setErrors((e) => ({ ...e, balance: "" }));
               }}
               placeholder="5,000"
-              placeholderTextColor={C.textSecondary + "99"}
+              placeholderTextColor={formPlaceholderColor}
               keyboardType="decimal-pad"
               returnKeyType="next"
               onFocus={() => Haptics.selectionAsync()}
@@ -285,11 +331,19 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           </FormField>
 
           {isTaxDebt && (
-            <View style={[styles.taxPlanRow, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
+            <View
+              style={[
+                styles.taxPlanRow,
+                {
+                  backgroundColor: isDark ? C.surfaceSecondary : "#FFFFFF",
+                  borderColor: C.border,
+                },
+              ]}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={[styles.taxPlanLabel, { color: C.text }]}>On IRS or state payment plan</Text>
-                <Text style={[styles.taxPlanHint, { color: C.textSecondary }]}>
-                  Monthly payment, interest rate, and due date are optional unless you’re on an installment plan—then enter what the agency gave you.
+                <Text style={[styles.taxPlanHint, { color: formMutedColor }]}>
+                  Monthly payment, interest rate, and due date are optional unless you’re on an installment plan - then enter what the agency gave you.
                 </Text>
               </View>
               <Switch
@@ -307,7 +361,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           {showAprMinDue && (
             <>
               {isTaxDebt && (
-                <Text style={[styles.taxPlanSectionHint, { color: C.textSecondary }]}>
+                <Text style={[styles.taxPlanSectionHint, { color: formMutedColor }]}>
                   Payment plan details (from IRS/state):
                 </Text>
               )}
@@ -320,7 +374,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                     if (errors.apr) setErrors((e) => ({ ...e, apr: "" }));
                   }}
                   placeholder="18.99"
-                  placeholderTextColor={C.textSecondary + "99"}
+                  placeholderTextColor={formPlaceholderColor}
                   keyboardType="decimal-pad"
                   returnKeyType="next"
                   onFocus={() => Haptics.selectionAsync()}
@@ -336,14 +390,80 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                     if (errors.minPayment) setErrors((e) => ({ ...e, minPayment: "" }));
                   }}
                   placeholder="150"
-                  placeholderTextColor={C.textSecondary + "99"}
+                  placeholderTextColor={formPlaceholderColor}
                   keyboardType="decimal-pad"
                   returnKeyType="next"
                   onFocus={() => Haptics.selectionAsync()}
                 />
               </FormField>
 
-              <FormField label="Due Date" hint="Day 1–31" error={errors.dueDate} C={C}>
+              {!isTaxDebt && (
+                <>
+                  <View
+                    style={[
+                      styles.taxPlanRow,
+                      {
+                        backgroundColor: isDark ? C.surfaceSecondary : "#FFFFFF",
+                        borderColor: C.border,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.taxPlanLabel, { color: C.text }]}>Has temporary intro / promotional APR</Text>
+                      <Text style={[styles.taxPlanHint, { color: formMutedColor }]}>
+                        If this debt has a short-term APR (for example 0%), enter it and when it ends.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={hasIntroRate}
+                      onValueChange={(v) => {
+                        setHasIntroRate(v);
+                        if (!v) {
+                          setIntroApr("");
+                          setIntroEnds("");
+                          setErrors((prev) => ({ ...prev, introApr: "", introEnds: "" }));
+                        }
+                        Haptics.selectionAsync();
+                      }}
+                      trackColor={{ false: C.border, true: Colors.primary + "88" }}
+                      thumbColor={hasIntroRate ? Colors.primary : "#f4f3f4"}
+                    />
+                  </View>
+                  {hasIntroRate && (
+                    <>
+                      <FormField label="Intro APR" suffix="%" error={errors.introApr} C={C}>
+                        <TextInput
+                          style={[styles.input, styles.inputWithSuffix, inputBase, errors.introApr && styles.inputError]}
+                          value={introApr}
+                          onChangeText={(v) => {
+                            setIntroApr(formatCurrencyInput(v));
+                            if (errors.introApr) setErrors((e) => ({ ...e, introApr: "" }));
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={formPlaceholderColor}
+                          keyboardType="decimal-pad"
+                          returnKeyType="next"
+                          onFocus={() => Haptics.selectionAsync()}
+                        />
+                      </FormField>
+                      <FormField label="Intro End Date" hint="MM/YYYY" error={errors.introEnds} C={C}>
+                        <MonthYearField
+                          value={introEnds}
+                          onChangeText={(v) => {
+                            setIntroEnds(v);
+                            if (errors.introEnds) setErrors((e) => ({ ...e, introEnds: "" }));
+                          }}
+                          placeholder="MM/YYYY"
+                          placeholderTextColor={formPlaceholderColor}
+                          inputStyle={[styles.input, inputBase]}
+                        />
+                      </FormField>
+                    </>
+                  )}
+                </>
+              )}
+
+              <FormField label="Due Date" hint="Day 1-31" error={errors.dueDate} C={C}>
                 <View
                   style={[
                     styles.dueDateInput,
@@ -354,13 +474,17 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                   ]}
                 >
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Open calendar to choose due day"
                     onPress={() => {
+                      Keyboard.dismiss();
                       Haptics.selectionAsync();
-                      dueDateInputRef.current?.focus();
+                      setDueDayPickerOpen(true);
                     }}
-                    hitSlop={8}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 10 }}
+                    style={styles.dueDateCalendarHit}
                   >
-                    <Ionicons name="calendar-outline" size={18} color={C.textSecondary} />
+                    <Ionicons name="calendar-outline" size={20} color={formMutedColor} />
                   </Pressable>
                   <TextInput
                     style={[styles.input, inputBase, { flex: 1, marginLeft: 8 }]}
@@ -372,12 +496,23 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                       if (errors.dueDate) setErrors((e) => ({ ...e, dueDate: "" }));
                     }}
                     placeholder="1"
-                    placeholderTextColor={C.textSecondary + "99"}
+                    placeholderTextColor={formPlaceholderColor}
                     keyboardType="number-pad"
                     returnKeyType="done"
                     onFocus={() => Haptics.selectionAsync()}
                   />
-                  <Text style={[styles.dueDateHint, { color: C.textSecondary }]}>of the month</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Open calendar to choose due day"
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      Haptics.selectionAsync();
+                      setDueDayPickerOpen(true);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.dueDateHint, { color: formMutedColor }]}>of the month</Text>
+                  </Pressable>
                 </View>
               </FormField>
             </>
@@ -396,10 +531,14 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
         ]}
       >
         {errors.apr && (
-          <View style={styles.errorSummary}>
-            <Text style={styles.errorSummaryText}>
-              APR must be between 0% and 100%
-            </Text>
+          <View
+            style={[
+              styles.errorSummary,
+              styles.errorSummaryBox,
+              { backgroundColor: isDark ? "rgba(226,75,74,0.12)" : "#FFEBEE", borderColor: Colors.danger + "33" },
+            ]}
+          >
+            <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#1A1A1A" }]}>{errors.apr}</Text>
           </View>
         )}
         <Pressable
@@ -437,7 +576,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
               }}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="close" size={24} color={C.textSecondary} />
+              <Ionicons name="close" size={24} color={formMutedColor} />
             </Pressable>
           </View>
           <KeyboardAwareScrollViewCompat
@@ -453,7 +592,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
             ].map((section) => (
               <View key={section.label}>
                 <View style={[styles.categorySectionHeader, { backgroundColor: C.surfaceSecondary, borderBottomColor: C.border }]}>
-                  <Text style={[styles.categorySectionLabel, { color: C.textSecondary }]}>{section.label}</Text>
+                  <Text style={[styles.categorySectionLabel, { color: formMutedColor }]}>{section.label}</Text>
                 </View>
                 {section.types.map((t) => {
                   const selected = debtType === t.key;
@@ -496,6 +635,74 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
           </KeyboardAwareScrollViewCompat>
         </View>
       </Modal>
+
+      <Modal
+        visible={dueDayPickerOpen}
+        transparent
+        animationType="fade"
+        presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
+        statusBarTranslucent={Platform.OS === "android"}
+        onRequestClose={() => setDueDayPickerOpen(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setDueDayPickerOpen(false)} />
+          <View
+            style={{
+              backgroundColor: C.surface,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              paddingHorizontal: 16,
+              paddingTop: 14,
+              paddingBottom: Math.max(insets.bottom, 20),
+              borderTopWidth: 1,
+              borderColor: C.border,
+            }}
+          >
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 17, color: C.text, marginBottom: 6 }}>
+              Payment due day
+            </Text>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: formMutedColor, marginBottom: 14 }}>
+              Choose the day each month your payment is due - or type in the field.
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                const sel = dueDate === String(day);
+                return (
+                  <Pressable
+                    key={day}
+                    onPress={() => {
+                      setDueDate(String(day));
+                      if (errors.dueDate) setErrors((e) => ({ ...e, dueDate: "" }));
+                      setDueDayPickerOpen(false);
+                      Haptics.selectionAsync();
+                    }}
+                    style={{
+                      width: 44,
+                      height: 40,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: sel ? Colors.primary + "22" : C.surfaceSecondary,
+                      borderWidth: 2,
+                      borderColor: sel ? Colors.primary : C.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: Fonts.extraBold,
+                        fontSize: 15,
+                        color: sel ? Colors.primary : C.text,
+                      }}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -520,9 +727,9 @@ function FormField({
   return (
     <View style={styles.field}>
       <View style={styles.fieldLabelRow}>
-        <Text style={[styles.fieldLabel, { color: C.text }]}>{label}</Text>
+        <Text style={[styles.fieldLabel, { color: "#111111" }]}>{label}</Text>
         {hint && (
-          <Text style={[styles.fieldHint, { color: C.textSecondary }]}>{hint}</Text>
+          <Text style={[styles.fieldHint, { color: "#2F2F2F" }]}>{hint}</Text>
         )}
       </View>
       <View
@@ -533,13 +740,13 @@ function FormField({
         ]}
       >
         {prefix && (
-          <Text style={[styles.adornment, styles.adornmentLeft, { color: C.textSecondary }]}>
+          <Text style={[styles.adornment, styles.adornmentLeft, { color: "#2F2F2F" }]}>
             {prefix}
           </Text>
         )}
         {children}
         {suffix && (
-          <Text style={[styles.adornment, styles.adornmentRight, { color: C.textSecondary }]}>
+          <Text style={[styles.adornment, styles.adornmentRight, { color: "#2F2F2F" }]}>
             {suffix}
           </Text>
         )}
@@ -789,6 +996,14 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === "ios" ? 10 : 8,
     gap: 4,
   },
+  dueDateCalendarHit: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: -6,
+    marginLeft: -6,
+  },
   dueDateHint: {
     fontSize: 14,
     fontWeight: "500",
@@ -844,6 +1059,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  errorSummaryBox: {
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   errorSummaryText: {
     color: Colors.danger,

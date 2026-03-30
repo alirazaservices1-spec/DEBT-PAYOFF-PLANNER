@@ -10,6 +10,7 @@ import * as Notifications from "expo-notifications";
 import { Platform, AppState } from "react-native";
 import { useGame } from "@/context/GameContext";
 import { useGoal } from "@/context/GoalContext";
+import { cancelScheduledNextDayActivitiesReminder } from "@/lib/dayActivitiesReminder";
 
 const PREFS_KEY = "@debtpath_streak_reminder_prefs_v1";
 const NOTIF_ID_KEY = "@debtpath_streak_reminder_notif_id";
@@ -23,6 +24,14 @@ interface StreakReminderContextValue {
 
 const StreakReminderContext = createContext<StreakReminderContextValue | null>(null);
 
+/** Silently checks if permission is already granted — never prompts. */
+async function checkPermission(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === "granted";
+}
+
+/** Prompts the user — only call on explicit user action. */
 async function requestPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -54,7 +63,7 @@ async function cancelStoredReminder(): Promise<void> {
 
 async function scheduleForTonight(
   streakCount: number,
-  hasPaidToday: boolean,
+  lastPaymentDate: string | null,
   enabled: boolean,
   hasGoal: boolean
 ): Promise<void> {
@@ -68,6 +77,12 @@ async function scheduleForTonight(
   }
 
   const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
   const tonight = new Date(
     now.getFullYear(),
     now.getMonth(),
@@ -78,22 +93,50 @@ async function scheduleForTonight(
     0
   );
 
-  if (now >= tonight) return;
-  if (hasPaidToday) {
-    await cancelStoredReminder();
-    return;
+  const nextTonight = new Date(
+    tomorrow.getFullYear(),
+    tomorrow.getMonth(),
+    tomorrow.getDate(),
+    20,
+    0,
+    0,
+    0
+  );
+
+  // Candidate reminder is the next 8:00 PM. If that day is already paid,
+  // advance until we find an unpaid day.
+  let targetDate = now < tonight ? tonight : nextTonight;
+  let targetDayStr = now < tonight ? todayStr : tomorrowStr;
+
+  let attempts = 0;
+  while (lastPaymentDate === targetDayStr && attempts < 3) {
+    const next = new Date(targetDate);
+    next.setDate(next.getDate() + 1);
+    targetDate = new Date(
+      next.getFullYear(),
+      next.getMonth(),
+      next.getDate(),
+      20,
+      0,
+      0,
+      0
+    );
+    targetDayStr = targetDate.toISOString().split("T")[0];
+    attempts++;
   }
 
-  const granted = await requestPermission();
+  if (now >= targetDate) return;
+
+  const granted = await checkPermission();
   if (!granted) return;
 
   await ensureChannel();
   await cancelStoredReminder();
 
-  const title = "DebtPath — Streak Reminder 🔥";
+  const title = "DebtPath - Streak Reminder 🔥";
   const body =
     streakCount > 0
-      ? `🔥 Your ${streakCount}-day streak ends at midnight. Log your daily saving to keep it alive — even $0.50 counts!`
+      ? `🔥 Your ${streakCount}-day streak ends at midnight. Log your daily saving to keep it alive - even $0.50 counts!`
       : "💪 Start a new streak today! Log your daily saving to begin.";
 
   try {
@@ -106,7 +149,7 @@ async function scheduleForTonight(
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: tonight,
+        date: targetDate,
       },
     });
     await AsyncStorage.setItem(NOTIF_ID_KEY, id);
@@ -136,33 +179,33 @@ export function StreakReminderProvider({
     });
   }, []);
 
-  const today = new Date().toISOString().split("T")[0];
-  const hasPaidToday = lastPaymentDate === today;
-
   useEffect(() => {
     if (!loaded) return;
-    scheduleForTonight(streakCount, hasPaidToday, enabled, hasGoal);
-  }, [loaded, enabled, streakCount, hasPaidToday, hasGoal]);
+    scheduleForTonight(streakCount, lastPaymentDate, enabled, hasGoal);
+  }, [loaded, enabled, streakCount, lastPaymentDate, hasGoal]);
 
   useEffect(() => {
     if (!loaded) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        scheduleForTonight(streakCount, hasPaidToday, enabled, hasGoal);
+        scheduleForTonight(streakCount, lastPaymentDate, enabled, hasGoal);
       }
     });
     return () => sub.remove();
-  }, [loaded, enabled, streakCount, hasPaidToday, hasGoal]);
+  }, [loaded, enabled, streakCount, lastPaymentDate, hasGoal]);
 
   const setStreakReminderEnabled = useCallback(async (value: boolean) => {
     setEnabled(value);
     await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(value));
     if (!value) {
       await cancelStoredReminder();
+      await cancelScheduledNextDayActivitiesReminder();
     } else {
-      await scheduleForTonight(streakCount, hasPaidToday, true, hasGoal);
+      // User explicitly enabled — prompt for permission here if needed
+      await requestPermission();
+      await scheduleForTonight(streakCount, lastPaymentDate, true, hasGoal);
     }
-  }, [streakCount, hasPaidToday, hasGoal]);
+  }, [streakCount, lastPaymentDate, hasGoal]);
 
   const cancelTonightsReminder = useCallback(async () => {
     await cancelStoredReminder();

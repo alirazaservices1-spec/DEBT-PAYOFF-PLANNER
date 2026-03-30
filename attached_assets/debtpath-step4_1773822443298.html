@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtPath – Step 4: Your Dream</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #111827;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; font-family: 'Nunito', sans-serif; padding: 32px 20px;
+}
+
+.phone {
+  width: 340px;
+  background: #F7F2EA;
+  border-radius: 44px;
+  border: 8px solid #1e2535;
+  box-shadow: 0 40px 90px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.15);
+  overflow: hidden; position: relative;
+  display: flex; flex-direction: column;
+}
+.phone::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 88px; height: 24px; background: #1e2535;
+  border-radius: 0 0 14px 14px; z-index: 20;
+}
+
+/* progress */
+.progress-bar { background: #E0D8CE; height: 6px; width: 100%; margin-top: 30px; }
+.progress-fill {
+  height: 100%; width: 88%;
+  background: linear-gradient(90deg,#1A6FC4,#2A8AE8);
+  border-radius: 0 3px 3px 0;
+  animation: fillIn .8s ease both .2s;
+}
+@keyframes fillIn { from{width:62%} to{width:88%} }
+.progress-label {
+  display: flex; justify-content: space-between; padding: 5px 18px;
+  font-family: 'Nunito Sans', sans-serif; font-size: .65rem; font-weight: 700;
+  color: #8A7060; letter-spacing: .06em; text-transform: uppercase;
+}
+
+/* ── HERO HEADER ── */
+.dream-header {
+  padding: 8px 16px 0;
+  animation: fadeUp .5s ease both .1s;
+}
+.step-eyebrow {
+  font-family: 'Nunito Sans', sans-serif; font-size: .65rem; font-weight: 800;
+  color: #1A6FC4; text-transform: uppercase; letter-spacing: .14em; margin-bottom: 8px;
+}
+.hero-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.dex-dream { flex-shrink: 0; animation: dexBounce 2.4s ease-in-out infinite; margin-top: -4px; }
+@keyframes dexBounce { 0%,100%{transform:translateY(0) rotate(0)} 45%{transform:translateY(-7px) rotate(1.5deg)} }
+
+.hero-text {}
+.hero-title {
+  font-family: 'Nunito', sans-serif; font-weight: 900;
+  font-size: 1.5rem; color: #1A0A00; line-height: 1.15; margin-bottom: 0;
+}
+.hero-title em { color: #1A6FC4; font-style: normal; }
+
+/* Dex bubble */
+.dex-bubble {
+  background: #fff; border: 2px solid #D4C8B8; border-radius: 14px;
+  padding: 7px 12px; font-family: 'Nunito Sans', sans-serif;
+  font-size: .82rem; font-weight: 700; color: #1A0A00; line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06); position: relative;
+  margin: 4px 16px 0;
+}
+.dex-bubble::before {
+  content: ''; position: absolute; top: -10px; left: 22px;
+  border-left: 8px solid transparent; border-right: 8px solid transparent;
+  border-bottom: 10px solid #D4C8B8;
+}
+.dex-bubble::after {
+  content: ''; position: absolute; top: -7px; left: 24px;
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  border-bottom: 8px solid #fff;
+}
+.dex-bubble.lit { background: #FFF8EE; border-color: #D4900A; }
+.dex-bubble.lit::after { border-bottom-color: #FFF8EE; }
+.dex-bubble.lit::before { border-bottom-color: #D4900A; }
+
+/* scroll */
+.scroll-area { flex:1; overflow-y:auto; padding:10px 14px 16px; scrollbar-width:none; }
+.scroll-area::-webkit-scrollbar { display:none; }
+
+/* ── DREAM CARD ── */
+.dream-card {
+  background: #fff; border: 2px solid #E0D8CE; border-radius: 18px;
+  padding: 16px; margin-bottom: 10px;
+  animation: fadeUp .4s ease both .25s;
+}
+.card-label {
+  font-family: 'Nunito Sans', sans-serif; font-size: .65rem; font-weight: 800;
+  color: #8A7060; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px;
+}
+
+/* dream tiles */
+.dream-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-bottom: 10px; }
+.dream-tile {
+  background: #F7F2EA; border: 2px solid #E0D8CE; border-radius: 14px;
+  padding: 10px 6px; text-align: center; cursor: pointer; transition: all .15s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.dream-tile:hover { border-color: #F5C030; background: #FFF8EE; transform: translateY(-2px); }
+.dream-tile.active {
+  border-color: #F5C030; background: linear-gradient(135deg,#FFF8EE,#FFF0D0);
+  box-shadow: 0 4px 14px rgba(245,192,48,.3); transform: translateY(-2px);
+}
+.dream-tile.active .dt-name { color: #8A5C00; }
+.dt-emoji { font-size: 1.6rem; display: block; line-height: 1; }
+.dt-name { font-family:'Nunito',sans-serif; font-size:.72rem; font-weight:800; color:#2A1808; margin-top:1px; }
+
+/* custom dream input */
+.dream-inp-wrap { position: relative; margin-bottom: 12px; }
+.dream-inp {
+  width: 100%; background: #F7F2EA; border: 2px solid #E0D8CE;
+  border-radius: 11px; padding: 11px 14px;
+  font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 700;
+  color: #1A0A00; outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.dream-inp::placeholder { color: #B0A090; font-weight: 600; }
+.dream-inp:focus { border-color: #F5C030; box-shadow: 0 0 0 3px rgba(245,192,48,.15); background: #fff; }
+
+/* cost input */
+.inp-wrap { position: relative; }
+.inp-prefix {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-weight: 800; font-size: .95rem; color: #8A7060;
+}
+.inp {
+  width: 100%; background: #F7F2EA; border: 2px solid #E0D8CE;
+  border-radius: 11px; padding: 11px 14px 11px 26px;
+  font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 700;
+  color: #1A0A00; outline: none; transition: all .15s;
+}
+.inp::placeholder { color: #B0A090; font-weight: 600; }
+.inp:focus { border-color: #F5C030; box-shadow: 0 0 0 3px rgba(245,192,48,.15); background: #fff; }
+
+/* ── VISION CARD (appears after dream selected) ── */
+.vision-card {
+  background: linear-gradient(135deg,#1A0A00,#2A1808);
+  border-radius: 18px; padding: 16px; margin-bottom: 10px;
+  display: none;
+  animation: fadeUp .5s cubic-bezier(.34,1.2,.64,1) both;
+}
+.vision-card.show { display: block; }
+.vision-eyebrow {
+  font-family: 'Nunito Sans', sans-serif; font-size: .62rem; font-weight: 800;
+  color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .14em; margin-bottom: 6px;
+}
+.vision-headline {
+  font-family: 'Nunito', sans-serif; font-size: 1.05rem; font-weight: 900;
+  color: #F5C030; line-height: 1.3; margin-bottom: 10px;
+}
+.vision-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+}
+.vision-stat {
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 11px; padding: 10px; text-align: center;
+}
+.vs-val {
+  font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 900;
+  color: #fff; display: block; line-height: 1;
+}
+.vs-lbl {
+  font-family: 'Nunito Sans', sans-serif; font-size: .62rem; font-weight: 700;
+  color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .08em;
+  display: block; margin-top: 3px;
+}
+.vision-note {
+  font-family: 'Nunito Sans', sans-serif; font-size: .75rem; font-weight: 600;
+  color: rgba(255,255,255,.65); line-height: 1.55; text-align: center;
+}
+
+
+.savings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-col { display: flex; flex-direction: column; gap: 5px; }
+.field-label-sm {
+  font-family: 'Nunito Sans', sans-serif; font-size: .62rem; font-weight: 800;
+  color: #8A7060; text-transform: uppercase; letter-spacing: .1em;
+}
+.inp-suffix {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-weight: 800; font-size: .9rem; color: #8A7060;
+}
+.inp.with-suffix { padding-right: 28px; padding-left: 14px; }
+
+/* ── CTA ── */
+.cta-btn {
+  width: 100%; border-radius: 22px; padding: 16px;
+  background: linear-gradient(135deg,#F5C030,#D4900A);
+  border: none; color: #1A0A00;
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 900;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 10px 28px rgba(245,192,48,.45); transition: all .15s;
+  position: relative; overflow: hidden; margin-bottom: 6px;
+  letter-spacing: .01em;
+}
+.cta-btn::before {
+  content:''; position:absolute; top:0; left:-100%; width:55%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+  animation:shimmer 2.2s ease-in-out infinite;
+}
+@keyframes shimmer{0%{left:-100%}100%{left:220%}}
+.cta-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(245,192,48,.55); }
+.skip-link {
+  text-align: center; font-family: 'Nunito Sans', sans-serif;
+  font-size: .72rem; font-weight: 700; color: #A09080; text-decoration: underline;
+  cursor: pointer; margin-bottom: 4px; display: block;
+}
+
+/* confetti */
+@keyframes confFall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(130px) rotate(720deg); opacity: 0; }
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes xpFloat {
+  0%  { opacity:0; transform:scale(.5) translateY(0); }
+  18% { opacity:1; transform:scale(1.4) translateY(-12px); }
+  75% { opacity:1; transform:scale(1.1) translateY(-65px); }
+  100%{ opacity:0; transform:scale(.9) translateY(-95px); }
+}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <div class="progress-bar"><div class="progress-fill"></div></div>
+  <div class="progress-label"><span>Step 4 of 4</span><span>88%</span></div>
+
+  <!-- HEADER -->
+  <div class="dream-header">
+    <div class="step-eyebrow">Step 4 - Almost There</div>
+    <div class="hero-row">
+      <!-- Dex excited -->
+      <div class="dex-dream">
+<svg viewBox="5 10 90 82" width="72" height="72" id="dexSvg">
+          <!-- arms raised -->
+          <ellipse cx="5" cy="30" rx="8" ry="15" fill="#D4900A" transform="rotate(-48,5,30)"/>
+          <ellipse cx="95" cy="30" rx="8" ry="15" fill="#D4900A" transform="rotate(48,95,30)"/>
+          <!-- body -->
+          <circle cx="50" cy="52" r="33" fill="#EAA835"/>
+          <ellipse cx="50" cy="70" rx="25" ry="11" fill="#C07820" opacity=".18"/>
+          <!-- ears -->
+          <circle cx="22" cy="26" r="11" fill="#D09828"/>
+          <circle cx="78" cy="26" r="11" fill="#D09828"/>
+          <circle cx="22" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+          <circle cx="78" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+          <!-- eye whites -->
+          <ellipse cx="35" cy="46" rx="12" ry="13" fill="white"/>
+          <ellipse cx="65" cy="46" rx="12" ry="13" fill="white"/>
+          <!-- pupils - looking up with joy -->
+          <circle cx="36" cy="44" r="8.5" fill="#1A0800"/>
+          <circle cx="66" cy="44" r="8.5" fill="#1A0800"/>
+          <!-- eye shine -->
+          <circle cx="32" cy="40" r="3" fill="white"/>
+          <circle cx="62" cy="40" r="3" fill="white"/>
+          <circle cx="39" cy="48" r="1.5" fill="white" opacity=".7"/>
+          <circle cx="69" cy="48" r="1.5" fill="white" opacity=".7"/>
+          <!-- raised happy brows -->
+          <path d="M22 30 Q34 23 44 28" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M56 28 Q66 23 78 30" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <!-- warm closed smile -->
+          <path d="M28 63 Q50 78 72 63" stroke="#A86010" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <circle cx="28" cy="63" r="2" fill="#C07820" opacity=".5"/>
+          <circle cx="72" cy="63" r="2" fill="#C07820" opacity=".5"/>
+          <!-- rosy cheeks -->
+          <ellipse cx="22" cy="55" rx="7" ry="4.5" fill="#E87050" opacity=".25"/>
+          <ellipse cx="78" cy="55" rx="7" ry="4.5" fill="#E87050" opacity=".25"/>
+          <!-- sparkle -->
+          <text x="74" y="20" style="font-size:10px;font-family:sans-serif">⭐</text>
+        </svg>
+      </div>
+      <div class="hero-text">
+        <div class="hero-title" style="font-size:1.35rem">Now lets build your <em>dream</em> after debt.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dex speech bubble -->
+  <div class="dex-bubble" id="dexBubble">
+    When you're debt-free, those payments become <strong>yours</strong>. What would you do with that money every month? 🌟
+  </div>
+
+  <div class="scroll-area">
+
+    <!-- DREAM PICKER -->
+    <div class="dream-card">
+      <div class="card-label">What's the one thing you really want?</div>
+      <div class="dream-grid" id="dreamGrid">
+        <div class="dream-tile" onclick="pickDream(this,'Trip','✈️','A trip you have always dreamed of')">
+          <span class="dt-emoji">✈️</span><span class="dt-name">Trip</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'New Car','🚗','Drive away debt-free in style')">
+          <span class="dt-emoji">🚗</span><span class="dt-name">New Car</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'College','🎓','Education that opens every door')">
+          <span class="dt-emoji">🎓</span><span class="dt-name">College</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Home','🏡','Your own space. Your rules.')">
+          <span class="dt-emoji">🏡</span><span class="dt-name">Home</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Business','💼','Build something of your own')">
+          <span class="dt-emoji">💼</span><span class="dt-name">Business</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Retirement','🏖️','Freedom. On your timeline.')">
+          <span class="dt-emoji">🏖️</span><span class="dt-name">Retire</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Emergency Fund','🛡️','Sleep easy. Always.')">
+          <span class="dt-emoji">🛡️</span><span class="dt-name">Safety Net</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Wardrobe','👗','Look as good as you feel')">
+          <span class="dt-emoji">👗</span><span class="dt-name">Wardrobe</span>
+        </div>
+        <div class="dream-tile" onclick="pickDream(this,'Other','🌟','Your dream, your way')">
+          <span class="dt-emoji">🌟</span><span class="dt-name">Other</span>
+        </div>
+      </div>
+
+      <input class="dream-inp" id="customDream" type="text" placeholder="Or type your own dream..."
+        oninput="onCustomDream(this.value)">
+
+      <div class="card-label" style="margin-top:4px">How much might it cost?</div>
+      <div class="inp-wrap">
+        <span class="inp-prefix">$</span>
+        <input class="inp" id="dreamCost" type="number" min="0" placeholder="e.g. 10,000"
+          oninput="onCostChange(this.value)">
+      </div>
+    </div>
+
+    <!-- VISION CARD (appears after dream + cost set) -->
+    <div class="vision-card" id="visionCard">
+      <!-- Simple bold headline -->
+      <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;color:#ffffff;line-height:1.25;margin-bottom:10px" id="visionHeadline">Home in 20 yrs 1 mo. 💪</div>
+      <!-- Two sub-lines -->
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:.88rem;font-weight:700;color:rgba(255,255,255,.75);line-height:1.7" id="visionNote">
+        Debt gone in <strong style="color:#F5C030" id="vsDebtFree">38 mo.</strong><br>
+        Keep saving for <strong style="color:#F5C030" id="vsDreamReady">14 mo.</strong> to get <span id="vsDreamName" style="color:#F5C030">your dream</span>.<br>
+        <span style="font-size:.75rem;color:rgba(255,255,255,.45)" id="vsSavings">Saving $528/mo at 4% APY after debt</span>
+      </div>
+      <!-- hidden elements JS still updates -->
+      <span style="display:none" id="vsTotal"></span>
+      <span style="display:none" id="vsDebtDate"></span>
+      <span style="display:none" id="vsDreamDate"></span>
+    </div>
+    <!-- EXTRA PAYMENT SLIDER -->
+    <div style="background:#fff;border:2px solid #E0D8CE;border-radius:18px;padding:16px;margin-bottom:10px;animation:fadeUp .4s ease both .4s">
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:.65rem;font-weight:800;color:#8A7060;letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px">Can you commit a little extra per day?</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:900;color:#1A6FC4" id="sliderVal">$0.50/day</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:.7rem;font-weight:700;color:#5A8A20;background:#DCFCE7;border-radius:8px;padding:3px 10px" id="sliderImpact">Even $0.50/day = $15/mo more toward debt!</div>
+      </div>
+      <input type="range" id="extraSlider" min="0" max="10" step="0.50" value="0.50"
+        oninput="onSliderChange(this.value)"
+        style="-webkit-appearance:none;appearance:none;width:100%;height:10px;border-radius:5px;
+        background:linear-gradient(to right,#1A6FC4 0%,#1A6FC4 5%,#E0D8CE 5%,#E0D8CE 100%);
+        outline:none;cursor:pointer">
+      <div style="display:flex;justify-content:space-between;font-family:'Nunito Sans',sans-serif;font-size:.65rem;font-weight:700;color:#A09080;margin-top:4px">
+        <span>$0/day</span><span>$2.50</span><span>$5</span><span>$10/day</span>
+      </div>
+    </div>
+
+    <button class="cta-btn" onclick="doContinue()">
+      See My Complete Debt-Free Plan ✨
+    </button>
+    <span class="skip-link" onclick="doSkip()">Skip this step</span>
+
+  </div>
+</div>
+
+<script>
+var dreamName = '';
+var dreamCost = 0;
+var monthlyDebtPayment = 528; // freed up after debt paid off (demo - from step 1)
+var debtPayoffMonths = 38;    // from chosen payoff method (demo - from step 3)
+var extraPerDay = 0.50;       // extra daily commitment to debt
+
+function pickDream(el, name, emoji, tagline) {
+  dreamName = name;
+  document.querySelectorAll('.dream-tile').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('customDream').value = '';
+
+  var lines = [
+    "I LOVE that dream - " + name + "! Lets make it real. 🌟",
+    "YES! " + tagline + ". You deserve this! 🎉",
+    "Amazing! Picture yourself there, debt-free with money to spare. 💪",
+    'That is a GREAT dream. You will get there, fast! 🚀'
+  ];
+  var bubble = document.getElementById('dexBubble');
+  bubble.innerHTML = lines[Math.floor(Math.random()*lines.length)];
+  bubble.className = 'dex-bubble lit';
+  setTimeout(function(){ bubble.className = 'dex-bubble'; }, 2800);
+
+  pulseDex();
+  updateVision();
+}
+
+function onCustomDream(val) {
+  if (val.trim()) {
+    dreamName = val.trim();
+    document.querySelectorAll('.dream-tile').forEach(function(t){ t.classList.remove('active'); });
+    updateVision();
+  }
+}
+
+function onCostChange(val) {
+  dreamCost = parseFloat(val) || 0;
+  if (window._visionShown) window._visionShown = false; // allow re-celebration
+  updateVision();
+}
+
+function onSliderChange(val) {
+  extraPerDay = parseFloat(val) || 0;
+  document.getElementById('sliderVal').textContent = '$' + extraPerDay.toFixed(2) + '/day';
+  // Update slider fill
+  var slider = document.getElementById('extraSlider');
+  var pct = (extraPerDay / 10) * 100;
+  slider.style.background = 'linear-gradient(to right,#1A6FC4 0%,#1A6FC4 '+pct+'%,#E0D8CE '+pct+'%,#E0D8CE 100%)';
+  updateVision();
+}
+
+// ── REAL DEBT PAYOFF CALC: simulate month-by-month ──
+// debtData represents the debts from step 1 (demo values summing to $26,400 at avg 22% APR)
+var debtData = [
+  { balance: 12400, apr: 24.99, minPayment: 248 },
+  { balance: 8200,  apr: 22.49, minPayment: 164 },
+  { balance: 5800,  apr: 18.00, minPayment: 116 }
+];
+
+function calcDebtPayoff(extraMonthly) {
+  // Simulate month-by-month payoff with avalanche method + extra payment
+  // Returns months to pay off all debts
+  var balances = debtData.map(function(d){ return d.balance; });
+  var rates    = debtData.map(function(d){ return d.apr / 100 / 12; });
+  var mins     = debtData.map(function(d){ return d.minPayment; });
+  var totalMin = mins.reduce(function(s,m){ return s+m; }, 0);
+  var monthlyPayment = totalMin + extraMonthly;
+
+  var months = 0;
+  var maxMonths = 600;
+  while (months < maxMonths) {
+    // Apply interest to all remaining balances
+    var allPaid = true;
+    for (var i = 0; i < balances.length; i++) {
+      if (balances[i] > 0) {
+        balances[i] += balances[i] * rates[i];
+        allPaid = false;
+      }
+    }
+    if (allPaid) break;
+    months++;
+
+    // Pay minimums on all, then attack highest-rate first with remainder
+    var remaining = monthlyPayment;
+    // Pay minimums first
+    for (var i = 0; i < balances.length; i++) {
+      if (balances[i] > 0) {
+        var pay = Math.min(mins[i], balances[i]);
+        balances[i] -= pay;
+        remaining -= pay;
+      }
+    }
+    // Apply extra to highest balance (avalanche: already sorted by apr desc in demo data)
+    for (var i = 0; i < balances.length; i++) {
+      if (balances[i] > 0 && remaining > 0) {
+        var pay = Math.min(remaining, balances[i]);
+        balances[i] -= pay;
+        remaining -= pay;
+      }
+    }
+    // Round tiny balances to zero
+    for (var i = 0; i < balances.length; i++) {
+      if (balances[i] < 0.01) balances[i] = 0;
+    }
+    if (balances.every(function(b){ return b===0; })) break;
+  }
+  return months;
+}
+
+function calcDreamMonths(savingsMonthly, goal) {
+  // Compound savings at 4% APR
+  var monthlyRate = 0.04 / 12;
+  if (savingsMonthly <= 0 || goal <= 0) return 999;
+  if (monthlyRate === 0) return Math.ceil(goal / savingsMonthly);
+  return Math.ceil(Math.log(1 + goal * monthlyRate / savingsMonthly) / Math.log(1 + monthlyRate));
+}
+
+function fmt(months) {
+  if (months >= 999) return '---';
+  if (months <= 1) return '1 mo.';
+  if (months < 24) return months + ' mo.';
+  var y = Math.floor(months / 12);
+  var m = months % 12;
+  return y + ' yr' + (y>1?'s':'') + (m>0 ? ' ' + m + ' mo.' : '');
+}
+
+function toDate(months) {
+  var d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function updateVision() {
+  var extraMonthly = Math.round(extraPerDay * 30.44);
+  var debtMonths = calcDebtPayoff(extraMonthly);
+  // After debt paid: redirect full old payment + extra into savings
+  var totalMin = debtData.reduce(function(s,d){ return s+d.minPayment; }, 0);
+  var savingsMonthly = totalMin + extraMonthly;
+
+  // Always update debt-free stat even without a dream selected
+  var dfEl = document.getElementById('vsDebtFree');
+  if (dfEl) dfEl.textContent = fmt(debtMonths);
+  var dfDateEl = document.getElementById('vsDebtDate');
+  if (dfDateEl) dfDateEl.textContent = toDate(debtMonths);
+
+  if (!dreamName || dreamCost <= 0) {
+    // Show debt-free date even without a dream
+    var vc = document.getElementById('visionCard');
+    if (dreamCost <= 0 && dreamName) {
+      // Dream selected but no cost yet - show partial
+      vc.classList.add('show');
+      document.getElementById('visionHeadline').textContent = dreamName + ': enter a cost above to see your timeline 👆';
+      document.getElementById('vsDebtFree').textContent = fmt(debtMonths);
+      document.getElementById('vsDreamReady').textContent = '...';
+    } else {
+      vc.classList.remove('show');
+    }
+    updateSliderImpact(debtMonths, null, savingsMonthly, extraMonthly);
+    return;
+  }
+
+  var dreamMonths = calcDreamMonths(savingsMonthly, dreamCost);
+  var totalMonths = debtMonths + dreamMonths;
+
+  var headline;
+  if (dreamMonths <= 6) headline = dreamName + ' in just ' + fmt(dreamMonths) + ' after your last payment. This could be very soon! 🚀';
+  else if (dreamMonths <= 24) headline = 'Just ' + fmt(dreamMonths) + ' of saving after debt-free and ' + dreamName + ' is yours. 🌟';
+  else headline = dreamName + ' in ' + fmt(dreamMonths) + ' after your debt is gone. Worth every step. 💪';
+
+  // Big bold headline: "[Dream] in X yrs Y mo. 💪"
+  var totalDisplay = fmt(totalMonths);
+  document.getElementById('visionHeadline').textContent = dreamName + ' in ' + totalDisplay + ' 💪';
+
+  // Sub lines
+  document.getElementById('vsDebtFree').textContent = fmt(debtMonths);
+  document.getElementById('vsDreamReady').textContent = fmt(dreamMonths);
+  var dn = document.getElementById('vsDreamName');
+  if (dn) dn.textContent = dreamName || 'your dream';
+  var sv = document.getElementById('vsSavings');
+  if (sv) sv.textContent = 'Saving $' + Math.round(savingsMonthly).toLocaleString() + '/mo at 4% APY after debt';
+  document.getElementById('vsTotal').textContent = totalDisplay;
+
+  document.getElementById('visionCard').classList.add('show');
+  updateSliderImpact(debtMonths, dreamMonths, savingsMonthly, extraMonthly);
+
+  if (!window._visionShown) {
+    window._visionShown = true;
+    setTimeout(celebrateDream, 200);
+  }
+}
+
+function updateSliderImpact(debtMonths, dreamMonths, savingsMonthly, extraMonthly) {
+  var el = document.getElementById('sliderImpact');
+  if (!el) return;
+  var baseDebt = calcDebtPayoff(0);
+  var saved = baseDebt - debtMonths;
+  if (extraMonthly === 0) {
+    el.textContent = 'Even $0.50/day = $15/mo less interest and a sooner dream!';
+  } else {
+    el.textContent = '+$' + extraMonthly + '/mo saves ' + saved + ' month' + (saved!==1?'s':'') + ' of debt' + (dreamName ? ' and gets your ' + dreamName + ' sooner.' : '.');
+  }
+}
+
+// updateSliderImpact moved to new version above
+
+function pulseDex() {
+  var dex = document.getElementById('dexSvg');
+  dex.style.animation = 'none';
+  void dex.offsetWidth;
+  dex.style.animation = 'dexPop .6s cubic-bezier(.34,1.56,.64,1) both';
+  setTimeout(function(){ dex.style.animation = 'dexBounce 2.4s ease-in-out infinite'; }, 700);
+}
+
+function celebrateDream() {
+  var phone = document.getElementById('phone');
+  var rect = phone.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + 100;
+  var colors = ['#F5C030','#1A6FC4','#3A9A20','#F06030','#9B59B6','#E8A020','#fff'];
+
+  for (var wave = 0; wave < 3; wave++) {
+    (function(w){
+      setTimeout(function(){
+        for (var i = 0; i < 35; i++) {
+          (function(){
+            var c = document.createElement('div');
+            var size = 5 + Math.random()*9;
+            var angle = Math.random()*360;
+            var dist = 50 + Math.random()*130;
+            var dx = Math.cos(angle*Math.PI/180)*dist;
+            var dy = Math.sin(angle*Math.PI/180)*dist - 50;
+            c.style.cssText =
+              'position:fixed;width:'+size+'px;height:'+size+'px;' +
+              'left:'+(cx-size/2)+'px;top:'+(cy-size/2)+'px;' +
+              'background:'+colors[Math.floor(Math.random()*colors.length)]+';' +
+              'border-radius:'+(Math.random()>.4?'50%':'2px')+';' +
+              'pointer-events:none;z-index:9999;' +
+              'transition:transform '+(0.8+Math.random()*.7)+'s cubic-bezier(.2,.8,.3,1),opacity '+(0.5+Math.random()*.4)+'s ease '+(0.3+Math.random()*.3)+'s;';
+            document.body.appendChild(c);
+            requestAnimationFrame(function(){
+              requestAnimationFrame(function(){
+                c.style.transform = 'translate('+dx+'px,'+dy+'px) rotate('+(Math.random()*720)+'deg)';
+                c.style.opacity = '0';
+              });
+            });
+            setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); }, 1600);
+          })();
+        }
+        // XP toast on first wave only
+        if (w === 0) {
+          var t = document.createElement('div');
+          t.textContent = '🌟 DREAM UNLOCKED! +150 XP';
+          t.style.cssText =
+            'position:fixed;left:'+(cx-95)+'px;top:'+(cy-20)+'px;' +
+            'font-family:Nunito,sans-serif;font-size:1.05rem;font-weight:900;' +
+            'color:#F5C030;text-shadow:0 2px 12px rgba(245,192,48,.5);' +
+            'pointer-events:none;z-index:9999;white-space:nowrap;' +
+            'animation:xpFloat 2.2s cubic-bezier(.22,1,.36,1) both forwards;';
+          document.body.appendChild(t);
+          setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 2400);
+        }
+      }, w * 220);
+    })(wave);
+  }
+  pulseDex();
+}
+
+function doContinue() { alert('Generating your complete debt-free plan! 🎯'); }
+function doSkip() { alert('Moving to your plan summary'); }
+</script>
+<style>
+@keyframes dexPop {
+  from { transform: scale(0.7) rotate(-8deg); opacity:.8; }
+  to   { transform: scale(1) rotate(0deg); opacity:1; }
+}
+@keyframes xpFloat {
+  0%  { opacity:0; transform:scale(.5) translateY(0); }
+  18% { opacity:1; transform:scale(1.35) translateY(-12px); }
+  75% { opacity:1; transform:scale(1.1) translateY(-65px); }
+  100%{ opacity:0; transform:scale(.9) translateY(-95px); }
+}
+</style>
+</body>
+</html>

@@ -13,11 +13,10 @@ const CHANNEL_PAYOFF = "payoff-date-moved";
 const CHANNEL_BONUS = "variable-bonus";
 const CHANNEL_REENGAGE = "re-engagement";
 
-async function requestPermission(): Promise<boolean> {
+/** Silently checks if permission is already granted — never prompts. */
+async function checkPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === "granted") return true;
-  const { status } = await Notifications.requestPermissionsAsync();
+  const { status } = await Notifications.getPermissionsAsync();
   return status === "granted";
 }
 
@@ -72,7 +71,7 @@ export function DesignBriefNotificationsProvider({ children }: { children: React
 
   const scheduleInterestSavedWeekly = useCallback(async () => {
     if (Platform.OS === "web" || debts.length === 0) return;
-    const granted = await requestPermission();
+    const granted = await checkPermission();
     if (!granted) return;
     await ensureChannels();
 
@@ -109,7 +108,7 @@ export function DesignBriefNotificationsProvider({ children }: { children: React
 
   const schedulePayoffDateMoved = useCallback(async (newDate: Date, monthsFaster: number) => {
     if (Platform.OS === "web") return;
-    const granted = await requestPermission();
+    const granted = await checkPermission();
     if (!granted) return;
     await ensureChannels();
     const fireAt = new Date(Date.now() + 2000);
@@ -130,7 +129,7 @@ export function DesignBriefNotificationsProvider({ children }: { children: React
 
   const scheduleReengagement = useCallback(async () => {
     if (Platform.OS === "web") return;
-    const granted = await requestPermission();
+    const granted = await checkPermission();
     if (!granted) return;
     await ensureChannels();
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
@@ -167,7 +166,7 @@ export function DesignBriefNotificationsProvider({ children }: { children: React
     if (Platform.OS === "web") return;
     let cancelled = false;
     (async () => {
-      const granted = await requestPermission();
+      const granted = await checkPermission();
       if (!granted || cancelled) return;
       await ensureChannels();
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();

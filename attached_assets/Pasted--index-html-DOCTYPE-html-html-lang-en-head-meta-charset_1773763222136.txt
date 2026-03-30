@@ -1,0 +1,90 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+
+      /* MAIN GRADIENT */
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(245,200,66,.18) 0%, transparent 55%),
+        radial-gradient(ellipse at 75% 80%, rgba(58,122,16,.12) 0%, transparent 50%),
+        linear-gradient(160deg, #0f172a 0%, #1e2a45 55%, #0d1f38 100%);
+    }
+
+    /* GRID TEXTURE OVERLAY */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* AMBER ORB - top right */
+    .orb-amber {
+      position: fixed;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: rgba(184,106,0,.22);
+      filter: blur(80px);
+      top: -80px; right: -60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* GREEN ORB - bottom left */
+    .orb-green {
+      position: fixed;
+      width: 260px; height: 260px;
+      border-radius: 50%;
+      background: rgba(58,122,16,.15);
+      filter: blur(70px);
+      bottom: 80px; left: -60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* BLUE ORB - mid left */
+    .orb-blue {
+      position: fixed;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: rgba(26,111,196,.18);
+      filter: blur(60px);
+      top: 40%; left: -40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* YOUR CONTENT goes above the background */
+    .content {
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ORBS -->
+  <div class="orb-amber"></div>
+  <div class="orb-green"></div>
+  <div class="orb-blue"></div>
+
+  <!-- YOUR CONTENT HERE -->
+  <div class="content">
+    <h1 style="color:white; text-align:center; padding-top:40vh;">Hello Replit!</h1>
+  </div>
+
+</body>
+</html>

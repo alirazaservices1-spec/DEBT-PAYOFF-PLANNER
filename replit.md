@@ -20,8 +20,19 @@ A comprehensive debt management app built with Expo React Native and Express bac
 - **Backend**: Express.js (TypeScript) serving REST API on port 5000
 - **Dev Proxy**: Express server proxies non-API requests to Metro bundler (port 8081) in development
 - **State**: React Context + AsyncStorage for local persistence
-- **Database**: PostgreSQL via `pg` Pool (Replit built-in)
+- **Database**: PostgreSQL via `pg` Pool (Replit built-in, DATABASE_URL env var)
 - **Styling**: React Native StyleSheet with dark/light mode support
+
+## Replit Workflows
+
+- **Start application** (webview, port 5000): Runs Express backend (`NODE_ENV=development PORT=5000 tsx server/index.ts`). In dev mode, Express proxies all non-API requests to Metro bundler on port 8081.
+- **Start Frontend** (console, port 8081): Runs Expo Metro bundler (`npx expo start --web --port 8081`). Restart after dependency changes. HMR handles most code changes automatically.
+
+## Deployment
+
+- Target: autoscale
+- Build: `npm run server:build && node scripts/build.js` (bundles server + builds Expo static)
+- Run: `node server_dist/index.js`
 
 ## App Structure
 
@@ -30,6 +41,8 @@ app/
   _layout.tsx       - Root layout with providers: CurrencyProvider, NotificationProvider, DebtProvider
   onboarding.tsx    - 9-screen Duolingo-style onboarding: Splash → Dex Intro → Question Intro → Q1/Q2/Q3 → Celebration (CLAIM +100 XP) → Streak Born → Streak Goal Picker
   settings.tsx      - Settings screen with appearance + currency picker
+  levels.tsx        - Levels/Progress screen: Dex mascot, shimmer hero card, all 7 levels list (done/current/locked), dream goal banner, motivational nudge, CTA. Navigated to by tapping the XP bar in dashboard.
+  day-complete.tsx  - Day Complete celebration screen: confetti, jumping Dex, ⭐⭐⭐ stars, XP breakdown card, total XP + streak banner. Navigated to automatically after logging a payment.
   (tabs)/
     index.tsx         - Debts tab: add, edit, delete, view debts + notification bell icon
     strategy.tsx      - Strategy tab: Snowball, Avalanche, Custom + consolidation scenario

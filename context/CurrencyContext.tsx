@@ -12,15 +12,27 @@ export interface CurrencyConfig {
 }
 
 export const SUPPORTED_CURRENCIES: CurrencyConfig[] = [
-  { code: "USD", symbol: "$", name: "US Dollar", locale: "en-US" },
-  { code: "PKR", symbol: "₨", name: "Pakistani Rupee", locale: "en-PK" },
-  { code: "EUR", symbol: "€", name: "Euro", locale: "de-DE" },
-  { code: "GBP", symbol: "£", name: "British Pound", locale: "en-GB" },
-  { code: "AED", symbol: "د.إ", name: "UAE Dirham", locale: "en-AE", symbolAfter: true },
-  { code: "SAR", symbol: "﷼", name: "Saudi Riyal", locale: "en-SA", symbolAfter: true },
-  { code: "CAD", symbol: "CA$", name: "Canadian Dollar", locale: "en-CA" },
+  // Essential 20, sorted alphabetically for easier scanning.
   { code: "AUD", symbol: "A$", name: "Australian Dollar", locale: "en-AU" },
+  { code: "BRL", symbol: "R$", name: "Brazilian Real", locale: "pt-BR" },
+  { code: "GBP", symbol: "£", name: "British Pound", locale: "en-GB" },
+  { code: "CAD", symbol: "CA$", name: "Canadian Dollar", locale: "en-CA" },
+  { code: "CNY", symbol: "CN¥", name: "Chinese Yuan", locale: "zh-CN" },
+  { code: "COP", symbol: "COP$", name: "Colombian Peso", locale: "es-CO" },
+  { code: "EUR", symbol: "€", name: "Euro", locale: "de-DE" },
+  { code: "HKD", symbol: "HK$", name: "Hong Kong Dollar", locale: "zh-HK" },
   { code: "INR", symbol: "₹", name: "Indian Rupee", locale: "en-IN" },
+  { code: "JPY", symbol: "¥", name: "Japanese Yen", locale: "ja-JP" },
+  { code: "MXN", symbol: "MX$", name: "Mexican Peso", locale: "es-MX" },
+  { code: "NZD", symbol: "NZ$", name: "New Zealand Dollar", locale: "en-NZ" },
+  { code: "SGD", symbol: "S$", name: "Singapore Dollar", locale: "en-SG" },
+  { code: "ZAR", symbol: "R", name: "South African Rand", locale: "en-ZA" },
+  { code: "KRW", symbol: "₩", name: "South Korean Won", locale: "ko-KR" },
+  { code: "SEK", symbol: "kr", name: "Swedish Krona", locale: "sv-SE", symbolAfter: true },
+  { code: "CHF", symbol: "CHF ", name: "Swiss Franc", locale: "de-CH" },
+  { code: "TRY", symbol: "₺", name: "Turkish Lira", locale: "tr-TR" },
+  { code: "AED", symbol: "AED ", name: "United Arab Emirates Dirham", locale: "en-AE" },
+  { code: "USD", symbol: "$", name: "US Dollar", locale: "en-US" },
 ];
 
 interface CurrencyContextValue {
@@ -52,7 +64,9 @@ function makeFmt(c: CurrencyConfig) {
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrencyState] = useState<CurrencyConfig>(SUPPORTED_CURRENCIES[0]);
+  const [currency, setCurrencyState] = useState<CurrencyConfig>(
+    SUPPORTED_CURRENCIES.find((c) => c.code === "USD") ?? SUPPORTED_CURRENCIES[0]
+  );
 
   useEffect(() => {
     AsyncStorage.getItem(CURRENCY_KEY).then((code) => {

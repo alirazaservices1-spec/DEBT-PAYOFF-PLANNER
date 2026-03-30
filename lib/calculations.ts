@@ -107,6 +107,47 @@ export function isTaxDebtExcludedFromStrategy(d: Debt): boolean {
   return !(d.taxPaymentPlan === true && d.minimumPayment > 0);
 }
 
+/**
+ * IRS / state tax without a payment plan should not appear in payment reminders.
+ * Same rules as strategy eligibility: positive balance, due day, min payment, and tax only if on plan.
+ */
+export function debtEligibleForPaymentReminder(d: Debt): boolean {
+  if (d.balance <= 0 || d.dueDate == null || (d.minimumPayment || 0) <= 0) return false;
+  return debtsEligibleForStrategy([d]).length > 0;
+}
+
+/**
+ * Next calendar date (local) for a monthly due on `dueDayOfMonth` (1–31), on or after the start of `from`'s day.
+ * Clamps to the last day of the month when the due day does not exist (e.g. 31 in February).
+ */
+export function getNextPaymentDueDate(dueDayOfMonth: number, from: Date = new Date()): Date {
+  const y = from.getFullYear();
+  const m = from.getMonth();
+  const d = from.getDate();
+  const lastDayOfMonth = (year: number, month: number) =>
+    new Date(year, month + 1, 0).getDate();
+  const clamp = (year: number, month: number, day: number) =>
+    Math.min(Math.max(1, day), lastDayOfMonth(year, month));
+  const thisDue = new Date(y, m, clamp(y, m, dueDayOfMonth));
+  const todayStart = new Date(y, m, d);
+  if (thisDue.getTime() >= todayStart.getTime()) return thisDue;
+  let nm = m + 1;
+  let ny = y;
+  if (nm > 11) {
+    nm = 0;
+    ny += 1;
+  }
+  return new Date(ny, nm, clamp(ny, nm, dueDayOfMonth));
+}
+
+/** Whole calendar days from the start of `from` until the next due date (0 = due today). */
+export function calendarDaysUntilPaymentDue(dueDayOfMonth: number, from: Date = new Date()): number {
+  const next = getNextPaymentDueDate(dueDayOfMonth, from);
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = Date.UTC(next.getFullYear(), next.getMonth(), next.getDate());
+  return Math.round((b - a) / 86400000);
+}
+
 export function runStrategy(
   debts: Debt[],
   extraPayment: number,

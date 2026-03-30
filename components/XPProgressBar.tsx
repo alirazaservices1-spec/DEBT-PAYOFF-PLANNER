@@ -1,11 +1,11 @@
 // ─── XPProgressBar — designer handoff spec ───────────────────────────────────
 // Height 14px · border-radius 99px
-// Blue gradient fill: #1F4E8C → #4B9EF8
+// Amber gradient fill: #C07820 → #E8A030
 // White particle dot at leading edge
 // Smooth 1.4s cubic-bezier(.22,1,.36,1) transition
 
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, Text, View, useColorScheme, ViewStyle, Animated } from "react-native";
+import { StyleSheet, Text, View, ViewStyle, Animated } from "react-native";
 import Animated2, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,6 +13,7 @@ import Animated2, {
   Easing,
 } from "react-native-reanimated";
 import Colors, { D } from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { useGame } from "@/context/GameContext";
 import { getLevelName } from "@/constants/levelNames";
@@ -24,8 +25,7 @@ interface Props {
 
 export function XPProgressBar({ style }: Props) {
   const { level, currentLevelXp, nextLevelXp, progress, lastXpGain } = useGame();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
 
   // Particle dot pulse (glow at leading edge)
@@ -54,11 +54,11 @@ export function XPProgressBar({ style }: Props) {
     width: `${barWidth.value * 100}%` as any,
   }));
 
-  const trackBg = isDark ? D.bg4 : "#DDE8F5";
-  const levelBadgeBg = D.blue;
+  const trackBg = isDark ? D.bg4 : "#EDE0C8";
+  const levelBadgeBg = "#C07820";
 
   return (
-    <View style={[styles.container, { backgroundColor: C.surface, borderColor: isDark ? "#1A2A3A" : "#C8D9EE" }, style]}>
+    <View style={[styles.container, { backgroundColor: C.surface, borderColor: isDark ? "rgba(232,160,48,0.22)" : "rgba(192,120,32,0.22)" }, style]}>
       <View style={styles.header}>
         {/* Level badge */}
         <View style={[styles.levelBadge, { backgroundColor: levelBadgeBg }]}>
@@ -118,8 +118,7 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 18,
     padding: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 0,
     borderWidth: 1,
     shadowColor: D.blue,
     shadowOffset: { width: 0, height: 4 },
@@ -166,7 +165,6 @@ const styles = StyleSheet.create({
   xpTitle: {
     fontSize: 14,
     fontFamily: Fonts.bold, fontWeight: "700",
-    color: "#1F4E8C",
     marginBottom: 2,
   },
   xpSubtitle: {
@@ -192,14 +190,14 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     overflow: "hidden",
     minWidth: 14,
-    backgroundColor: D.blue,
+    backgroundColor: "#C07820",
   },
   fillLeft: {
-    backgroundColor: D.blue,
+    backgroundColor: "#C07820",
     borderRadius: 99,
   },
   fillRight: {
-    backgroundColor: "#4B9EF8",
+    backgroundColor: "#E8A030",
     borderRadius: 99,
     opacity: 0.7,
   },

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -17,6 +16,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { DexMascot } from "@/components/DexMascot";
 
@@ -74,8 +74,7 @@ interface Props {
 }
 
 export function OnboardingCelebration({ visible, onDismiss }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
 
   const backdropOpacity = useSharedValue(0);
   const cardScale = useSharedValue(0.5);

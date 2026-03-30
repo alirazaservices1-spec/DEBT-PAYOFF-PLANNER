@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, Animated, Easing } from "react-native";
-import Svg, { Circle, Ellipse, Path, Rect, G } from "react-native-svg";
+import Svg, { Circle, Ellipse, Path, Rect, G, Text as SvgText } from "react-native-svg";
 import ReAnimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -226,80 +226,262 @@ function Tail({ raised = false }: { raised?: boolean }) {
   );
 }
 
-// ─── Static fox SVG — all parts together ─────────────────────────────────────
+// ─── Static bear SVG (older icon) ───────────────────────────────────────────
+// Client request: remove the current "dex character" and use the older bear icon.
 function FoxSVG({ state, blinkAlpha }: { state: DexState; blinkAlpha?: number }) {
-  const cheekAlpha = (state === "happy" || state === "celebrating") ? 0.38 : 0.18;
-  const isClipboard = state === "onboarding_clipboard";
-  const isSleeping = state === "sleeping";
+  // Expression rendering driven by the HTML expression-sheet you shared.
+  // We map our app's DexState -> expression "style" (happy / celebrate / nervous / sleepy / surprised / focused).
+  const expr = (() => {
+    switch (state) {
+      case "happy":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 52,
+          eyeR: 10,
+          blush: 0.4,
+          mouth: "M42,73 Q55,83 68,73",
+          browL: "M32,40 Q41,36 48,40",
+          browR: "M62,40 Q69,36 78,40",
+          flairL: "✨",
+          flairR: "⭐",
+          flairLY: 26,
+          flairRY: 22,
+          halfEyes: false,
+          sweat: false,
+        };
+      case "celebrating":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 50,
+          eyeR: 11,
+          blush: 0.8,
+          mouth: "M40,71 Q55,87 70,71",
+          browL: "M31,35 Q41,28 49,34",
+          browR: "M61,34 Q69,28 79,35",
+          flairL: "🎉",
+          flairR: "🎊",
+          flairLY: 18,
+          flairRY: 18,
+          halfEyes: false,
+          sweat: false,
+        };
+      case "encouraging":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 53,
+          eyeR: 10,
+          blush: 0.0,
+          mouth: "M43,75 Q55,79 67,75",
+          browL: "M32,41 Q41,37 49,42",
+          browR: "M61,42 Q69,37 78,41",
+          flairL: "💪",
+          flairR: "",
+          flairLY: 24,
+          flairRY: 24,
+          halfEyes: false,
+          sweat: false,
+        };
+      case "worried":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 53,
+          eyeR: 9,
+          blush: 0.2,
+          mouth: "M43,74 Q55,70 67,74",
+          browL: "M33,42 Q41,39 48,43",
+          browR: "M62,43 Q69,39 77,42",
+          flairL: "😅",
+          flairR: "",
+          flairLY: 20,
+          flairRY: 20,
+          halfEyes: false,
+          sweat: true,
+        };
+      case "sleeping":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 54,
+          eyeR: 10,
+          blush: 0.1,
+          mouth: "M44,74 Q55,78 66,74",
+          browL: "M33,42 Q41,40 48,42",
+          browR: "M62,42 Q69,40 77,42",
+          flairL: "💤",
+          flairR: "",
+          flairLY: 18,
+          flairRY: 18,
+          halfEyes: true,
+          sweat: false,
+        };
+      case "surprised":
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 51,
+          eyeR: 12,
+          blush: 0.15,
+          mouth: "M46,72 Q55,82 64,72",
+          browL: "M32,35 Q41,28 48,35",
+          browR: "M62,35 Q69,28 78,35",
+          flairL: "😲",
+          flairR: "⚡",
+          flairLY: 20,
+          flairRY: 22,
+          halfEyes: false,
+          sweat: false,
+        };
+      case "onboarding_clipboard":
+      case "idle":
+      default:
+        // "focused" from your sheet
+        return {
+          eyeCxL: 41,
+          eyeCxR: 69,
+          eyeCy: 53,
+          eyeR: 9,
+          blush: 0.0,
+          mouth: "M44,74 Q55,78 66,74",
+          browL: "M33,40 Q41,37 48,40",
+          browR: "M62,40 Q69,37 77,40",
+          flairL: "",
+          flairR: "",
+          flairLY: 26,
+          flairRY: 26,
+          halfEyes: false,
+          sweat: false,
+          // Client request: do not show the 📋 flair.
+          // (We keep the rest of the "focused" facial expression.)
+        };
+    }
+  })();
+
+  const eyeFill = "#1C0F00";
+  const browStroke = "#8B5E20";
+  const mouthStroke = "#8B5E20";
+
+  const shineR = expr.halfEyes ? 0 : 4;
+  const smallHighlightOpacity = expr.halfEyes ? 0.0 : 0.6;
+
+  const sleepyClipL = expr.halfEyes ? (
+    <Rect x={31} y={50} width={20} height={14} fill="#FFFDF7" />
+  ) : null;
+  const sleepyClipR = expr.halfEyes ? (
+    <Rect x={59} y={50} width={20} height={14} fill="#FFFDF7" />
+  ) : null;
+
+  const blinkEyes = blinkAlpha !== undefined && blinkAlpha > 0 && state === "idle" ? (
+    <>
+      <Rect x={31} y={50} width={20} height={14} fill="#D9A045" opacity={blinkAlpha} />
+      <Rect x={59} y={50} width={20} height={14} fill="#D9A045" opacity={blinkAlpha} />
+    </>
+  ) : null;
 
   return (
-    <Svg width={88} height={120} viewBox="0 0 88 120">
+    <Svg width={88} height={120} viewBox="0 0 110 118" preserveAspectRatio="xMidYMid meet">
+      {/* Ears */}
+      <Circle cx="22" cy="32" r="17" fill="#C8882A" />
+      <Circle cx="88" cy="32" r="17" fill="#C8882A" />
+      <Circle cx="22" cy="32" r="10" fill="#D9A045" opacity="0.7" />
+      <Circle cx="88" cy="32" r="10" fill="#D9A045" opacity="0.7" />
 
-      {/* Drop shadow */}
-      <Ellipse cx={44} cy={117} rx={22} ry={5} fill="rgba(0,0,0,0.15)" />
+      {/* Head */}
+      <Circle cx="55" cy="57" r="36" fill="#D9A045" />
+      <Ellipse
+        cx="43"
+        cy="42"
+        rx="10"
+        ry="7"
+        fill="white"
+        opacity="0.18"
+        rotation="-25"
+        originX={43}
+        originY={42}
+      />
+      <Ellipse cx="55" cy="71" rx="16" ry="11" fill="#C8882A" opacity="0.5" />
 
-      {/* Tail behind body */}
-      <Tail raised={isClipboard} />
+      {/* Cheeks */}
+      <Ellipse cx="30" cy="65" rx="9" ry="6" fill="#E8955A" opacity={expr.blush} />
+      <Ellipse cx="80" cy="65" rx="9" ry="6" fill="#E8955A" opacity={expr.blush} />
+
+      {/* Eyes */}
+      <Circle cx={expr.eyeCxL} cy={expr.eyeCy} r={expr.eyeR} fill={eyeFill} />
+      <Circle cx={expr.eyeCxR} cy={expr.eyeCy} r={expr.eyeR} fill={eyeFill} />
+
+      {/* Highlights */}
+      {expr.halfEyes ? null : (
+        <>
+          <Circle cx={expr.eyeCxL + 3} cy={expr.eyeCy - 4} r={shineR} fill="white" />
+          <Circle cx={expr.eyeCxR + 3} cy={expr.eyeCy - 4} r={shineR} fill="white" />
+          <Circle
+            cx={expr.eyeCxL + 5}
+            cy={expr.eyeCy - 2}
+            r={1.5}
+            fill="white"
+            opacity={smallHighlightOpacity}
+          />
+          <Circle
+            cx={expr.eyeCxR + 5}
+            cy={expr.eyeCy - 2}
+            r={1.5}
+            fill="white"
+            opacity={smallHighlightOpacity}
+          />
+        </>
+      )}
+
+      {/* Half-closed eyes (sleepy) */}
+      {sleepyClipL}
+      {sleepyClipR}
+
+      {/* Blink overlay (idle only) */}
+      {blinkEyes}
+
+      {/* Brows */}
+      <Path d={expr.browL} stroke={browStroke} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+      <Path d={expr.browR} stroke={browStroke} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+
+      {/* Mouth */}
+      <Path d={expr.mouth} stroke={mouthStroke} strokeWidth={3} fill="none" strokeLinecap="round" opacity={0.85} />
+
+      {/* Sweat (nervous) */}
+      {expr.sweat ? (
+        <>
+          <Ellipse cx="74" cy="38" rx="3" ry="5" fill="#A8D4F0" opacity="0.85" />
+          <Path d="M74,33 Q77,38 74,43 Q71,38 74,33" fill="#A8D4F0" opacity="0.7" />
+        </>
+      ) : null}
+
+      {/* Flair emojis */}
+      {expr.flairL ? (
+        <SvgText x={4} y={expr.flairLY} fontSize={11} fill="#8B5E20">
+          {expr.flairL}
+        </SvgText>
+      ) : null}
+      {expr.flairR ? (
+        <SvgText x={88} y={expr.flairRY} fontSize={11} fill="#8B5E20">
+          {expr.flairR}
+        </SvgText>
+      ) : null}
 
       {/* Body */}
-      <Rect x={20} y={66} width={48} height={48} rx={22} fill={C.body} />
-
-      {/* Belly */}
-      <Ellipse cx={44} cy={92} rx={14} ry={18} fill={C.cream} />
-
-      {/* Arms — rendered on top of body sides */}
-      <Arms state={state} />
-
-      {/* Clipboard item */}
-      {isClipboard && <Clipboard />}
-
-      {/* Neck connector (body → head) */}
-      <Rect x={34} y={62} width={20} height={10} rx={0} fill={C.body} />
-
-      {/* Left ear (outer) */}
-      <Path d="M16 36 L25 8 L36 36Z" fill={C.body} />
-      {/* Left ear (inner) */}
-      <Path d="M19 34 L25 13 L33 34Z" fill={C.earInner} />
-
-      {/* Right ear (outer) */}
-      <Path d="M52 36 L63 8 L72 36Z" fill={C.body} />
-      {/* Right ear (inner) */}
-      <Path d="M55 34 L63 13 L69 34Z" fill={C.earInner} />
-
-      {/* Head circle — 45% of 120 = 54px tall → radius 27, cy=41 → y:14–68 */}
-      <Circle cx={44} cy={42} r={27} fill={C.body} />
-
-      {/* Muzzle area */}
-      <Ellipse cx={44} cy={55} rx={11} ry={8} fill={C.muzzle} />
-
-      {/* Nose */}
-      <Ellipse cx={44} cy={50} rx={4} ry={3} fill={C.nose} />
-
-      {/* Cheek blush */}
-      <Circle cx={21} cy={51} r={7} fill={C.cheek} opacity={cheekAlpha} />
-      <Circle cx={67} cy={51} r={7} fill={C.cheek} opacity={cheekAlpha} />
-
-      {/* Eyes — state-driven */}
-      <Eyes state={state} />
-
-      {/* Eye blink overlay: thin rect that collapses scaleY via parent */}
-      {blinkAlpha !== undefined && blinkAlpha > 0 && (
-        <>
-          <Rect x={25} y={36} width={18} height={12} rx={6} fill={C.body} opacity={blinkAlpha} />
-          <Rect x={47} y={36} width={18} height={12} rx={6} fill={C.body} opacity={blinkAlpha} />
-        </>
-      )}
-
-      {/* Mouth — state-driven */}
-      <Mouth state={state} />
-
-      {/* Sleeping Zzz (static, animated in parent) */}
-      {isSleeping && (
-        <>
-          <Path d="M70 30 L76 30 L70 24 L76 24" stroke={C.blue} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
-          <Path d="M77 22 L84 22 L77 15 L84 15" stroke={C.blue} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.7} />
-        </>
-      )}
+      <Ellipse cx="55" cy="103" rx="22" ry="14" fill="#C8882A" />
+      <Circle cx="55" cy="100" r="7" fill="#D9A045" opacity="0.5" />
+      <SvgText
+        x={55}
+        y={103.5}
+        textAnchor="middle"
+        fontSize={8}
+        fill="#8B5E20"
+        fontWeight="bold"
+        opacity={0.9}
+      >
+        $
+      </SvgText>
     </Svg>
   );
 }

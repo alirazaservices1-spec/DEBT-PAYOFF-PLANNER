@@ -8,4 +8,7 @@ config.resolver.blockList = [
   /[/\\]\.local[/\\].*/,
 ];
 
+config.server = config.server || {};
+config.server.enableHostChecking = false;
+
 module.exports = config;

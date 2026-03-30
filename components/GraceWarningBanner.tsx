@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { StyleSheet, Text, View, Pressable, useColorScheme } from "react-native";
+import { StyleSheet, Text, View, Pressable } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,13 +10,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { useGame } from "@/context/GameContext";
 
 export function GraceWarningBanner() {
   const { gracePeriodActive, streakCount } = useGame();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
 
   const slideY = useSharedValue(-60);
   const opacity = useSharedValue(0);

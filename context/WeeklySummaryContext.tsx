@@ -22,6 +22,14 @@ interface WeeklySummaryContextValue {
 
 const WeeklySummaryContext = createContext<WeeklySummaryContextValue | null>(null);
 
+/** Silently checks if permission is already granted — never prompts. */
+async function checkPermission(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === "granted";
+}
+
+/** Prompts the user — only call on explicit user action. */
 async function requestPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -83,7 +91,7 @@ async function scheduleWeeklySummary(
     return;
   }
 
-  const granted = await requestPermission();
+  const granted = await checkPermission();
   if (!granted) return;
 
   await ensureChannel();
@@ -99,7 +107,7 @@ async function scheduleWeeklySummary(
     if (trigger <= new Date()) return;
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "DebtPath — Weekly Summary 📊",
+        title: "DebtPath - Weekly Summary 📊",
         body,
         data: { type: "weekly_summary" },
         sound: true,
@@ -157,6 +165,8 @@ export function WeeklySummaryProvider({
     if (!value) {
       await cancelStoredNotif();
     } else {
+      // User explicitly enabled — prompt for permission here if needed
+      await requestPermission();
       await scheduleWeeklySummary(true, weeklyTotal, fmtFull);
     }
   }, [weeklyTotal, fmtFull]);

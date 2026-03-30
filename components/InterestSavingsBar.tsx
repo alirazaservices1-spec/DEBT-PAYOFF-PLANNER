@@ -6,9 +6,9 @@ import { Fonts } from "@/constants/fonts";
 // On milestone: animated tick + copy "You just crossed $X saved..."
 
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { D } from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 
 const MILESTONES = [50, 100, 250, 500, 1000];
 
@@ -31,8 +31,7 @@ interface Props {
 }
 
 export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
 
   // Which milestone tier are we at?
   const maxMilestone = MILESTONES.find((m) => interestSaved < m) ?? 1000;
@@ -63,18 +62,19 @@ export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
 
   if (interestSaved <= 0) return null;
 
-  const cardBg = isDark ? "#0D1A14" : D.greenL;
-  const borderCol = isDark ? "#1A3025" : "#B8E2CA";
-  const trackBg = isDark ? "#142018" : "#D0EDD8";
+  const AMBER     = isDark ? "#E8A030" : "#C07820";
+  const cardBg    = isDark ? "#2C2014" : "#FFFFFF";
+  const borderCol = isDark ? "rgba(232,160,48,0.22)" : "rgba(192,120,32,0.22)";
+  const trackBg   = isDark ? "rgba(232,160,48,0.12)" : "rgba(192,120,32,0.12)";
 
   return (
     <View style={[styles.container, { backgroundColor: cardBg, borderColor: borderCol }]}>
       <View style={styles.header}>
-        <Ionicons name="leaf" size={14} color={D.green} />
-        <Text style={[styles.title, { color: D.green }]}>Interest you have kept in your pocket</Text>
+        <Ionicons name="trending-down" size={14} color={AMBER} />
+        <Text style={[styles.title, { color: AMBER }]}>Interest you have kept in your pocket</Text>
       </View>
 
-      <Text style={[styles.amount, { color: D.green }]}>
+      <Text style={[styles.amount, { color: AMBER }]}>
         ${interestSaved.toFixed(2)}
       </Text>
 
@@ -89,6 +89,7 @@ export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
                   inputRange: [0, 1],
                   outputRange: ["0%", "100%"],
                 }),
+                backgroundColor: AMBER,
               },
             ]}
           />
@@ -106,7 +107,7 @@ export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
                 styles.tick,
                 {
                   left: `${pos * 100}%` as any,
-                  backgroundColor: reached ? D.green : (isDark ? "#2A4030" : "#B8E2CA"),
+                  backgroundColor: reached ? AMBER : (isDark ? "rgba(232,160,48,0.30)" : "rgba(192,120,32,0.22)"),
                 },
               ]}
             />
@@ -116,17 +117,17 @@ export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
 
       {/* Milestone labels */}
       <View style={styles.labelsRow}>
-        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(255,255,255,0.35)" : "#9AB8A0" }]}>
+        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#9A7240" }]}>
           {formatMilestone(prevMilestone === 0 ? 50 : prevMilestone)}
         </Text>
-        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(255,255,255,0.35)" : "#9AB8A0" }]}>
+        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#9A7240" }]}>
           {formatMilestone(maxMilestone)}
         </Text>
       </View>
 
       {milestoneLabel && (
-        <Text style={[styles.copy, { color: isDark ? "#6DBF8A" : D.green }]}>
-          💚 {milestoneLabel}
+        <Text style={[styles.copy, { color: AMBER }]}>
+          🎯 {milestoneLabel}
         </Text>
       )}
     </View>
@@ -178,7 +179,6 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: 99,
-    backgroundColor: D.green,
     minWidth: 8,
   },
   tick: {

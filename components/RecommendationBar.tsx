@@ -3,7 +3,8 @@
  * Cards can be permanently dismissed (stored in AsyncStorage).
  */
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, useColorScheme, StyleSheet } from "react-native";
+import { useIsDark } from "@/context/ThemeContext";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,20 +19,11 @@ import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
 import { useDebts } from "@/context/DebtContext";
 import { getRecommendations } from "@/lib/MonetizationRules";
+import { AFFILIATE_URLS } from "@/lib/affiliateUrls";
 import { withAppUtmParams } from "@/lib/utm";
 import type { Debt } from "@/lib/calculations";
 
 const HIDDEN_KEY = "@hidden_rec_cards";
-
-const MEANS_TEST_URL = "https://lp.curadebt.com/bankruptcy-means-test/";
-
-const AFFILIATE_URLS: Record<string, string> = {
-  TAX_RELIEF: "https://lp.curadebt.com/irs-fresh-start/",
-  BUSINESS_RELIEF: "https://www.curadebt.com/biz",
-  CONSOLIDATION: "https://www.curadebt.com/debtpps",
-  DEBT_RELIEF: "https://lp.curadebt.com/curadebtlp/index.html",
-  MEANS_TEST: MEANS_TEST_URL,
-};
 
 async function loadHiddenIds(): Promise<string[]> {
   try {
@@ -96,8 +88,8 @@ function DismissibleCard({
         style={[
           styles.card,
           {
-            backgroundColor: isDark ? "rgba(46,204,113,0.12)" : "rgba(46,204,113,0.1)",
-            borderColor: isDark ? "rgba(46,204,113,0.25)" : "rgba(31,78,140,0.30)",
+            backgroundColor: isDark ? "rgba(232,160,48,0.10)" : "rgba(192,120,32,0.08)",
+            borderColor: isDark ? "rgba(232,160,48,0.25)" : "rgba(192,120,32,0.28)",
             width: 280,
           },
         ]}
@@ -130,7 +122,7 @@ function DismissibleCard({
             </Pressable>
           </View>
           <Pressable onPress={handleDismiss} style={[styles.doneBtn, { borderColor: C.border }]}>
-            <Text style={[styles.doneBtnText, { color: C.textSecondary }]}>Done — Hide this</Text>
+            <Text style={[styles.doneBtnText, { color: C.textSecondary }]}>Done - Hide this</Text>
           </Pressable>
         </View>
       </View>
@@ -139,8 +131,7 @@ function DismissibleCard({
 }
 
 export function RecommendationBar({ debts: debtsProp }: { debts?: Debt[] } = {}) {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const { debts: ctxDebts } = useDebts();
   const debts = debtsProp ?? ctxDebts;

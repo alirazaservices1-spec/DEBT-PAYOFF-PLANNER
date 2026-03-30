@@ -6,12 +6,12 @@ import {
   Pressable,
   Modal,
   ScrollView,
-  useColorScheme,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { useIsDark } from "@/context/ThemeContext";
 import { Fonts } from "@/constants/fonts";
 import { useNotifications, type ReminderDays } from "@/context/NotificationContext";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -31,8 +31,7 @@ function getDaysLabel(days: number, isOverdue: boolean): { text: string; color: 
 }
 
 export function NotificationBell() {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);

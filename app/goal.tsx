@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  useColorScheme,
   Platform,
   Alert,
   KeyboardAvoidingView,
@@ -15,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useIsDark } from "@/context/ThemeContext";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -210,8 +210,7 @@ function GoalProgressCard({
 }
 
 export default function GoalScreen() {
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const { fmt } = useCurrency();
@@ -423,7 +422,7 @@ export default function GoalScreen() {
               </Text>
               <Text style={[styles.reminderSub, { color: C.textSecondary }]}>
                 {hasGoal
-                  ? `Sent daily at 9:00 AM — referencing your "${goalName}" goal`
+                  ? `Sent daily at 9:00 AM - referencing your "${goalName}" goal`
                   : "A daily check-in at 9:00 AM to stay on track"}
               </Text>
               {Platform.OS === "web" && (

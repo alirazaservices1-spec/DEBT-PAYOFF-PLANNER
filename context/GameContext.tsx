@@ -43,9 +43,9 @@ export const STREAK_MILESTONES: Record<number, number> = {
 
 export const STREAK_MILESTONE_MESSAGES: Record<number, string> = {
   3: "You're building real momentum!",
-  7: "One full week — you're unstoppable!",
+  7: "One full week - you're unstoppable!",
   14: "Two weeks of dedication. Amazing!",
-  30: "30 days — a new habit is born!",
+  30: "30 days - a new habit is born!",
   60: "Two months! Debt freedom is closer!",
   100: "100 days! You're a debt-crushing legend!",
 };
@@ -89,7 +89,7 @@ export type DexState =
 // ─── Celebration ─────────────────────────────────────────────────────────────
 
 export interface CelebrationState {
-  type: "level_up" | "debt_cleared" | "streak_milestone" | "first_payment" | "first_debt" | null;
+  type: "level_up" | "debt_cleared" | "streak_milestone" | "first_payment" | null;
   level?: number;
   debtName?: string;
   streakDays?: number;
@@ -128,7 +128,7 @@ interface GameState {
   lastOpenedAt: string | null;
   streakShield: boolean;
   firstPaymentCelebrated: boolean;
-  firstDebtCelebrated: boolean;
+  prevStreakCount: number;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -141,7 +141,7 @@ const DEFAULT_STATE: GameState = {
   lastOpenedAt: null,
   streakShield: false,
   firstPaymentCelebrated: false,
-  firstDebtCelebrated: false,
+  prevStreakCount: 0,
 };
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -168,13 +168,13 @@ interface GameContextValue {
 
   prevLastOpenedAt: string | null;
   lastPaymentDate: string | null;
+  prevStreakCount: number;
 
   awardXp: (event: XPEventType, meta?: { debtName?: string }) => void;
   grantBonusXp: (amount: number) => void;
   recordPaymentForStreak: () => void;
   logDailyAction: (actionType: string) => void;
   resetGame: () => Promise<void>;
-  triggerFirstDebtCelebration: () => void;
   hasStreakShield: boolean;
   lastXpGain: { amount: number; seq: number };
   flamePulseSeq: number;
@@ -238,7 +238,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(GAME_STATE_KEY);
-        let s: GameState = raw ? { ...DEFAULT_STATE, ...JSON.parse(raw) } : { ...DEFAULT_STATE };
+        const parsed = raw ? JSON.parse(raw) : {};
+        // Legacy: first-debt XP was removed — drop persisted flag if present
+        if ("firstDebtCelebrated" in parsed) delete (parsed as Record<string, unknown>).firstDebtCelebrated;
+        let s: GameState = raw ? { ...DEFAULT_STATE, ...parsed } : { ...DEFAULT_STATE };
 
         const today = toDateStr(new Date());
         const yesterday = toDateStr(subDays(new Date(), 1));
@@ -252,18 +255,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               !s.graceUsedAt || calendarDaysBetween(new Date(s.graceUsedAt), new Date()) >= 7;
             if (graceAvailable) {
               setGracePeriodActive(true);
+              void soundManager.play("streak_at_risk");
             } else if (s.streakShield) {
               s = { ...s, streakShield: false };
               sendShieldUsedNotification();
             } else {
-              s = { ...s, streakCount: 0 };
+              s = { ...s, prevStreakCount: s.streakCount, streakCount: 0 };
             }
           } else {
             if (s.streakShield) {
               s = { ...s, streakShield: false };
               sendShieldUsedNotification();
             } else {
-              s = { ...s, streakCount: 0 };
+              s = { ...s, prevStreakCount: s.streakCount, streakCount: 0 };
             }
           }
         }
@@ -402,18 +406,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     [applyState, saveState, triggerCelebration, triggerDex]
   );
 
-  const triggerFirstDebtCelebration = useCallback(() => {
-    const cur = gameStateRef.current;
-    if (cur.firstDebtCelebrated) return;
-    const newXp = cur.totalXp + 100;
-    const updated: GameState = { ...cur, totalXp: newXp, firstDebtCelebrated: true };
-    applyState(updated);
-    saveState(updated);
-    setLastXpGain((prev) => ({ amount: 100, seq: prev.seq + 1 }));
-    triggerCelebration({ type: "first_debt", bonusXp: 100 }, 3500);
-    triggerDex("celebrating");
-  }, [applyState, saveState, triggerCelebration, triggerDex]);
-
   // ── Streak recording ──────────────────────────────────────────────────────
   const resetGame = useCallback(async () => {
     applyState({ ...DEFAULT_STATE });
@@ -546,12 +538,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       triggerDexWithMessage,
       prevLastOpenedAt,
       lastPaymentDate: gameState.lastPaymentDate,
+      prevStreakCount: gameState.prevStreakCount,
       awardXp,
       grantBonusXp,
       recordPaymentForStreak,
       logDailyAction,
       resetGame,
-      triggerFirstDebtCelebration,
       hasStreakShield: gameState.streakShield,
       lastXpGain,
       flamePulseSeq,
@@ -575,7 +567,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       recordPaymentForStreak,
       logDailyAction,
       resetGame,
-      triggerFirstDebtCelebration,
       lastXpGain,
       flamePulseSeq,
       triggerFlamePulse,

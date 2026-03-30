@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/iconApp.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#EDE8D5"
     },
     "ios": {
       "supportsTablet": false,
@@ -20,9 +20,8 @@
     "android": {
       "package": "com.debtfree.payoffplanner",
       "adaptiveIcon": {
-        "backgroundColor": "#0D1F12",
+        "backgroundColor": "#EDE8D5",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       }
     },
@@ -41,15 +40,16 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#EDE8D5",
           "image": "./assets/images/iconApp.png",
           "resizeMode": "contain",
           "dark": {
-            "backgroundColor": "#0D1F12",
+            "backgroundColor": "#1C1610",
             "image": "./assets/images/iconApp.png"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

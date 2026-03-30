@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debt-Free App — Commitment Pledge</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/dm-serif-display@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@8/index.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ── LIGHT / DARK TOKENS ── */
+:root{
+  --bg-page:#F5F0E8;
+  --bg-phone:#EDE8D5;
+  --bg-card:#FAF6EE;
+  --bg-card2:#F0EBD8;
+  --border:rgba(192,120,32,0.22);
+  --border-strong:rgba(192,120,32,0.4);
+  --text-primary:#2A1808;
+  --text-secondary:#6B4E30;
+  --text-muted:#9A7240;
+  --amber:#C07820;
+  --amber-light:rgba(192,120,32,0.12);
+  --amber-glow:rgba(192,120,32,0.3);
+  --dark-card:#2A1808;
+  --dark-card2:#3D2510;
+  --dark-text:#EDE8D5;
+  --dark-text-muted:rgba(237,232,213,0.6);
+  --phone-border:#180600;
+  --notch:rgba(24,6,0,0.16);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-page:#1A1008;
+    --bg-phone:#2A1E10;
+    --bg-card:#3A2818;
+    --bg-card2:#312012;
+    --border:rgba(192,120,32,0.28);
+    --border-strong:rgba(192,120,32,0.55);
+    --text-primary:#EDE8D5;
+    --text-secondary:#C8A878;
+    --text-muted:#9A7240;
+    --amber:#E8960A;
+    --amber-light:rgba(232,150,10,0.15);
+    --amber-glow:rgba(232,150,10,0.4);
+    --dark-card:#3A2818;
+    --dark-card2:#4A3020;
+    --dark-text:#EDE8D5;
+    --dark-text-muted:rgba(237,232,213,0.55);
+    --phone-border:#0A0400;
+    --notch:rgba(255,220,150,0.1);
+  }
+}
+
+body{background:var(--bg-page);display:flex;flex-direction:column;align-items:center;padding:24px 16px;min-height:100vh;gap:12px;transition:background 0.3s}
+
+/* ── THEME TOGGLE ── */
+.theme-toggle{display:flex;align-items:center;gap:8px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:20px;padding:6px 14px;cursor:pointer;transition:all 0.2s;self-align:center}
+.theme-toggle:hover{border-color:var(--amber)}
+.tt-lbl{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase}
+.tt-icon{font-size:15px}
+.tt-switch{width:36px;height:20px;border-radius:10px;background:var(--amber-light);border:1.5px solid var(--border);position:relative;transition:background 0.2s}
+.tt-switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--text-muted);transition:transform 0.2s,background 0.2s}
+body.dark .tt-switch{background:var(--amber)}
+body.dark .tt-switch::after{transform:translateX(16px);background:white}
+
+/* ── PHONE ── */
+.phone{width:355px;background:var(--bg-phone);border-radius:46px;border:7px solid var(--phone-border);box-shadow:0 28px 72px rgba(0,0,0,0.38),0 6px 16px rgba(0,0,0,0.18);overflow:hidden;position:relative;min-height:740px;transition:background 0.3s,border-color 0.3s}
+.phone::before{content:'';position:absolute;top:16px;left:50%;transform:translateX(-50%);width:82px;height:5px;background:var(--notch);border-radius:3px;z-index:30}
+.conf-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:25}
+.conf{position:absolute;animation:confFall 1.8s ease-out both}
+
+/* ── OVERLAYS ── */
+#overlayLayer{position:absolute;inset:0;z-index:60;pointer-events:none;display:flex;align-items:center;justify-content:center}
+
+/* streak complete popup */
+.streak-popup{background:linear-gradient(135deg,#C07820,#E8960A);border-radius:28px;padding:28px 32px;text-align:center;width:290px;pointer-events:all;box-shadow:0 24px 64px rgba(0,0,0,0.45);animation:popupIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both}
+.sp-flame{font-size:52px;display:block;margin-bottom:8px;animation:flamePulse 0.7s ease-in-out infinite alternate}
+.sp-title{font-family:'DM Serif Display',serif;font-size:26px;color:white;margin-bottom:4px}
+.sp-title em{font-style:italic}
+.sp-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:rgba(255,255,255,0.82);line-height:1.55;margin-bottom:14px}
+.sp-xp{font-family:'DM Serif Display',serif;font-size:32px;color:white;display:block;margin-bottom:2px}
+.sp-xp-lbl{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;display:block}
+.sp-chips{display:flex;gap:5px;justify-content:center;margin-bottom:16px}
+.spc{text-align:center;padding:5px 3px;border-radius:9px;min-width:32px}
+.spc.lit{background:rgba(255,255,255,0.25)}
+.spc.dim{background:rgba(255,255,255,0.1)}
+.spc-d{font-family:'Plus Jakarta Sans',sans-serif;font-size:8px;font-weight:700;color:rgba(255,255,255,0.55);text-transform:uppercase;display:block}
+.spc.lit .spc-d{color:rgba(255,255,255,0.8)}
+.spc-i{font-size:13px;display:block;margin:2px 0}
+.sp-btn{width:100%;background:rgba(255,255,255,0.2);color:white;border:2px solid rgba(255,255,255,0.35);border-radius:22px;padding:13px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s}
+.sp-btn:hover{background:rgba(255,255,255,0.3)}
+
+/* level up popup */
+.levelup-popup{background:var(--dark-card);border-radius:28px;padding:28px 32px;text-align:center;width:290px;pointer-events:all;box-shadow:0 24px 64px rgba(0,0,0,0.55);animation:popupIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both}
+.lu-badge{font-family:'Plus Jakarta Sans',sans-serif;font-size:9.5px;font-weight:700;letter-spacing:0.2em;color:var(--amber);text-transform:uppercase;margin-bottom:6px}
+.lu-stars{font-size:32px;display:block;margin-bottom:6px;animation:starSpin 1.5s ease-in-out infinite}
+.lu-level{font-family:'DM Serif Display',serif;font-size:42px;color:var(--dark-text);margin-bottom:2px}
+.lu-name{font-family:'DM Serif Display',serif;font-size:18px;color:var(--amber);margin-bottom:6px;font-style:italic}
+.lu-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:var(--dark-text-muted);line-height:1.5;margin-bottom:16px}
+.lu-btn{width:100%;background:var(--amber);color:white;border:none;border-radius:22px;padding:13px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity 0.12s}
+.lu-btn:hover{opacity:0.88}
+
+/* overlay bg */
+.overlay-bg{position:absolute;inset:0;background:rgba(0,0,0,0.55);z-index:59;animation:bgFade 0.3s ease both}
+@keyframes bgFade{from{opacity:0}to{opacity:1}}
+@keyframes popupIn{from{opacity:0;transform:scale(0.6) translateY(30px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes popupOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.85)}}
+
+/* ── SCREENS ── */
+.screen{position:absolute;inset:0;padding:50px 20px 32px;overflow-y:auto;scrollbar-width:none;transition:opacity 0.3s,transform 0.3s}
+.screen::-webkit-scrollbar{display:none}
+.screen.hidden{display:none}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-20px)}55%{transform:translateY(-9px)}75%{transform:translateY(-14px)}90%{transform:translateY(-4px)}}
+@keyframes popIn{from{opacity:0;transform:scale(0.7) rotate(-4deg)}to{opacity:1;transform:scale(1) rotate(0deg)}}
+@keyframes confFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(340px) rotate(720deg);opacity:0}}
+@keyframes flamePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@keyframes dexIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes ringPulse{0%{transform:translate(-50%,-50%) scale(0.85);opacity:0.7}100%{transform:translate(-50%,-50%) scale(1.55);opacity:0}}
+@keyframes shine{0%{left:-100%}100%{left:200%}}
+@keyframes stampIn{0%{opacity:0;transform:scale(2.5) rotate(-12deg)}60%{opacity:1;transform:scale(0.92) rotate(2deg)}80%{transform:scale(1.05) rotate(-1deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
+@keyframes pledgeReveal{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes checkDraw{from{stroke-dashoffset:60}to{stroke-dashoffset:0}}
+@keyframes streakChipIn{from{opacity:0;transform:scale(0) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 var(--amber-glow)}50%{box-shadow:0 0 0 10px rgba(0,0,0,0)}}
+@keyframes starSpin{0%,100%{transform:rotate(0deg) scale(1)}50%{transform:rotate(15deg) scale(1.1)}}
+@keyframes xpBarFill{from{width:0}to{width:var(--w)}}
+
+/* ── PICKER ── */
+.all-done-banner{background:linear-gradient(135deg,var(--dark-card),var(--dark-card2));border-radius:20px;padding:15px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;animation:fadeUp 0.4s ease both 0.1s}
+.adb-flame{font-size:32px;animation:flamePulse 0.8s ease-in-out infinite alternate}
+.adb-title{font-family:'DM Serif Display',serif;font-size:17px;color:var(--dark-text);line-height:1.2;margin-bottom:2px}
+.adb-title em{color:#E8960A;font-style:italic}
+.adb-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--dark-text-muted)}
+.adb-xp{font-family:'DM Serif Display',serif;font-size:22px;color:#E8960A;flex-shrink:0;text-align:center}
+.adb-xp-lbl{font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;color:var(--dark-text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;text-align:center}
+
+/* xp bar on picker */
+.xp-strip{background:var(--bg-card);border:1.5px solid var(--border);border-radius:14px;padding:9px 12px;margin-bottom:12px;animation:fadeUp 0.4s ease both 0.15s}
+.xp-row{display:flex;justify-content:space-between;margin-bottom:5px}
+.xp-lv{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--text-primary)}
+.xp-pts{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--amber)}
+.xp-track{height:9px;background:var(--amber-light);border-radius:5px;overflow:hidden}
+.xp-fill{height:100%;background:linear-gradient(90deg,var(--amber),#F0B030);border-radius:5px}
+
+.dex-area{display:flex;justify-content:center;margin-bottom:8px;position:relative;height:110px;animation:fadeUp 0.4s ease both 0.2s}
+.dex-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+.dex-svg{animation:dexIdle 2.5s ease-in-out infinite}
+.dex-ring{position:absolute;top:50%;left:50%;width:96px;height:96px;border-radius:50%;border:3px solid var(--amber-glow);animation:ringPulse 2s ease-out infinite}
+
+.ask-title{font-family:'DM Serif Display',Georgia,serif;font-size:22px;color:var(--text-primary);text-align:center;line-height:1.3;margin-bottom:4px;animation:fadeUp 0.4s ease both 0.3s}
+.ask-title em{color:var(--amber);font-style:italic}
+.ask-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;line-height:1.55;margin-bottom:18px;animation:fadeUp 0.4s ease both 0.38s}
+
+.commit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.c-card{background:var(--bg-card);border:2px solid var(--border);border-radius:20px;padding:16px 12px;text-align:center;cursor:pointer;transition:all 0.18s;position:relative;overflow:hidden;animation:popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both}
+.c-card:nth-child(1){animation-delay:0.42s}
+.c-card:nth-child(2){animation-delay:0.52s}
+.c-card:nth-child(3){animation-delay:0.62s}
+.c-card:nth-child(4){animation-delay:0.72s}
+.c-card:hover{border-color:var(--amber);transform:translateY(-3px);box-shadow:0 8px 24px var(--amber-glow)}
+.c-card.selected{border-color:var(--amber);box-shadow:0 0 0 4px var(--amber-light);animation:glowPulse 1.8s ease-in-out 3}
+.c-card.recommended{border-color:var(--border-strong)}
+.c-rec-badge{position:absolute;top:0;left:50%;transform:translateX(-50%);background:var(--amber);color:white;font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;padding:3px 10px;border-radius:0 0 9px 9px;letter-spacing:0.06em;text-transform:uppercase}
+.c-icon{font-size:28px;display:block;margin-bottom:6px}
+.c-days{font-family:'DM Serif Display',serif;font-size:34px;color:var(--text-primary);display:block;line-height:1}
+.c-label{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px}
+.c-desc{font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px;color:var(--text-muted);line-height:1.45}
+.c-xp{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;color:var(--amber);margin-top:6px;display:block}
+.c-card.selected .c-days{color:var(--amber)}
+.c-card.selected .c-label{color:var(--amber)}
+.c-check{position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both}
+
+.science-note{background:var(--amber-light);border-radius:14px;padding:11px 13px;margin-bottom:14px;display:flex;gap:9px;align-items:flex-start;animation:fadeUp 0.4s ease both 0.78s}
+.sn-text{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--text-secondary);line-height:1.55}
+.sn-text strong{color:var(--text-primary)}
+
+.cta-btn{width:100%;background:var(--amber);color:white;border:none;border-radius:30px;padding:17px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:opacity 0.12s,transform 0.08s;margin-bottom:8px;position:relative;overflow:hidden;animation:fadeUp 0.4s ease both 0.85s}
+.cta-btn:hover{opacity:0.88}
+.cta-btn:active{transform:scale(0.98)}
+.cta-btn.dim{background:var(--amber-light);color:var(--text-muted);cursor:default}
+.cta-shine{position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)}
+.cta-btn:not(.dim) .cta-shine{animation:shine 2.5s ease-in-out 1s infinite}
+.cta-note{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--text-muted);text-align:center;animation:fadeUp 0.4s ease both 0.9s}
+
+/* ── PLEDGE ── */
+.pledge-dex{display:flex;justify-content:center;margin-bottom:6px;animation:bounce 1s cubic-bezier(0.36,0.07,0.19,0.97) both 0.1s}
+.pledge-eyebrow{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.2em;color:var(--amber);text-transform:uppercase;text-align:center;margin-bottom:5px;animation:fadeUp 0.3s ease both 0.4s}
+.pledge-card{background:var(--bg-card);border-radius:22px;border:2px solid var(--border-strong);padding:20px;margin-bottom:12px;position:relative;animation:pledgeReveal 0.55s cubic-bezier(0.34,1.56,0.64,1) both 0.45s}
+.pledge-stamp{position:absolute;top:-14px;right:20px;background:var(--amber);color:white;font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.1em;text-transform:uppercase;animation:stampIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both 0.8s}
+.pledge-title{font-family:'DM Serif Display',Georgia,serif;font-size:20px;color:var(--text-primary);text-align:center;line-height:1.3;margin-bottom:10px}
+.pledge-title em{color:var(--amber);font-style:italic}
+.pledge-body{font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;color:var(--text-secondary);line-height:1.65;text-align:center;margin-bottom:14px}
+.pledge-body strong{color:var(--text-primary)}
+.streak-preview{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
+.sp-chip{text-align:center;padding:6px 4px;border-radius:10px;min-width:32px}
+.sp-chip.lit{background:var(--amber)}
+.sp-chip.dim{background:var(--amber-light)}
+.sp-chip.goal{background:transparent;border:1.5px dashed var(--border-strong)}
+.sp-chip-d{font-family:'Plus Jakarta Sans',sans-serif;font-size:8.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;display:block}
+.sp-chip.lit .sp-chip-d{color:rgba(255,255,255,0.7)}
+.sp-chip-i{font-size:13px;display:block;margin:1px 0}
+.sp-chip-n{font-family:'DM Serif Display',serif;font-size:12px;color:var(--text-muted);display:block}
+.sp-chip.lit .sp-chip-n{color:white}
+.sp-chip.goal .sp-chip-n{color:var(--amber);font-size:10px}
+.sp-more{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--text-muted);align-self:center;font-weight:700;padding:0 4px}
+.pledge-items{display:flex;flex-direction:column;gap:8px}
+.pi{display:flex;align-items:flex-start;gap:10px}
+.pi-check{width:20px;height:20px;border-radius:6px;background:var(--amber);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.pi-text{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;color:var(--text-secondary);line-height:1.5}
+
+.pledge-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;animation:fadeUp 0.4s ease both 0.7s}
+.ps{background:var(--bg-card);border-radius:14px;border:1.5px solid var(--border);padding:10px 8px;text-align:center}
+.ps-v{font-family:'DM Serif Display',serif;font-size:18px;color:var(--text-primary);display:block}
+.ps-l{font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase}
+.go-btn{width:100%;background:linear-gradient(135deg,var(--dark-card),var(--dark-card2));color:var(--dark-text);border:none;border-radius:30px;padding:17px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:opacity 0.12s,transform 0.08s;margin-bottom:8px;animation:fadeUp 0.4s ease both 0.85s;letter-spacing:0.02em;position:relative;overflow:hidden}
+.go-btn:hover{opacity:0.88}
+.go-btn:active{transform:scale(0.98)}
+.go-btn-shine{position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);animation:shine 2.5s ease-in-out 1s infinite}
+.go-note{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;color:var(--text-muted);text-align:center;animation:fadeUp 0.4s ease both 0.9s}
+</style>
+</head>
+<body>
+
+<!-- Theme toggle -->
+<div class="theme-toggle" onclick="toggleTheme()">
+  <span class="tt-icon" id="ttIcon">☀️</span>
+  <span class="tt-lbl" id="ttLbl">Light</span>
+  <div class="tt-switch" id="ttSwitch"></div>
+</div>
+
+<div class="phone" id="phone">
+<div class="conf-wrap" id="confWrap"></div>
+<div class="overlay-bg" id="overlayBg" style="display:none" onclick="closeOverlay()"></div>
+<div id="overlayLayer" style="display:none"></div>
+
+<!-- ── PICKER SCREEN ── -->
+<div class="screen" id="pickScreen">
+  <div class="all-done-banner">
+    <div style="flex:1">
+      <div class="adb-title">Day 1 — <em>all done!</em></div>
+      <div class="adb-sub">5 / 5 actions · 50 XP earned · streak 🔥</div>
+    </div>
+    <div><div class="adb-xp">50</div><div class="adb-xp-lbl">XP earned</div></div>
+    <span class="adb-flame">🔥</span>
+  </div>
+
+  <!-- XP bar -->
+  <div class="xp-strip">
+    <div class="xp-row">
+      <span class="xp-lv" id="xpLv">Level 1 — Rookie</span>
+      <span class="xp-pts" id="xpPts">50 / 100 XP</span>
+    </div>
+    <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:50%"></div></div>
+  </div>
+
+  <!-- Dex -->
+  <div class="dex-area">
+    <div class="dex-wrap">
+      <div class="dex-ring"></div>
+      <svg class="dex-svg" viewBox="0 0 90 90" width="100" height="100">
+        <ellipse cx="28" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+        <ellipse cx="62" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+        <ellipse cx="16" cy="46" rx="9" ry="16" fill="#EAA835" transform="rotate(18,16,46)"/>
+        <ellipse cx="74" cy="46" rx="9" ry="16" fill="#EAA835" transform="rotate(-18,74,46)"/>
+        <circle cx="45" cy="44" r="33" fill="#EAA835"/>
+        <ellipse cx="45" cy="64" rx="26" ry="15" fill="#C07820" opacity="0.22"/>
+        <circle cx="20" cy="22" r="10" fill="#D09828"/>
+        <circle cx="70" cy="22" r="10" fill="#D09828"/>
+        <ellipse cx="33" cy="37" rx="13" ry="14" fill="white"/>
+        <ellipse cx="57" cy="37" rx="13" ry="14" fill="white"/>
+        <circle cx="35" cy="39" r="9" fill="#1A0800"/>
+        <circle cx="59" cy="39" r="9" fill="#1A0800"/>
+        <circle cx="31" cy="35" r="3.5" fill="white"/>
+        <circle cx="55" cy="35" r="3.5" fill="white"/>
+        <path d="M27 32 Q33 28 39 32" stroke="#1A0800" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <path d="M51 32 Q57 28 63 32" stroke="#1A0800" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="24" cy="48" rx="10" ry="6" fill="#E87040" opacity="0.2"/>
+        <ellipse cx="66" cy="48" rx="10" ry="6" fill="#E87040" opacity="0.2"/>
+        <path d="M27 58 Q45 74 63 58" stroke="#A86010" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <text x="5" y="20" style="font-size:13px;fill:#E87080;font-family:sans-serif">&#10084;</text>
+        <text x="66" y="18" style="font-size:11px;fill:#E87080;font-family:sans-serif">&#10084;</text>
+      </svg>
+    </div>
+  </div>
+
+  <h1 class="ask-title">I commit to staying<br><em>consistent</em> for…</h1>
+  <p class="ask-sub">Pick a streak goal. Dex will cheer you every single day you show up.</p>
+
+  <div class="commit-grid">
+    <div class="c-card" id="c7" onclick="selectCommit(7,this)">
+      <span class="c-icon">🌱</span>
+      <span class="c-days">7</span>
+      <span class="c-label">days</span>
+      <span class="c-desc">Build the first spark. One week to prove you can do it.</span>
+      <span class="c-xp">+25 bonus XP on day 7</span>
+    </div>
+    <div class="c-card recommended" id="c14" onclick="selectCommit(14,this)">
+      <div class="c-rec-badge">Most popular</div>
+      <span class="c-icon">🔥</span>
+      <span class="c-days">14</span>
+      <span class="c-label">days</span>
+      <span class="c-desc">Two weeks locks in the habit. Real change begins here.</span>
+      <span class="c-xp">+60 bonus XP on day 14</span>
+    </div>
+    <div class="c-card" id="c30" onclick="selectCommit(30,this)">
+      <span class="c-icon">💪</span>
+      <span class="c-days">30</span>
+      <span class="c-label">days</span>
+      <span class="c-desc">A full month. Habits form around day 21.</span>
+      <span class="c-xp">+150 bonus XP on day 30</span>
+    </div>
+    <div class="c-card" id="c60" onclick="selectCommit(60,this)">
+      <span class="c-icon">🏆</span>
+      <span class="c-days">60</span>
+      <span class="c-label">days</span>
+      <span class="c-desc">Two months of consistency. You'll be unstoppable.</span>
+      <span class="c-xp">+400 bonus XP on day 60</span>
+    </div>
+  </div>
+
+  <div class="science-note">
+    <span style="font-size:18px;flex-shrink:0">🧠</span>
+    <span class="sn-text"><strong>Why this works:</strong> People who make a specific commitment are 2–3× more likely to follow through. You're making a promise to yourself.</span>
+  </div>
+
+  <!-- Popup demo buttons -->
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button onclick="showStreakPopup()" style="flex:1;background:var(--amber-light);border:1.5px solid var(--border);border-radius:12px;padding:9px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--amber);cursor:pointer">🔥 Day 1 Complete</button>
+    <button onclick="showLevelUpPopup()" style="flex:1;background:var(--amber-light);border:1.5px solid var(--border);border-radius:12px;padding:9px 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;color:var(--amber);cursor:pointer">⬆️ Level Up!</button>
+  </div>
+
+  <button class="cta-btn dim" id="ctaBtn" onclick="goCommit()">
+    <div class="cta-shine"></div>
+    Make My Commitment ›
+  </button>
+  <p class="cta-note" id="ctaNote">Choose your streak goal above</p>
+</div>
+
+<!-- ── PLEDGE SCREEN ── -->
+<div class="screen hidden" id="pledgeScreen">
+  <div class="pledge-dex">
+    <svg viewBox="0 0 90 90" width="110" height="110" style="animation:dexIdle 2.5s ease-in-out infinite">
+      <ellipse cx="28" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+      <ellipse cx="62" cy="82" rx="14" ry="7" fill="#7A3A0C"/>
+      <ellipse cx="16" cy="44" rx="9" ry="18" fill="#EAA835" transform="rotate(22,16,44)"/>
+      <ellipse cx="74" cy="44" rx="9" ry="18" fill="#EAA835" transform="rotate(-22,74,44)"/>
+      <circle cx="45" cy="44" r="33" fill="#EAA835"/>
+      <ellipse cx="45" cy="64" rx="26" ry="15" fill="#C07820" opacity="0.22"/>
+      <circle cx="20" cy="22" r="10" fill="#D09828"/>
+      <circle cx="70" cy="22" r="10" fill="#D09828"/>
+      <ellipse cx="33" cy="37" rx="13" ry="14" fill="white"/>
+      <ellipse cx="57" cy="37" rx="13" ry="14" fill="white"/>
+      <circle cx="35" cy="39" r="9" fill="#1A0800"/>
+      <circle cx="59" cy="39" r="9" fill="#1A0800"/>
+      <circle cx="31" cy="35" r="3.5" fill="white"/>
+      <circle cx="55" cy="35" r="3.5" fill="white"/>
+      <path d="M27 60 Q45 78 63 60" stroke="#A86010" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <text x="5" y="18" style="font-size:14px;fill:#E8A020;font-family:sans-serif">&#10024;</text>
+      <text x="63" y="14" style="font-size:12px;fill:#E8A020;font-family:sans-serif">&#10024;</text>
+    </svg>
+  </div>
+  <p class="pledge-eyebrow" id="pledgeEyebrow">Your commitment is locked in!</p>
+  <div class="pledge-card">
+    <div class="pledge-stamp">Committed ✓</div>
+    <div class="pledge-title" id="pledgeTitle"></div>
+    <div class="pledge-body" id="pledgeBody"></div>
+    <div class="streak-preview" id="streakPreview"></div>
+    <div class="pledge-items" id="pledgeItems"></div>
+  </div>
+  <div class="pledge-stats" id="pledgeStats"></div>
+  <button class="go-btn" onclick="goDay2()">
+    <div class="go-btn-shine"></div>
+    Start Day 2 — keep the streak alive 🔥
+  </button>
+  <p class="go-note">Dex will check in with you every day</p>
+</div>
+
+</div><!-- /phone -->
+
+<script>
+var selDays=null,selCard=null,isDark=false;
+var DAYS_SHORT=['Su','Mo','Tu','We','Th','Fr','Sa'];
+var LEVEL_NAMES=['Rookie','Hustler','Fighter','Warrior','Champion','Legend'];
+var COMMITS={
+  7:{icon:'🌱',label:'7 Days',bonusXP:25,
+     title:'"I commit to <em>7 days</em> of consistency."',
+     body:'One week. That\'s all. <strong>7 daily actions</strong>, <strong>7 streaks</strong>, and the proof that you can do this.',
+     pledges:['Show up every day for 7 days','Complete at least 3 actions each day','Celebrate on Day 7 — you earned it']},
+  14:{icon:'🔥',label:'14 Days',bonusXP:60,
+      title:'"I commit to <em>14 days</em> of consistency."',
+      body:'Two weeks is where the magic happens. <strong>14 daily actions</strong> will make this feel automatic.',
+      pledges:['Show up every day for 14 days','Complete all 5 actions when possible','Log every payment, no matter how small']},
+  30:{icon:'💪',label:'30 Days',bonusXP:150,
+      title:'"I commit to <em>30 days</em> of consistency."',
+      body:'A full month. By day 30, <strong>you won\'t need motivation</strong> — this will just be who you are.',
+      pledges:['Show up every day for 30 days','Review your debt progress weekly','Celebrate every 7-day milestone']},
+  60:{icon:'🏆',label:'60 Days',bonusXP:400,
+      title:'"I commit to <em>60 days</em> of consistency."',
+      body:'Two months. By day 60, <strong>your finances will look different</strong> and so will you.',
+      pledges:['Show up every day for 60 days','Make at least one extra debt payment','Inspire someone else to start their journey']},
+};
+
+/* ── THEME ── */
+function toggleTheme(){
+  isDark=!isDark;
+  document.body.classList.toggle('dark',isDark);
+  // Force CSS vars by toggling a data attribute for explicit override
+  document.documentElement.setAttribute('data-theme', isDark?'dark':'light');
+  document.getElementById('ttLbl').textContent=isDark?'Dark':'Light';
+  document.getElementById('ttIcon').textContent=isDark?'🌙':'☀️';
+  applyThemeVars(isDark);
+}
+function applyThemeVars(dark){
+  var r=document.documentElement.style;
+  if(dark){
+    r.setProperty('--bg-page','#1A1008');
+    r.setProperty('--bg-phone','#2A1E10');
+    r.setProperty('--bg-card','#3A2818');
+    r.setProperty('--bg-card2','#312012');
+    r.setProperty('--border','rgba(192,120,32,0.28)');
+    r.setProperty('--border-strong','rgba(192,120,32,0.55)');
+    r.setProperty('--text-primary','#EDE8D5');
+    r.setProperty('--text-secondary','#C8A878');
+    r.setProperty('--text-muted','#9A7240');
+    r.setProperty('--amber','#E8960A');
+    r.setProperty('--amber-light','rgba(232,150,10,0.15)');
+    r.setProperty('--amber-glow','rgba(232,150,10,0.4)');
+    r.setProperty('--dark-card','#3A2818');
+    r.setProperty('--dark-card2','#4A3020');
+    r.setProperty('--phone-border','#0A0400');
+    r.setProperty('--notch','rgba(255,220,150,0.1)');
+  } else {
+    r.setProperty('--bg-page','#F5F0E8');
+    r.setProperty('--bg-phone','#EDE8D5');
+    r.setProperty('--bg-card','#FAF6EE');
+    r.setProperty('--bg-card2','#F0EBD8');
+    r.setProperty('--border','rgba(192,120,32,0.22)');
+    r.setProperty('--border-strong','rgba(192,120,32,0.4)');
+    r.setProperty('--text-primary','#2A1808');
+    r.setProperty('--text-secondary','#6B4E30');
+    r.setProperty('--text-muted','#9A7240');
+    r.setProperty('--amber','#C07820');
+    r.setProperty('--amber-light','rgba(192,120,32,0.12)');
+    r.setProperty('--amber-glow','rgba(192,120,32,0.3)');
+    r.setProperty('--dark-card','#2A1808');
+    r.setProperty('--dark-card2','#3D2510');
+    r.setProperty('--phone-border','#180600');
+    r.setProperty('--notch','rgba(24,6,0,0.16)');
+  }
+}
+
+/* ── STREAK DAY 1 COMPLETE POPUP ── */
+function showStreakPopup(){
+  launchConfetti(); playFanfare();
+  var today=new Date().getDay();
+  var chips='';
+  var DAYS=['Su','Mo','Tu','We','Th','Fr','Sa'];
+  for(var i=0;i<7;i++){
+    var idx=(today+i)%7;
+    chips+='<div class="spc '+(i===0?'lit':'dim')+'">'+
+      '<span class="spc-d">'+DAYS[idx]+'</span>'+
+      '<span class="spc-i">'+(i===0?'🔥':'⬜')+'</span>'+
+    '</div>';
+  }
+  showOverlay('<div class="streak-popup">'+
+    '<span class="sp-flame">🔥</span>'+
+    '<div class="sp-title">Day 1 — <em>complete!</em></div>'+
+    '<p class="sp-sub">You did it. Every action done. The streak has started — now keep it alive tomorrow.</p>'+
+    '<span class="sp-xp">50</span>'+
+    '<span class="sp-xp-lbl">XP earned today</span>'+
+    '<div class="sp-chips">'+chips+'</div>'+
+    '<button class="sp-btn" onclick="closeOverlay()">Awesome — keep going! ›</button>'+
+  '</div>');
+}
+
+/* ── LEVEL UP POPUP ── */
+function showLevelUpPopup(){
+  launchConfetti(); playLevelUp();
+  showOverlay('<div class="levelup-popup">'+
+    '<div class="lu-badge">Level Up!</div>'+
+    '<span class="lu-stars">✨</span>'+
+    '<div class="lu-level">2</div>'+
+    '<div class="lu-name">Hustler</div>'+
+    '<p class="lu-sub">You crossed 100 XP. Dex is absolutely losing it right now. You\'re no longer a rookie — you\'re a Hustler.</p>'+
+    '<button class="lu-btn" onclick="closeOverlay(); addXPDisplay(0)">Claim your level ›</button>'+
+  '</div>');
+}
+
+function showOverlay(html){
+  var bg=document.getElementById('overlayBg');
+  var layer=document.getElementById('overlayLayer');
+  bg.style.display='block'; bg.style.animation='bgFade 0.3s ease both';
+  layer.style.display='flex'; layer.innerHTML=html;
+}
+function closeOverlay(){
+  var bg=document.getElementById('overlayBg');
+  var layer=document.getElementById('overlayLayer');
+  bg.style.display='none'; layer.style.display='none'; layer.innerHTML='';
+}
+
+/* ── XP DISPLAY ── */
+var xpVal=50;
+function addXPDisplay(pts){
+  xpVal+=pts;
+  var lvl=Math.floor(xpVal/100)+1;
+  var rem=xpVal%100;
+  document.getElementById('xpFill').style.width=rem+'%';
+  document.getElementById('xpPts').textContent=rem+' / 100 XP';
+  document.getElementById('xpLv').textContent='Level '+lvl+' — '+(LEVEL_NAMES[lvl-1]||'Legend');
+}
+
+/* ── COMMIT SELECT ── */
+function selectCommit(days,card){
+  selDays=days;
+  if(selCard){selCard.classList.remove('selected');var p=selCard.querySelector('.c-check');if(p)p.remove();}
+  selCard=card; card.classList.add('selected');
+  var chk=document.createElement('div'); chk.className='c-check';
+  chk.innerHTML='<svg width="11" height="9" viewBox="0 0 11 9"><path d="M1 4.5L4 7.5L10 1" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  card.appendChild(chk);
+  try{var ac=new(window.AudioContext||window.webkitAudioContext)();var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;o.type='sine';g.gain.setValueAtTime(0.08,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);o.start();o.stop(ac.currentTime+0.22);}catch(e){}
+  var btn=document.getElementById('ctaBtn'); btn.classList.remove('dim');
+  btn.innerHTML='<div class="cta-shine"></div>Commit to '+COMMITS[days].label+' ›';
+  document.getElementById('ctaNote').textContent=COMMITS[days].bonusXP+' bonus XP waiting on day '+days+'!';
+}
+
+/* ── GO COMMIT ── */
+function goCommit(){
+  if(!selDays)return;
+  var c=COMMITS[selDays];
+  launchConfetti(); playFanfare();
+  document.getElementById('pledgeTitle').innerHTML=c.title;
+  document.getElementById('pledgeBody').innerHTML=c.body;
+  document.getElementById('pledgeEyebrow').textContent=c.label+' commitment locked in!';
+  var preview=document.getElementById('streakPreview'); preview.innerHTML='';
+  var today=new Date().getDay(), show=Math.min(selDays,7);
+  for(var i=0;i<show;i++){
+    var idx=(today+i)%7;
+    var chip=document.createElement('div');
+    chip.className='sp-chip '+(i===0?'lit':i===selDays-1&&selDays<=7?'goal':'dim');
+    chip.style.animation='streakChipIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both '+(0.5+i*0.07)+'s';
+    chip.innerHTML='<span class="sp-chip-d">'+DAYS_SHORT[idx]+'</span>'+
+      '<span class="sp-chip-i">'+(i===0?'🔥':i===selDays-1&&selDays<=7?'🎯':'⬜')+'</span>'+
+      '<span class="sp-chip-n">'+(i===0?'1':i===selDays-1&&selDays<=7?'✓':'')+'</span>';
+    preview.appendChild(chip);
+  }
+  if(selDays>7){
+    var more=document.createElement('span'); more.className='sp-more'; more.textContent='···'; preview.appendChild(more);
+    var goal=document.createElement('div'); goal.className='sp-chip goal';
+    goal.innerHTML='<span class="sp-chip-d">Day</span><span class="sp-chip-i">🎯</span><span class="sp-chip-n">'+selDays+'</span>';
+    preview.appendChild(goal);
+  }
+  var items=document.getElementById('pledgeItems'); items.innerHTML='';
+  c.pledges.forEach(function(p,i){
+    var el=document.createElement('div'); el.className='pi';
+    el.style.animation='fadeUp 0.35s ease both '+(0.55+i*0.1)+'s';
+    el.innerHTML='<div class="pi-check"><svg width="11" height="9" viewBox="0 0 11 9"><path d="M1 4.5L4 7.5L10 1" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:60;animation:checkDraw 0.5s ease both '+(0.6+i*0.12)+'s"/></svg></div>'+
+      '<span class="pi-text">'+p+'</span>';
+    items.appendChild(el);
+  });
+  var debt=Math.round(496*(selDays/30));
+  document.getElementById('pledgeStats').innerHTML=
+    '<div class="ps"><span class="ps-v">'+selDays+'</span><span class="ps-l">Day goal</span></div>'+
+    '<div class="ps"><span class="ps-v">+'+c.bonusXP+'</span><span class="ps-l">Bonus XP</span></div>'+
+    '<div class="ps"><span class="ps-v">$'+debt.toLocaleString()+'</span><span class="ps-l">Est. paid</span></div>';
+  setTimeout(function(){
+    document.getElementById('pickScreen').classList.add('hidden');
+    document.getElementById('pledgeScreen').classList.remove('hidden');
+    document.getElementById('pledgeScreen').scrollTop=0;
+    setTimeout(launchConfetti,350);
+  },280);
+}
+
+function goDay2(){
+  launchConfetti();
+  alert('Commitment: '+selDays+' days locked! Opening Day 2 dashboard.');
+}
+
+/* ── UTILS ── */
+function launchConfetti(){
+  var wrap=document.getElementById('confWrap'); wrap.innerHTML='';
+  var colors=['#C07820','#E8960A','#EAA835','#7A3A0C','#D09828','#F5C842','#A86010','#639922'];
+  for(var i=0;i<32;i++){(function(){
+    var el=document.createElement('div'); el.className='conf';
+    el.style.left=(4+Math.random()*92)+'%'; el.style.top='-10px';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    var s=5+Math.random()*8; el.style.width=s+'px'; el.style.height=s+'px';
+    el.style.borderRadius=Math.random()>0.45?'50%':'2px';
+    el.style.animationDelay=(Math.random()*0.8)+'s';
+    el.style.animationDuration=(1.2+Math.random()*0.8)+'s';
+    wrap.appendChild(el);
+    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},2800);
+  })();}
+}
+function playFanfare(){
+  try{var ac=new(window.AudioContext||window.webkitAudioContext)();
+    [[523,0],[659,0.08],[784,0.16],[1047,0.26],[1319,0.38]].forEach(function(n){
+      var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);
+      o.frequency.value=n[0];o.type='sine';g.gain.setValueAtTime(0.09,ac.currentTime+n[1]);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n[1]+0.45);
+      o.start(ac.currentTime+n[1]);o.stop(ac.currentTime+n[1]+0.5);
+    });
+  }catch(e){}
+}
+function playLevelUp(){
+  try{var ac=new(window.AudioContext||window.webkitAudioContext)();
+    [[392,0],[494,0.09],[587,0.18],[784,0.28],[1047,0.4],[1319,0.54]].forEach(function(n){
+      var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);
+      o.frequency.value=n[0];o.type=n[1]>0.3?'sine':'triangle';
+      g.gain.setValueAtTime(0.08,ac.currentTime+n[1]);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n[1]+0.5);
+      o.start(ac.currentTime+n[1]);o.stop(ac.currentTime+n[1]+0.55);
+    });
+  }catch(e){}
+}
+</script>
+</body>
+</html>

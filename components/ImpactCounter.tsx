@@ -4,15 +4,16 @@
 // All calculations use user's real balance and APR — never hypothetical
 
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, useColorScheme } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import Colors, { D } from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
+import { useIsDark } from "@/context/ThemeContext";
 import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { runStrategy } from "@/lib/calculations";
 
-const TRUST_BLUE  = "#1F4E8C";
-const FREE_GREEN  = "#1E7A45";
+const TRUST_BLUE  = "#C07820";
+const FREE_GREEN  = "#C07820";
 const DEX_ORANGE  = "#E8600A";
 
 function daysBetween(a: Date, b: Date): number {
@@ -30,8 +31,7 @@ interface ImpactCounterProps {
 export function ImpactCounter({ compact = false }: ImpactCounterProps) {
   const { debts, payments, extraPayment } = useDebts();
   const { fmt } = useCurrency();
-  const scheme  = useColorScheme();
-  const isDark  = scheme === "dark";
+  const isDark = useIsDark();
 
   const data = useMemo(() => {
     if (debts.length === 0) {
@@ -87,7 +87,7 @@ export function ImpactCounter({ compact = false }: ImpactCounterProps) {
       dexCopy = "Primary goal: making every minimum payment on time. That alone prevents late fees. Stay consistent.";
     } else if (dailyRate <= 0.50) {
       const amt = dailyRate > 0 ? fmt(dailyRate) : fmt(0.50);
-      dexCopy = `Just ${amt}/day — about one skipped soda. That saves ${monthsSaved}+ months and ${fmt(interestAvoided)} in interest.`;
+      dexCopy = `Just ${amt}/day - about one skipped soda. That saves ${monthsSaved}+ months and ${fmt(interestAvoided)} in interest.`;
     } else {
       dexCopy = `${fmt(dailyRate)}/day gives back ${monthsSaved}+ months and saves ${fmt(interestAvoided)} in interest. Keep going!`;
     }
@@ -106,12 +106,12 @@ export function ImpactCounter({ compact = false }: ImpactCounterProps) {
 
   const { extraThisMonth, interestAvoided, daysSaved, newPayoffDate, dexCopy, hasImpact } = data;
 
-  const cardBg     = isDark ? "#0A1420" : "#EFF5FF";
-  const borderCol  = isDark ? "#1A2C44" : "#C5D8F5";
-  const labelCol   = isDark ? "rgba(255,255,255,0.45)" : "#6685A8";
-  const dateCol    = isDark ? "rgba(255,255,255,0.7)"  : "#4A6080";
+  const cardBg     = isDark ? "#2C2014" : "#FFFFFF";
+  const borderCol  = isDark ? "rgba(192,120,32,0.30)" : "rgba(192,120,32,0.35)";
+  const labelCol   = isDark ? "rgba(255,255,255,0.45)" : "#8A6840";
+  const dateCol    = isDark ? "rgba(255,255,255,0.7)"  : "#5A4020";
   const dexTextCol = isDark ? "#D4935A" : DEX_ORANGE;
-  const dividerCol = isDark ? "#1A2C44" : "#D5E5F7";
+  const dividerCol = isDark ? "rgba(192,120,32,0.20)" : "rgba(192,120,32,0.22)";
 
   return (
     <View style={[styles.card, compact && styles.cardCompact, { backgroundColor: cardBg, borderColor: borderCol }]}>
@@ -169,7 +169,7 @@ export function ImpactCounter({ compact = false }: ImpactCounterProps) {
             adjustsFontSizeToFit
             minimumFontScale={0.55}
           >
-            {daysSaved > 0 ? `${daysSaved.toLocaleString()}d` : "—"}
+            {daysSaved > 0 ? `${daysSaved.toLocaleString()}d` : "-"}
           </Text>
           <Text style={[styles.statLabel, { color: labelCol }]}>days{"\n"}shaved off</Text>
         </View>
@@ -197,7 +197,6 @@ export function ImpactCounter({ compact = false }: ImpactCounterProps) {
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 20,
     borderWidth: 1,
