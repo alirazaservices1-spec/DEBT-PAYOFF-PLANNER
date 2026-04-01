@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
 import { Pool } from "pg";
+import { sendFeedbackEmail } from "./email";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -161,6 +162,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ count: parseInt(result.rows[0].count, 10) });
     } catch (err) {
       return res.status(500).json({ error: "Could not count leads" });
+    }
+  });
+
+  app.post("/api/feedback", async (req: Request, res: Response) => {
+    try {
+      const payload = req.body as Record<string, unknown>;
+
+      if (!payload || typeof payload !== "object") {
+        return res.status(400).json({ error: "Invalid payload" });
+      }
+
+      console.log(
+        `[FEEDBACK] sentiment=${payload.sentiment ?? "—"} | os=${payload.deviceOs ?? "—"} | v=${payload.buildVersion ?? "?"}`
+      );
+
+      sendFeedbackEmail(payload as Parameters<typeof sendFeedbackEmail>[0]).catch((err) => {
+        console.error("[email] Failed to send feedback email:", err);
+      });
+
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("Feedback submission error:", err);
+      return res.status(500).json({ error: "Could not process feedback" });
     }
   });
 

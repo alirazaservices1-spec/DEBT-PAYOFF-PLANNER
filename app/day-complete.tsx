@@ -23,15 +23,9 @@ import { DexCoin } from "@/components/DexCoin";
 import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
 import {
   markDayCompleteAcknowledgedToday,
-  markDayCompleteSkippedToday,
 } from "@/lib/dayCompleteGate";
 import { scheduleNextDayActivitiesReminderAfterAck } from "@/lib/dayActivitiesReminder";
 import { useStreakReminder } from "@/context/StreakReminderContext";
-import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
-import {
-  hasCompletedPostDay1Satisfaction,
-  shouldOfferPostDay1Prompt,
-} from "@/lib/satisfactionFeedbackGate";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -129,11 +123,6 @@ export default function DayCompleteScreen() {
     router.replace("/(tabs)/dashboard");
   };
 
-  const handleSkipForNow = async () => {
-    await markDayCompleteSkippedToday();
-    router.replace("/(tabs)/dashboard");
-  };
-
   const badgeAnim = useRef(new Animated.Value(0)).current;
   const titleAnim = useRef(new Animated.Value(0)).current;
   const cardAnim  = useRef(new Animated.Value(0)).current;
@@ -142,25 +131,6 @@ export default function DayCompleteScreen() {
   const star2Anim = useRef(new Animated.Value(0)).current;
   const star3Anim = useRef(new Animated.Value(0)).current;
   const ctaAnim   = useRef(new Animated.Value(0)).current;
-
-  const [satisfactionVisible, setSatisfactionVisible] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    void (async () => {
-      if (!shouldOfferPostDay1Prompt(streakCount)) return;
-      const done = await hasCompletedPostDay1Satisfaction();
-      if (cancelled || done) return;
-      timer = setTimeout(() => {
-        if (!cancelled) setSatisfactionVisible(true);
-      }, 1600);
-    })();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [streakCount]);
 
   useEffect(() => {
     const fadeUp = (anim: Animated.Value, delay: number) =>
@@ -313,21 +283,13 @@ export default function DayCompleteScreen() {
               streakCount,
               streakReminderEnabled
             );
-            router.replace("/main-menu");
+            router.replace("/(tabs)/dashboard");
           }}
           accessibilityRole="button"
         >
           <Text style={styles.secondaryLinkText}>Go to main menu</Text>
         </Pressable>
 
-        <Pressable
-          style={styles.skipCta}
-          onPress={handleSkipForNow}
-          accessibilityRole="button"
-          accessibilityLabel="Skip day complete screen"
-        >
-          <Text style={styles.skipCtaText}>Skip for now</Text>
-        </Pressable>
       </Animated.View>
       </ScrollView>
 
@@ -337,10 +299,6 @@ export default function DayCompleteScreen() {
         ))}
       </View>
 
-      <SatisfactionFeedbackModal
-        visible={satisfactionVisible}
-        onClosed={() => setSatisfactionVisible(false)}
-      />
     </View>
   );
 }
@@ -513,7 +471,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.extraBold,
     letterSpacing: 1.5,
     textTransform: "uppercase",
-    color: "#6B4F2E",
+    color: "#111111",
     marginBottom: 10,
   },
   previewRow: {
@@ -538,7 +496,7 @@ const styles = StyleSheet.create({
   previewCopy: {
     fontSize: 13,
     fontFamily: Fonts.semiBold,
-    color: "#3D2200",
+    color: "#111111",
   },
   cta: {
     width: "100%",
@@ -566,21 +524,5 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     color: MUTED,
     textDecorationLine: "underline",
-  },
-  skipCta: {
-    width: "100%",
-    marginTop: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "rgba(107,79,46,0.35)",
-    backgroundColor: "rgba(255,255,255,0.5)",
-  },
-  skipCtaText: {
-    fontSize: 15,
-    fontFamily: Fonts.extraBold,
-    fontWeight: "800",
-    color: DARK2,
   },
 });

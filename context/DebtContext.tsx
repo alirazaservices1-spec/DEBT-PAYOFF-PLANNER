@@ -125,7 +125,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (d) setDebts(JSON.parse(d));
         if (p) setPayments(JSON.parse(p));
-        if (e) setExtraPaymentState(parseFloat(e));
+        if (e) {
+          const parsed = parseFloat(e);
+          setExtraPaymentState(
+            Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+          );
+        }
         if (s) setSelectedStrategyState(s as Strategy);
         if (co) setCustomOrderState(JSON.parse(co));
         if (ls) setLeadSubmittedAtState(ls);
@@ -138,17 +143,27 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  const safeExtra = useMemo(
+    () =>
+      typeof extraPayment === "number" &&
+      Number.isFinite(extraPayment) &&
+      extraPayment >= 0
+        ? extraPayment
+        : 0,
+    [extraPayment]
+  );
+
   const avalancheResult = useMemo(
-    () => runStrategy(debts, extraPayment, "avalanche"),
-    [debts, extraPayment]
+    () => runStrategy(debts, safeExtra, "avalanche"),
+    [debts, safeExtra]
   );
   const snowballResult = useMemo(
-    () => runStrategy(debts, extraPayment, "snowball"),
-    [debts, extraPayment]
+    () => runStrategy(debts, safeExtra, "snowball"),
+    [debts, safeExtra]
   );
   const customResult = useMemo(
-    () => runStrategy(debts, extraPayment, "custom", customOrder),
-    [debts, extraPayment, customOrder]
+    () => runStrategy(debts, safeExtra, "custom", customOrder),
+    [debts, safeExtra, customOrder]
   );
 
   const activeResult = useMemo(() => {
@@ -221,8 +236,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setExtraPayment = useCallback(async (amount: number) => {
-    setExtraPaymentState(amount);
-    await AsyncStorage.setItem(EXTRA_PAYMENT_KEY, amount.toString());
+    const safe =
+      typeof amount === "number" && Number.isFinite(amount) && amount >= 0
+        ? amount
+        : 0;
+    setExtraPaymentState(safe);
+    await AsyncStorage.setItem(EXTRA_PAYMENT_KEY, String(safe));
   }, []);
 
   const setSelectedStrategy = useCallback(async (strategy: Strategy) => {

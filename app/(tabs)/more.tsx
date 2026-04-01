@@ -35,6 +35,7 @@ import { DreamGoalScreen } from "@/app/onboarding";
 import { DexCoin } from "@/components/DexCoin";
 import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
 import { DevHomePreviewSettings } from "@/components/DevHomePreviewSettings";
+import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
 
 const APP_VERSION = "1.0.0";
 const APP_STORE_REVIEW_URL = "https://apps.apple.com/app/id0000000000?action=write-review";
@@ -53,6 +54,7 @@ export default function SettingsTabScreen() {
   const { weeklySummaryEnabled, setWeeklySummaryEnabled } = useWeeklySummary();
 
   const [deleting, setDeleting] = useState(false);
+  const [testFeedbackVisible, setTestFeedbackVisible] = useState(false);
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [dexVocalEnabled, setDexVocalEnabled] = useState(true);
@@ -718,6 +720,27 @@ export default function SettingsTabScreen() {
 
         <DevHomePreviewSettings C={C} variant="tab" />
 
+        {/* ── DEV ────────────────────────────────────────────────── */}
+        <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>DEV</Text>
+        <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setTestFeedbackVisible(true);
+            }}
+            style={[styles.row, styles.rowLast]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: "#D08A1018" }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color="#D08A10" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: C.text, flex: 0 }]}>Test Feedback Screen</Text>
+              <Text style={[styles.rowSub, { color: C.textSecondary }]}>Preview the in-app feedback flow</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+          </Pressable>
+        </View>
+
         {/* ── DATA ───────────────────────────────────────────────── */}
         <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>DATA</Text>
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -750,6 +773,11 @@ export default function SettingsTabScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <SatisfactionFeedbackModal
+        visible={testFeedbackVisible}
+        onClosed={() => setTestFeedbackVisible(false)}
+      />
     </View>
   );
 }

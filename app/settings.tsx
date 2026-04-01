@@ -33,6 +33,7 @@ import { DreamGoalScreen } from "@/app/onboarding";
 import { DexCoin } from "@/components/DexCoin";
 import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
 import { DevHomePreviewSettings } from "@/components/DevHomePreviewSettings";
+import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
 
 const APP_VERSION = "1.0.0";
 // Replace with your App Store ID once the app is published (e.g. id1234567890)
@@ -52,6 +53,7 @@ export default function SettingsScreen() {
   const { weeklySummaryEnabled, setWeeklySummaryEnabled } = useWeeklySummary();
   const [deleting, setDeleting] = useState(false);
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
+  const [testFeedbackVisible, setTestFeedbackVisible] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [dexVocalEnabled, setDexVocalEnabled] = useState(true);
   const [dreamModalOpen, setDreamModalOpen] = useState(false);
@@ -665,6 +667,26 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
+        {/* ── Test: Feedback Modal ── */}
+        <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setTestFeedbackVisible(true);
+            }}
+            style={[styles.row, styles.rowLast]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: "#D08A1018" }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color="#D08A10" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: C.text, flex: 0 }]}>Test Feedback Screen</Text>
+              <Text style={[styles.rowSub, { color: C.textSecondary }]}>Preview all 3 screens of the in-app feedback flow</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+          </Pressable>
+        </View>
+
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Pressable
             onPress={handleDeleteAllData}
@@ -680,6 +702,11 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <SatisfactionFeedbackModal
+        visible={testFeedbackVisible}
+        onClosed={() => setTestFeedbackVisible(false)}
+      />
 
       <Modal
         visible={dreamModalOpen}

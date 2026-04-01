@@ -14,6 +14,29 @@ A comprehensive debt management app built with Expo React Native and Express bac
 - **ImpactCounter**: `components/ImpactCounter.tsx` — $0.50/day extra payment impact widget on dashboard (extra this month, interest avoided, days shaved, debt-free date)
 - **SoundManager**: `utils/SoundManager.ts` — expo-av based sound system. Pre-generates 9 WAV files in `assets/sounds/` (payment_logged, xp_earned, streak_maintained, level_up, milestone, streak_at_risk, variable_bonus, interest_saved, debt_paid_off). Preloads all sounds at app start via `soundManager.preload()` in `_layout.tsx`. `soundManager.play(name)` used in GameContext, dashboard, and DebtClearedOverlay. `soundManager.setEnabled(bool)` with AsyncStorage persistence. Sound toggle in Settings screen. `debt_paid_off` bypasses iOS silent mode.
 
+## In-App Feedback Flow (SatisfactionFeedbackModal)
+
+`components/SatisfactionFeedbackModal.tsx` — 3-screen feedback flow triggered after key events.
+
+**Flow:**
+- Screen 1 (Quick Check-In): Dex happy SVG + 3 sentiment buttons. "Loving it" → Screen 3. "It's okay" / "Something's off" → Screen 2.
+- Screen 2 (Feedback Form): Dex worried SVG + multi-select chips + free text + email + consent checkbox. Send/Skip → Screen 3.
+- Screen 3 (Thank You): Dex warm SVG + green card + amber progress bar animates to 0 over 2.5s → auto-dismiss.
+
+**Design tokens (from HTML reference):** card #FDFAF2, amber #D08A10, amber-dark #8A5000, navy #1C1F2E, cream background #F4EDD8, green thank-you card #D4F5E2.
+
+**Top bar:** Live streak count (amber pill 🔥) + XP total (purple pill ⚡) from GameContext.
+
+**Gate logic** (`lib/satisfactionFeedbackGate.ts`):
+- `shouldShowFeedback(trigger)`: requires 3+ sessions + 14 days since last shown
+- Triggers: `day1_complete`, `debt_paid_off`, `streak_7`, `session_5`, `level_up_5plus`
+- `markFeedbackShown()`: records timestamp and marks post-day1 as done
+- `incrementSessionCount()` / `getSessionCount()`: tracks app open sessions
+
+**Data collection** (`lib/submitAppFeedback.ts`): chips_selected, free_text, context_text, email, consent + timestamp, device_os, build_version, session_id, last 10 action log entries. Stored in AsyncStorage (@debtpath_feedback_log_v1) and optionally POSTed to `EXPO_PUBLIC_FEEDBACK_URL`.
+
+**Trigger wired:** `app/day-complete.tsx` (streak === 1, Day 1 complete). Other triggers (debt_paid_off, streak_7, level_up_5plus) require hooking into GameContext's `awardXp` and `DebtContext`.
+
 ## Architecture
 
 - **Frontend**: Expo Router (React Native) with file-based routing, running on web via Metro bundler

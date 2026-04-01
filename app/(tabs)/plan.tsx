@@ -432,39 +432,7 @@ export default function PlanScreen() {
   const eligibleDebts = useMemo(() => debtsEligibleForStrategy(debts), [debts]);
   const stratLabel = selectedStrategy === "avalanche" ? "Avalanche" : selectedStrategy === "snowball" ? "Snowball" : "Custom";
   const stratEmoji = selectedStrategy === "avalanche" ? "🔥" : selectedStrategy === "snowball" ? "❄️" : "⚙️";
-
-  // If the user has debts but none are eligible (usually missing APR/min payment),
-  // show a clear guidance panel instead of a broken/empty estimate.
-  if (debts.length > 0 && eligibleDebts.length === 0) {
-    return (
-      <View style={[styles.container, { backgroundColor: isDark ? DARK : "#FAF8F5", paddingTop: insets.top + 60, paddingHorizontal: 20 }]}>
-        <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1.5, borderColor: "#EDE7DA", padding: 16 }}>
-          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 16, color: INK, marginBottom: 6 }}>
-            Add missing debt info to see the payoff estimate
-          </Text>
-          <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13.5, color: INK, lineHeight: 20, marginBottom: 12 }}>
-            For a plan to calculate, each debt needs APR% and a minimum monthly payment greater than 0.
-            If you don't know the exact values, use your best estimate.
-          </Text>
-          <Pressable
-            onPress={() => router.push("/(tabs)/dashboard")}
-            style={({ pressed }) => ([
-              {
-                backgroundColor: "#1A6FC4",
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                borderRadius: 14,
-                alignItems: "center",
-                opacity: pressed ? 0.9 : 1,
-              },
-            ])}
-          >
-            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 15, color: "#fff" }}>Go to Debts</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  const hasMissingDebtInputs = debts.length > 0 && eligibleDebts.length === 0;
 
   // Interest saved vs paying minimums only
   const interestSaved = useMemo(() => {
@@ -542,6 +510,38 @@ export default function PlanScreen() {
     return items;
   }, [snapshots]);
 
+  // Keep hook order stable to avoid runtime hook mismatch crashes.
+  if (hasMissingDebtInputs) {
+    return (
+      <View style={[styles.container, { backgroundColor: isDark ? DARK : "#FAF8F5", paddingTop: insets.top + 60, paddingHorizontal: 20 }]}>
+        <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1.5, borderColor: "#EDE7DA", padding: 16 }}>
+          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 16, color: INK, marginBottom: 6 }}>
+            Add missing debt info to see the payoff estimate
+          </Text>
+          <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13.5, color: INK, lineHeight: 20, marginBottom: 12 }}>
+            For a plan to calculate, each debt needs APR% and a minimum monthly payment greater than 0.
+            If you do not know the exact values, use your best estimate.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/dashboard")}
+            style={({ pressed }) => ([
+              {
+                backgroundColor: "#1A6FC4",
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 14,
+                alignItems: "center",
+                opacity: pressed ? 0.9 : 1,
+              },
+            ])}
+          >
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 15, color: "#fff" }}>Go to Debts</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   // Empty state
   if (debts.length === 0) {
     return (
@@ -591,7 +591,7 @@ export default function PlanScreen() {
             </Pressable>
           </View>
 
-          {/* 3 stats */}
+          {/* Header stats */}
           <View style={styles.heroStats}>
             <View style={styles.hstat}>
               <Text style={[styles.hstatVal, { color: WHITE_ON_DARK }]}>{fmt2(payoffDate)}</Text>
@@ -600,10 +600,6 @@ export default function PlanScreen() {
             <View style={styles.hstat}>
               <Text style={[styles.hstatVal, { color: GREEN_LT }]}>{fmt(interestSaved)}</Text>
               <Text style={styles.hstatLbl}>Interest Saved*</Text>
-            </View>
-            <View style={styles.hstat}>
-              <Text style={[styles.hstatVal, { color: WHITE_ON_DARK }]}>{totalMonths} mo.</Text>
-              <Text style={styles.hstatLbl}>Remaining</Text>
             </View>
           </View>
 

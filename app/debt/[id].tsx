@@ -324,6 +324,39 @@ export default function DebtDetailScreen() {
     return result;
   }, [debt]);
 
+  const payoffDate = singleResult?.payoffDate ?? new Date();
+  const totalMonths = singleResult?.totalMonths ?? 0;
+  const totalInterest = singleResult?.totalInterestPaid ?? 0;
+  const snapshots = singleResult?.snapshots ?? [];
+
+  const effectiveApr = useMemo(() => {
+    if (!debt) return 0;
+    if (!debt.taxRate || debt.taxRate <= 0) return debt.apr;
+    return debt.apr * (1 - debt.taxRate / 100);
+  }, [debt]);
+
+  // If the user navigated here specifically to log a payment, ensure
+  // the transactions tab is active (so the "Mark as Paid" flow makes sense).
+  useEffect(() => {
+    if (!shouldOpenMarkPaid) return;
+    setActiveTab("transactions");
+    // Small delay to let tab header layout settle before modal animates.
+    const t = setTimeout(() => setMarkPaidVisible(true), 60);
+    return () => clearTimeout(t);
+  }, [shouldOpenMarkPaid]);
+
+  const taxAdjustedResult = useMemo(() => {
+    if (!debt) return null;
+    if (!debt.taxRate || debt.taxRate <= 0) return null;
+    const adjusted = { ...debt, apr: effectiveApr };
+    return runStrategy([adjusted], 0, "avalanche");
+  }, [debt, effectiveApr]);
+
+  const interestSavingFromTax = useMemo(() => {
+    if (!taxAdjustedResult) return 0;
+    return Math.max(0, totalInterest - taxAdjustedResult.totalInterestPaid);
+  }, [totalInterest, taxAdjustedResult]);
+
   // While the debts context is still hydrating, avoid flashing "Debt not found" —
   // show a lightweight loader instead so the screen doesn't appear broken.
   if (!debt) {
@@ -344,37 +377,6 @@ export default function DebtDetailScreen() {
       </View>
     );
   }
-
-  const payoffDate = singleResult?.payoffDate ?? new Date();
-  const totalMonths = singleResult?.totalMonths ?? 0;
-  const totalInterest = singleResult?.totalInterestPaid ?? 0;
-  const snapshots = singleResult?.snapshots ?? [];
-
-  const effectiveApr = useMemo(() => {
-    if (!debt.taxRate || debt.taxRate <= 0) return debt.apr;
-    return debt.apr * (1 - debt.taxRate / 100);
-  }, [debt.apr, debt.taxRate]);
-
-  // If the user navigated here specifically to log a payment, ensure
-  // the transactions tab is active (so the "Mark as Paid" flow makes sense).
-  useEffect(() => {
-    if (!shouldOpenMarkPaid) return;
-    setActiveTab("transactions");
-    // Small delay to let tab header layout settle before modal animates.
-    const t = setTimeout(() => setMarkPaidVisible(true), 60);
-    return () => clearTimeout(t);
-  }, [shouldOpenMarkPaid]);
-
-  const taxAdjustedResult = useMemo(() => {
-    if (!debt.taxRate || debt.taxRate <= 0) return null;
-    const adjusted = { ...debt, apr: effectiveApr };
-    return runStrategy([adjusted], 0, "avalanche");
-  }, [debt, effectiveApr]);
-
-  const interestSavingFromTax = useMemo(() => {
-    if (!taxAdjustedResult) return 0;
-    return Math.max(0, totalInterest - taxAdjustedResult.totalInterestPaid);
-  }, [totalInterest, taxAdjustedResult]);
 
   const handleDelete = () => {
     Alert.alert(

@@ -28,6 +28,16 @@ type Props = {
 const MIN_DATE = new Date(2000, 0, 1);
 const MAX_DATE = new Date(2045, 11, 31);
 
+function safePickerDate(d: Date): Date {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+    return new Date();
+  }
+  const t = d.getTime();
+  if (t < MIN_DATE.getTime()) return MIN_DATE;
+  if (t > MAX_DATE.getTime()) return MAX_DATE;
+  return d;
+}
+
 export function MonthYearField({
   value,
   onChangeText,
@@ -41,17 +51,18 @@ export function MonthYearField({
 
   const pickerDate = useMemo(() => {
     const p = parseMonthYearString(value);
-    if (p) return monthYearToDate(p.month, p.year);
-    return new Date();
+    const raw = p ? monthYearToDate(p.month, p.year) : new Date();
+    return safePickerDate(raw);
   }, [value]);
 
   useEffect(() => {
-    if (iosOpen) setIosTemp(pickerDate);
+    if (iosOpen) setIosTemp(safePickerDate(pickerDate));
   }, [iosOpen, pickerDate]);
 
   const applyDate = useCallback(
     (d: Date) => {
-      const { month, year } = dateToMonthYear(d);
+      const clamped = safePickerDate(d);
+      const { month, year } = dateToMonthYear(clamped);
       onChangeText(formatMonthYear(month, year));
     },
     [onChangeText]
@@ -144,12 +155,12 @@ export function MonthYearField({
                 </Pressable>
               </View>
               <DateTimePicker
-                value={iosTemp}
+                value={safePickerDate(iosTemp)}
                 mode="date"
                 display="spinner"
                 themeVariant="light"
                 onChange={(_, d) => {
-                  if (d) setIosTemp(d);
+                  if (d) setIosTemp(safePickerDate(d));
                 }}
                 minimumDate={MIN_DATE}
                 maximumDate={MAX_DATE}

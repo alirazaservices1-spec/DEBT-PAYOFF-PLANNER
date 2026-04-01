@@ -6,7 +6,6 @@ import {
   Pressable,
   Animated,
   Platform,
-  Modal,
   ScrollView as RNScrollView,
   Linking,
 } from "react-native";
@@ -52,6 +51,8 @@ import { debtsEligibleForStrategy, runStrategy } from "@/lib/calculations";
 import { AFFILIATE_URLS } from "@/lib/affiliateUrls";
 import { withAppUtmParams } from "@/lib/utm";
 import * as Haptics from "expo-haptics";
+import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
+import { hasTriggerFired } from "@/lib/satisfactionFeedbackGate";
 
 const BG    = "#EDE8DC";
 const DARK  = "#1C0F00";
@@ -63,7 +64,6 @@ const AMBER = "#111111";
 const MUTED = "#111111";
 const ONBOARDING_DREAM_GOAL_NAME_KEY = "@debtpath_dream_goal_name";
 const ONBOARDING_DREAM_GOAL_COST_KEY = "@debtpath_dream_goal_cost";
-const DUE_POPUP_LAST_SEEN_KEY = "@debtpath_due_popup_last_seen_day";
 
 /** Deterministic daily pick so Dex / banner lines stay stable for the calendar day. */
 function stableDayPick<T>(arr: T[], seed: string): T {
@@ -466,12 +466,12 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
   const { goalName, hasGoal, daysToGoal } = useGoal();
   const { activeResult, extraPayment, welcomeSkipped, debts, selectedStrategy } = useDebts();
   const { fmt } = useCurrency();
-  const { reminders, setDebts, dismiss } = useNotifications();
+  const { setDebts } = useNotifications();
   const [onboardingDreamName, setOnboardingDreamName] = useState("");
   const [onboardingDreamCost, setOnboardingDreamCost] = useState(0);
-  const [duePopupOpen, setDuePopupOpen] = useState(false);
   const [streakDayBanner, setStreakDayBanner] = useState(false);
   const [dayDoneBanner, setDayDoneBanner] = useState(false);
+  const [satisfactionVisible, setSatisfactionVisible] = useState(false);
   const [devPreviewActivityDay, setDevPreviewActivityDay] = useState<number | null>(null);
   /** `null` = use real streak; `number` includes 0 for dev preview pill. */
   const [devPreviewStreakOverride, setDevPreviewStreakOverride] = useState<number | null>(null);
@@ -617,19 +617,6 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
     );
   }, [debts, setDebts]);
 
-  useEffect(() => {
-    if (!reminders.length) return;
-    const todayKey = new Date().toISOString().slice(0, 10);
-    AsyncStorage.getItem(DUE_POPUP_LAST_SEEN_KEY)
-      .then((lastSeen) => {
-        if (lastSeen !== todayKey) {
-          setDuePopupOpen(true);
-          AsyncStorage.setItem(DUE_POPUP_LAST_SEEN_KEY, todayKey).catch(() => {});
-        }
-      })
-      .catch(() => {});
-  }, [reminders]);
-
   // Animate XP bar
   useEffect(() => {
     Animated.timing(barAnim, {
@@ -652,6 +639,23 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
     loop.start();
     return () => loop.stop();
   }, [shimmerAnim]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void (async () => {
+      if (displayStreakCount !== 1) return;
+      const done = await hasTriggerFired("day1_complete");
+      if (cancelled || done) return;
+      timer = setTimeout(() => {
+        if (!cancelled) setSatisfactionVisible(true);
+      }, 900);
+    })();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [displayStreakCount]);
 
   const calendarDay = new Date().toISOString().slice(0, 10);
   const msg = stableDayPick(messages, `${calendarDay}-dex`);
@@ -841,7 +845,8 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
           <View style={[styles.statCard, styles.statGreen]}>
             <Text style={styles.statIcon}>💸</Text>
             <Text style={styles.statVal}>{fmt(interestSavedVsMinimums)}</Text>
-            <Text style={[styles.statLbl, { color: "#135228" }]}>Interest saved</Text>
+            <Text style={[styles.statLbl, { color: "#135228" }]}>Projected interest saved</Text>
+            <Text style={styles.statSub}>vs minimum payments</Text>
           </View>
         </View>
 
@@ -915,49 +920,11 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
         )}
       </RNScrollView>
 
-      <Modal
-        visible={duePopupOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuePopupOpen(false)}
-      >
-        <Pressable style={styles.dueModalOverlay} onPress={() => setDuePopupOpen(false)}>
-          <View style={styles.dueModalCard}>
-            <Text style={styles.dueModalTitle}>Payments coming up</Text>
-            <Text style={styles.dueModalSub}>
-              We will keep showing these automatically a few days before they are due.
-            </Text>
-            <View style={styles.dueList}>
-              {reminders.slice(0, 4).map((r) => (
-                <View key={r.id} style={styles.dueRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.dueName}>{r.debtName}</Text>
-                    <Text style={styles.dueInfo}>
-                      {r.daysUntilDue <= 0 ? "Due now" : `Due in ${r.daysUntilDue} day${r.daysUntilDue === 1 ? "" : "s"}`}
-                    </Text>
-                  </View>
-                  <Text style={styles.dueAmt}>{fmt(r.amount)}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.dueActions}>
-              <Pressable style={styles.dueSecondaryBtn} onPress={() => setDuePopupOpen(false)}>
-                <Text style={styles.dueSecondaryText}>Close</Text>
-              </Pressable>
-              <Pressable
-                style={styles.duePrimaryBtn}
-                onPress={async () => {
-                  await Promise.all(reminders.slice(0, 4).map((r) => dismiss(r.id)));
-                  setDuePopupOpen(false);
-                }}
-              >
-                <Text style={styles.duePrimaryText}>Mark as seen</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-
+      <SatisfactionFeedbackModal
+        visible={satisfactionVisible}
+        trigger="day1_complete"
+        onClosed={() => setSatisfactionVisible(false)}
+      />
     </View>
   );
 }
@@ -1062,7 +1029,7 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 15, fontFamily: Fonts.semiBold,
-    fontWeight: "600", color: DARK,
+    fontWeight: "600", color: "#111111",
     lineHeight: 22, textAlign: "center",
   },
 
@@ -1206,6 +1173,7 @@ const styles = StyleSheet.create({
   statIcon: { fontSize: 20, marginBottom: 3 },
   statVal: { fontSize: 27, fontFamily: Fonts.black, color: "#18120A", lineHeight: 30 },
   statLbl: { fontSize: 12, fontFamily: Fonts.extraBold, color: "#382808", marginTop: 4, textTransform: "uppercase" },
+  statSub: { fontSize: 10, fontFamily: Fonts.semiBold, color: "#135228", marginTop: 2, textAlign: "center" },
 
   consultScroll: { paddingBottom: 8, gap: 12, paddingRight: 8 },
   consultCard: {
@@ -1406,43 +1374,5 @@ const styles = StyleSheet.create({
     letterSpacing: 1, textTransform: "uppercase", color: "#fff",
   },
 
-  dueModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  dueModalCard: {
-    width: "100%",
-    maxWidth: 420,
-    borderRadius: 18,
-    backgroundColor: "#FFFDF9",
-    borderWidth: 1.5,
-    borderColor: "#E6D8C4",
-    padding: 16,
-  },
-  dueModalTitle: { fontSize: 20, fontFamily: Fonts.black, fontWeight: "900", color: DARK },
-  dueModalSub: { marginTop: 4, fontSize: 13, fontFamily: Fonts.semiBold, color: MUTED, lineHeight: 18 },
-  dueList: { marginTop: 12, gap: 8 },
-  dueRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EADDCB",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    backgroundColor: "#FFFFFF",
-  },
-  dueName: { fontSize: 14, fontFamily: Fonts.bold, fontWeight: "700", color: DARK },
-  dueInfo: { fontSize: 12, fontFamily: Fonts.semiBold, color: MUTED, marginTop: 1 },
-  dueAmt: { fontSize: 14, fontFamily: Fonts.extraBold, fontWeight: "800", color: "#2A5C12" },
-  dueActions: { marginTop: 12, flexDirection: "row", justifyContent: "flex-end", gap: 8 },
-  dueSecondaryBtn: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: "#F2EADF" },
-  dueSecondaryText: { fontSize: 13, fontFamily: Fonts.semiBold, color: DARK },
-  duePrimaryBtn: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: "#2F7A17" },
-  duePrimaryText: { fontSize: 13, fontFamily: Fonts.bold, color: "#fff" },
 });
 

@@ -20,6 +20,8 @@ import { StreakReminderProvider } from "@/context/StreakReminderContext";
 import { WeeklySummaryProvider } from "@/context/WeeklySummaryContext";
 import { DesignBriefNotificationsProvider } from "@/context/DesignBriefNotificationsContext";
 import { CelebrationHost } from "@/components/CelebrationHost";
+import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
+import { incrementSessionCount, hasTriggerFired } from "@/lib/satisfactionFeedbackGate";
 import { soundManager } from "@/utils/SoundManager";
 import Colors from "@/constants/colors";
 import { Fonts } from "@/constants/fonts";
@@ -69,10 +71,27 @@ function AppNavigator() {
   const homeShown = useRef(false);
   const [ready, setReady] = useState(true);
   const debtsRef = useRef(debts);
+  const [session5FeedbackVisible, setSession5FeedbackVisible] = useState(false);
+  const sessionCountedRef = useRef(false);
 
   useEffect(() => {
     debtsRef.current = debts;
   }, [debts]);
+
+  // Session-5 feedback trigger: increment once per app launch when onboarded
+  useEffect(() => {
+    if (!onboardingDone || sessionCountedRef.current) return;
+    sessionCountedRef.current = true;
+    void (async () => {
+      const count = await incrementSessionCount();
+      if (count === 5) {
+        const alreadyFired = await hasTriggerFired("session_5");
+        if (!alreadyFired) {
+          setTimeout(() => setSession5FeedbackVisible(true), 1800);
+        }
+      }
+    })();
+  }, [onboardingDone]);
 
   useEffect(() => {
     const inOnboarding   = segments[0] === "onboarding";
@@ -153,6 +172,7 @@ function AppNavigator() {
   if (!ready) return null;
 
   return (
+    <>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
@@ -196,6 +216,12 @@ function AppNavigator() {
       />
       <Stack.Screen name="+not-found" />
     </Stack>
+    <SatisfactionFeedbackModal
+      visible={session5FeedbackVisible}
+      trigger="session_5"
+      onClosed={() => setSession5FeedbackVisible(false)}
+    />
+    </>
   );
 }
 

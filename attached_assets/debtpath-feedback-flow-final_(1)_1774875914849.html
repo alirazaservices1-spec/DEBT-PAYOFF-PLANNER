@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtPath — Feedback Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{--amber:#D08A10;--amber-d:#8A5000;--navy:#1C1F2E;--cream:#F4EDD8;--card:#FDFAF2;--muted:#8A7A50}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--cream);font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 20px;
+  background-image:radial-gradient(ellipse at 10% 10%,rgba(208,138,16,.12) 0%,transparent 55%),radial-gradient(ellipse at 90% 90%,rgba(45,91,227,.07) 0%,transparent 55%)}
+
+.fb-card{background:var(--card);border-radius:24px;border:1.5px solid rgba(208,138,16,.18);box-shadow:0 12px 60px rgba(28,31,46,.12),0 2px 12px rgba(28,31,46,.06);width:100%;max-width:420px;overflow:hidden}
+
+.topbar{padding:11px 18px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(208,138,16,.12);background:var(--card)}
+.ach{border-radius:20px;padding:5px 13px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px}
+.ach-s{background:#FFF5E0;color:#9A5800}
+.ach-x{background:#EDE7F6;color:#4A2BA0}
+
+.dots{display:flex;gap:7px;justify-content:center;padding:14px 0 0}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(208,138,16,.2);transition:all .35s}
+.dot.on{background:var(--amber);width:22px;border-radius:4px}
+
+.fb-body{padding:26px 24px 24px;display:flex;flex-direction:column;align-items:center;gap:14px}
+
+.screen{display:none;flex-direction:column;align-items:center;gap:14px;width:100%}
+.screen.on{display:flex;animation:fin .3s ease}
+@keyframes fin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+
+.ph{font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);text-align:center;line-height:1.3;font-weight:400}
+.ph em{font-style:italic;color:var(--amber-d)}
+.pb{font-size:.84rem;color:#4A3820;text-align:center;line-height:1.65}
+.pdiv{width:100%;height:1px;background:rgba(208,138,16,.15)}
+
+.sbtns{display:flex;flex-direction:column;gap:10px;width:100%}
+.sbtn{display:flex;align-items:center;gap:12px;background:white;border:1.5px solid #C8B88A;border-radius:14px;padding:14px 17px;font-family:'DM Sans',sans-serif;font-size:.92rem;font-weight:600;color:var(--navy);cursor:pointer;transition:all .15s;width:100%}
+.sbtn:hover{background:#FFF8EC;border-color:var(--amber);transform:translateY(-1px)}
+.sbtn .em{font-size:1.3rem;flex-shrink:0}
+
+.clbl{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3A2000;align-self:flex-start}
+.ccol{display:flex;flex-direction:column;gap:9px;width:100%}
+.chip{width:100%;padding:12px 17px;border:1.5px solid #C8B88A;border-radius:14px;font-family:'DM Sans',sans-serif;font-size:.88rem;font-weight:600;color:var(--navy);background:white;cursor:pointer;transition:all .15s;text-align:left}
+.chip.on{background:var(--amber);color:white;border-color:var(--amber);box-shadow:0 3px 12px rgba(208,138,16,.3)}
+.chip:hover:not(.on){border-color:var(--amber);background:#FFF8EC}
+
+.finput,.femail{width:100%;background:white;border:1.5px solid #C0A870;border-radius:12px;padding:12px 15px;font-family:'DM Sans',sans-serif;font-size:.86rem;color:var(--navy);outline:none;transition:border-color .2s}
+.finput:focus,.femail:focus{border-color:var(--amber)}
+.finput::placeholder,.femail::placeholder{color:rgba(80,60,20,.35)}
+.farea{width:100%;background:white;border:1.5px solid #C0A870;border-radius:12px;padding:12px 15px;font-family:'DM Sans',sans-serif;font-size:.86rem;color:var(--navy);outline:none;resize:none;min-height:68px}
+.farea:focus{border-color:var(--amber)}
+.farea::placeholder{color:rgba(80,60,20,.35)}
+
+.crow{display:flex;align-items:flex-start;gap:10px;width:100%}
+.ccb{flex-shrink:0;margin-top:3px;accent-color:var(--amber);width:15px;height:15px;cursor:pointer}
+.clg{font-size:.72rem;color:var(--muted);line-height:1.6;cursor:pointer}
+.clg a{color:var(--amber-d);font-weight:600;text-decoration:none}
+
+.btnp{width:100%;border:none;border-radius:14px;padding:15px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:.92rem;cursor:pointer;background:var(--amber);color:white;box-shadow:0 4px 0 var(--amber-d);-webkit-appearance:none;transition:opacity .15s}
+.btnp:hover{opacity:.9}
+.btnp:active{transform:translateY(2px);box-shadow:0 2px 0 var(--amber-d)}
+.btns{width:100%;border:1.5px solid #C8B48A;border-radius:14px;padding:12px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:.88rem;cursor:pointer;background:#EDE4D0;color:#5A4820}
+.btns:hover{background:#E0D5C0}
+
+.tycard{width:100%;border-radius:14px;padding:18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;background:#D4F5E2;border:1.5px solid rgba(32,160,96,.3)}
+.tyhl{font-family:'DM Serif Display',serif;font-size:1.05rem;font-style:italic;color:var(--navy)}
+.tyb{font-size:.78rem;line-height:1.65;color:#3A3A3A}
+
+.abar-wrap{height:3px;background:rgba(208,138,16,.12);border-radius:2px;width:100%;overflow:hidden}
+.abar-fill{height:100%;background:var(--amber);border-radius:2px}
+.abar-anim{animation:shr 2.5s linear forwards}
+@keyframes shr{from{width:100%}to{width:0%}}
+
+.hint{font-size:.69rem;color:rgba(138,122,80,.4);text-align:center}
+
+@keyframes nod{0%,100%{transform:rotate(0)}35%{transform:rotate(-3deg)}70%{transform:rotate(3deg)}}
+@keyframes flt{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.fn{animation:nod 2.2s ease-in-out infinite}
+.ff{animation:flt 2.8s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<div class="fb-card">
+  <div class="topbar">
+    <div class="ach ach-s">🔥 7</div>
+    <div class="ach ach-x">⚡ 825</div>
+  </div>
+  <div class="dots">
+    <div class="dot on" id="d1"></div>
+    <div class="dot" id="d2"></div>
+    <div class="dot" id="d3"></div>
+  </div>
+  <div class="fb-body">
+
+    <!-- SCREEN 1 -->
+    <div class="screen on" id="s1">
+      <svg style="width:100px;height:120px;overflow:visible" viewBox="0 0 120 145" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="g1b" cx="38%" cy="32%" r="65%"><stop offset="0%" stop-color="#F5C840"/><stop offset="55%" stop-color="#D49010"/><stop offset="100%" stop-color="#A46208"/></radialGradient>
+          <radialGradient id="g1e" cx="40%" cy="38%" r="60%"><stop offset="0%" stop-color="#C07010"/><stop offset="100%" stop-color="#7A4800"/></radialGradient>
+          <radialGradient id="g1c" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#FFDF60"/><stop offset="100%" stop-color="#C89010"/></radialGradient>
+        </defs>
+        <g class="fn">
+          <ellipse cx="60" cy="135" rx="26" ry="5" fill="rgba(0,0,0,0.07)"/>
+          <circle cx="26" cy="36" r="13" fill="url(#g1e)"/><circle cx="94" cy="36" r="13" fill="url(#g1e)"/>
+          <circle cx="26" cy="36" r="7" fill="#5A3400" opacity=".5"/><circle cx="94" cy="36" r="7" fill="#5A3400" opacity=".5"/>
+          <circle cx="60" cy="72" r="47" fill="#8A5800" opacity=".2"/><circle cx="60" cy="70" r="47" fill="url(#g1b)"/>
+          <path d="M102 68 Q114 54 110 40" stroke="#9A6200" stroke-width="10" stroke-linecap="round" fill="none"/>
+          <ellipse cx="106" cy="38" rx="11" ry="8" fill="url(#g1b)" stroke="#9A6200" stroke-width="1.2"/>
+          <rect x="102" y="26" width="9" height="14" rx="4.5" fill="url(#g1b)" stroke="#9A6200" stroke-width="1.2"/>
+          <text x="112" y="22" font-size="9" fill="#FFD030" opacity=".9">✦</text>
+          <ellipse cx="13" cy="74" rx="11" ry="7" fill="url(#g1b)" stroke="#9A6200" stroke-width="1.2" transform="rotate(-10,13,74)"/>
+          <ellipse cx="40" cy="65" rx="18" ry="19" fill="white"/><ellipse cx="80" cy="65" rx="18" ry="19" fill="white"/>
+          <circle cx="40" cy="67" r="12" fill="#1A1A2E"/><circle cx="80" cy="67" r="12" fill="#1A1A2E"/>
+          <circle cx="45" cy="61" r="4.5" fill="white" opacity=".9"/><circle cx="85" cy="61" r="4.5" fill="white" opacity=".9"/>
+          <path d="M26 46 L44 44" stroke="#7A4800" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M76 44 L94 46" stroke="#7A4800" stroke-width="2.5" stroke-linecap="round"/>
+          <ellipse cx="28" cy="77" rx="9" ry="5.5" fill="#E87070" opacity=".18"/>
+          <ellipse cx="92" cy="77" rx="9" ry="5.5" fill="#E87070" opacity=".18"/>
+          <path d="M36 87 Q60 104 84 87" fill="none" stroke="#7A4800" stroke-width="3.2" stroke-linecap="round"/>
+          <rect x="29" y="113" width="22" height="12" rx="6" fill="#C4A878"/><rect x="69" y="113" width="22" height="12" rx="6" fill="#C4A878"/>
+          <circle cx="14" cy="88" r="13" fill="url(#g1c)" stroke="#A07010" stroke-width="1.8"/>
+          <text x="14" y="93" text-anchor="middle" font-family="DM Sans,sans-serif" font-weight="600" font-size="13" fill="#7A5000">$</text>
+        </g>
+      </svg>
+      <div class="ph">How's it going<br>so far?</div>
+      <div class="pb">Takes 2 seconds. Helps us improve.</div>
+      <div class="pdiv"></div>
+      <div class="sbtns">
+        <button class="sbtn" onclick="goTY()" type="button"><span class="em">😄</span> Loving it</button>
+        <button class="sbtn" onclick="goFB()" type="button"><span class="em">😐</span> It's okay</button>
+        <button class="sbtn" onclick="goFB()" type="button"><span class="em">😕</span> Something's off</button>
+      </div>
+      <div class="hint">Your honest answer helps us fix things</div>
+    </div>
+
+    <!-- SCREEN 2 -->
+    <div class="screen" id="s2">
+      <svg style="width:84px;height:100px;overflow:visible" viewBox="0 0 120 145" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="g2b" cx="38%" cy="32%" r="65%"><stop offset="0%" stop-color="#DBA830"/><stop offset="55%" stop-color="#B07810"/><stop offset="100%" stop-color="#884800"/></radialGradient>
+          <radialGradient id="g2e" cx="40%" cy="38%" r="60%"><stop offset="0%" stop-color="#A86010"/><stop offset="100%" stop-color="#6A3800"/></radialGradient>
+          <radialGradient id="g2c" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#FFDF60"/><stop offset="100%" stop-color="#C89010"/></radialGradient>
+        </defs>
+        <g class="ff">
+          <ellipse cx="104" cy="48" rx="5" ry="7" fill="rgba(80,160,240,.7)" stroke="rgba(50,120,200,.4)" stroke-width="1"/>
+          <ellipse cx="103" cy="46" rx="2" ry="2.5" fill="rgba(180,220,255,.7)"/>
+          <ellipse cx="60" cy="135" rx="26" ry="5" fill="rgba(0,0,0,0.07)"/>
+          <circle cx="26" cy="36" r="13" fill="url(#g2e)"/><circle cx="94" cy="36" r="13" fill="url(#g2e)"/>
+          <circle cx="26" cy="36" r="7" fill="#5A3400" opacity=".5"/><circle cx="94" cy="36" r="7" fill="#5A3400" opacity=".5"/>
+          <circle cx="60" cy="72" r="47" fill="#7A4800" opacity=".2"/><circle cx="60" cy="70" r="47" fill="url(#g2b)"/>
+          <ellipse cx="13" cy="76" rx="11" ry="7" fill="url(#g2b)" stroke="#9A6200" stroke-width="1.2" transform="rotate(-6,13,76)"/>
+          <ellipse cx="107" cy="76" rx="11" ry="7" fill="url(#g2b)" stroke="#9A6200" stroke-width="1.2" transform="rotate(6,107,76)"/>
+          <ellipse cx="40" cy="65" rx="18" ry="19" fill="white"/><ellipse cx="80" cy="65" rx="18" ry="19" fill="white"/>
+          <circle cx="40" cy="67" r="12" fill="#1A1A2E"/><circle cx="80" cy="67" r="12" fill="#1A1A2E"/>
+          <circle cx="45" cy="61" r="4.5" fill="white" opacity=".9"/><circle cx="85" cy="61" r="4.5" fill="white" opacity=".9"/>
+          <path d="M24 50 L44 44" stroke="#6A3800" stroke-width="3" stroke-linecap="round"/>
+          <path d="M76 44 L96 50" stroke="#6A3800" stroke-width="3" stroke-linecap="round"/>
+          <path d="M44 91 Q60 84 76 91" fill="none" stroke="#7A4800" stroke-width="3" stroke-linecap="round"/>
+          <rect x="29" y="113" width="22" height="12" rx="6" fill="#C4A878"/><rect x="69" y="113" width="22" height="12" rx="6" fill="#C4A878"/>
+          <circle cx="14" cy="88" r="13" fill="url(#g2c)" stroke="#A07010" stroke-width="1.8"/>
+          <text x="14" y="93" text-anchor="middle" font-family="DM Sans,sans-serif" font-weight="600" font-size="13" fill="#7A5000">$</text>
+        </g>
+      </svg>
+      <div class="ph" style="font-size:1.25rem">Help us fix it.<br><em>What happened?</em></div>
+      <div class="clbl">What was the issue?</div>
+      <div class="ccol">
+        <button class="chip" onclick="this.classList.toggle('on')" type="button">Something broke</button>
+        <button class="chip" onclick="this.classList.toggle('on')" type="button">Too confusing</button>
+        <button class="chip" onclick="this.classList.toggle('on')" type="button">Payments or streak wrong</button>
+      </div>
+      <div class="clbl" style="margin-top:2px">Something else?</div>
+      <input class="finput" type="text" placeholder="Describe it briefly…"/>
+      <div class="clbl" style="margin-top:2px">What were you trying to do?</div>
+      <textarea class="farea" placeholder="e.g. I logged a payment but my streak didn't update"></textarea>
+      <div class="pdiv"></div>
+      <div class="clbl">Your email <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#5A3800;font-size:.73rem">— so we can reply when it's fixed</span></div>
+      <input class="femail" type="email" placeholder="you@email.com (optional)"/>
+      <div class="crow">
+        <input type="checkbox" id="cb1" class="ccb">
+        <label for="cb1" class="clg">I agree to share this feedback and my email with the Debt-Free team. <a href="#">Privacy Policy</a></label>
+      </div>
+      <button class="btnp" onclick="goTY()" type="button">Send to the team →</button>
+      <button class="btns" onclick="goTY()" type="button">Skip</button>
+    </div>
+
+    <!-- SCREEN 3 -->
+    <div class="screen" id="s3">
+      <svg style="width:100px;height:120px;overflow:visible" viewBox="0 0 120 145" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="g3b" cx="38%" cy="32%" r="65%"><stop offset="0%" stop-color="#F4C240"/><stop offset="55%" stop-color="#D08A10"/><stop offset="100%" stop-color="#A06008"/></radialGradient>
+          <radialGradient id="g3e" cx="40%" cy="38%" r="60%"><stop offset="0%" stop-color="#C07010"/><stop offset="100%" stop-color="#7A4800"/></radialGradient>
+          <radialGradient id="g3c" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#FFDF60"/><stop offset="100%" stop-color="#C89010"/></radialGradient>
+        </defs>
+        <g class="fn">
+          <ellipse cx="60" cy="135" rx="26" ry="5" fill="rgba(0,0,0,0.07)"/>
+          <circle cx="26" cy="36" r="13" fill="url(#g3e)"/><circle cx="94" cy="36" r="13" fill="url(#g3e)"/>
+          <circle cx="26" cy="36" r="7" fill="#5A3400" opacity=".5"/><circle cx="94" cy="36" r="7" fill="#5A3400" opacity=".5"/>
+          <circle cx="60" cy="72" r="47" fill="#8A5800" opacity=".18"/><circle cx="60" cy="70" r="47" fill="url(#g3b)"/>
+          <path d="M18 72 Q6 58 10 44" stroke="#9A6200" stroke-width="10" stroke-linecap="round" fill="none"/>
+          <ellipse cx="10" cy="43" rx="10" ry="8" fill="url(#g3b)" stroke="#9A6200" stroke-width="1.2"/>
+          <path d="M102 72 Q114 80 112 94" stroke="#9A6200" stroke-width="10" stroke-linecap="round" fill="none"/>
+          <ellipse cx="112" cy="95" rx="10" ry="8" fill="url(#g3b)" stroke="#9A6200" stroke-width="1.2" transform="rotate(15,112,95)"/>
+          <text x="96" y="66" font-size="11" fill="#E05060" opacity=".8">♥</text>
+          <ellipse cx="40" cy="63" rx="17" ry="18" fill="white"/><ellipse cx="80" cy="63" rx="17" ry="18" fill="white"/>
+          <circle cx="40" cy="65" r="11" fill="#1A1A2E"/><circle cx="80" cy="65" r="11" fill="#1A1A2E"/>
+          <circle cx="44" cy="60" r="4" fill="white" opacity=".9"/><circle cx="84" cy="60" r="4" fill="white" opacity=".9"/>
+          <path d="M25 47 Q33 43 43 46" fill="none" stroke="#7A4800" stroke-width="2.8" stroke-linecap="round"/>
+          <path d="M77 46 Q87 43 95 47" fill="none" stroke="#7A4800" stroke-width="2.8" stroke-linecap="round"/>
+          <ellipse cx="27" cy="76" rx="9" ry="5.5" fill="#E87070" opacity=".2"/><ellipse cx="93" cy="76" rx="9" ry="5.5" fill="#E87070" opacity=".2"/>
+          <path d="M35 86 Q60 106 85 86" fill="none" stroke="#7A4800" stroke-width="3.2" stroke-linecap="round"/>
+          <rect x="29" y="115" width="22" height="12" rx="6" fill="#C4A878"/><rect x="69" y="115" width="22" height="12" rx="6" fill="#C4A878"/>
+          <circle cx="14" cy="88" r="13" fill="url(#g3c)" stroke="#A07010" stroke-width="1.8"/>
+          <text x="14" y="93" text-anchor="middle" font-family="DM Sans,sans-serif" font-weight="600" font-size="13" fill="#7A5000">$</text>
+        </g>
+      </svg>
+      <div class="ph">Got it.<br><em>Thank you.</em></div>
+      <div class="pb">We read every message and fix real issues. If you left your email, we'll reply.</div>
+      <div class="tycard">
+        <div class="tyhl">Your feedback matters.</div>
+        <div class="tyb">We read every message. If you left your email, we'll reply when it's fixed.</div>
+      </div>
+      <div style="font-size:.74rem;color:#7A6030;text-align:center;line-height:1.65">Closing automatically…<br><span style="color:#8A5000;font-weight:600">Thank you for helping us improve.</span></div>
+      <div class="abar-wrap"><div class="abar-fill" id="ab"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function dot(n){['d1','d2','d3'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',i===n-1))}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on')}
+function goFB(){show('s2');dot(2)}
+function goTY(){
+  show('s3');dot(3);
+  var b=document.getElementById('ab');
+  b.style.animation='none';b.offsetHeight;
+  b.classList.remove('abar-anim');b.offsetHeight;
+  b.classList.add('abar-anim');
+  setTimeout(function(){
+    show('s1');dot(1);
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+    document.querySelectorAll('input[type=text],input[type=email],textarea').forEach(i=>i.value='');
+    var cb=document.getElementById('cb1');if(cb)cb.checked=false;
+  },2700);
+}
+</script>
+</body>
+</html>
