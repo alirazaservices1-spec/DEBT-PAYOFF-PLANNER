@@ -7,7 +7,7 @@
     "icon": "./assets/images/iconApp.png",
     "scheme": "debtfree",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/iconApp.png",
       "resizeMode": "contain",
@@ -32,7 +32,7 @@
       [
         "expo-router",
         {
-          "origin": "https://ac260501-19f4-4e19-9266-3a35fb42df7b-00-3aqy0whyan8o8.kirk.replit.dev:5000"
+          "origin": "https://0e61241c-9dcd-4210-95f3-3fbc0d08d5f4-00-2sw12hhjxubm8.worf.replit.dev:5000"
         }
       ],
       "expo-font",
