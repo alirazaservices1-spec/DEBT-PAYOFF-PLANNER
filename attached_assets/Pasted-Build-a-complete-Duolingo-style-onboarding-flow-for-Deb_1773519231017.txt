@@ -1,0 +1,199 @@
+Build a complete Duolingo-style onboarding flow for 
+DebtPath. This is the LAST missing piece of Milestone 2.
+The flow only shows ONCE on first launch and never again.
+Store completion flag in AsyncStorage: onboardingComplete
+
+Model every screen closely after Duolingo's onboarding 
+but adapted for debt payoff audience.
+
+---
+
+## SCREEN 1 — SPLASH SCREEN
+
+Exactly like Duolingo splash:
+- White background
+- DebtPath logo centered on screen
+- App name "DebtPath" below logo in dark green bold font
+- Tagline below name: "Your path to debt freedom. Free. Forever."
+- Big green "GET STARTED" button at bottom (full width)
+- Smaller grey "I ALREADY HAVE THE APP" text link below button
+- No animations needed, clean and simple
+- This replaces the current loading screen
+
+---
+
+## SCREEN 2 — DEX INTRO
+
+Exactly like Duolingo "Hi there I'm Duo" screen:
+- White background
+- Dex mascot centered on screen, slightly below middle
+- Speech bubble ABOVE Dex (not below)
+- Speech bubble text types out letter by letter:
+  "Hi there! I'm Dex!"
+- Dex doing happy bouncing animation while text types
+- After text finishes Dex settles into idle bob
+- Back arrow top left (grey)
+- Big green "CONTINUE" button at bottom
+- No progress bar on this screen
+
+---
+
+## SCREEN 3 — QUESTION INTRO
+
+Exactly like Duolingo "Just 7 quick questions" screen:
+- White background
+- Dex centered with speech bubble above
+- Dex has excited sparkle eyes animation
+- Speech bubble types out:
+  "Just 3 quick questions to build 
+  your personalized debt payoff plan!"
+- Back arrow top left
+- Big green "CONTINUE" button at bottom
+
+---
+
+## SCREEN 4 — QUESTION 1
+
+Exactly like Duolingo question screens:
+- Green progress bar at very top (1/3 filled)
+- Dex small on LEFT side holding a clipboard
+- Speech bubble on RIGHT of Dex:
+  "What is your main debt goal?"
+- Below Dex and bubble show 5 tappable option cards:
+  - 💳 Pay off credit cards
+  - 🏠 Pay off my mortgage faster
+  - 📋 Pay off student loans
+  - 🏢 Pay off business debt
+  - 🗂️ Get completely debt free
+- Cards have rounded corners, border, white background
+- When tapped: card turns green with white text
+- CONTINUE button at bottom (disabled until option selected)
+- CONTINUE turns bright green when option selected
+
+---
+
+## SCREEN 5 — QUESTION 2
+
+- Progress bar at top (2/3 filled)
+- Dex small on left with clipboard
+- Speech bubble: "How much total debt do you have?"
+- 4 tappable option cards:
+  - Under $5,000
+  - $5,000 - $15,000
+  - $15,000 - $50,000
+  - Over $50,000
+- Same tap to select green behavior
+- CONTINUE button disabled until selected
+
+---
+
+## SCREEN 6 — QUESTION 3
+
+- Progress bar at top (3/3 filled)
+- Dex small on left with clipboard
+- Speech bubble: "How motivated are you to 
+  become debt free?"
+- 4 tappable option cards:
+  - 🔥 Super motivated - let's crush it!
+  - 💪 Pretty motivated
+  - 😐 Just getting started
+  - 😟 Feeling a bit overwhelmed
+- Same tap to select behavior
+- CONTINUE button
+
+---
+
+## SCREEN 7 — COMPLETION CELEBRATION
+
+Exactly like Duolingo "Learning Legend" screen:
+- White background
+- Dex in full celebrating animation 
+  (arms up, jumping, spin)
+- Confetti falling from top of screen
+- Bold text below Dex:
+  "You're ready to crush your debt!"
+- Subtitle: "Your personalized plan is ready."
+- Show 3 colored stat badge cards in a row:
+  - GOAL badge (green): shows their Q1 answer
+  - DEBT badge (blue): shows their Q2 answer
+  - LEVEL badge (orange): "Debt Rookie"
+- Big blue "CLAIM +100 XP" button at bottom
+- Small share icon button to left of CLAIM button
+- Tapping CLAIM awards +100 XP via GameContext
+- Triggers level up check
+
+---
+
+## SCREEN 8 — STREAK BORN
+
+Exactly like Duolingo "A streak is born" screen:
+- White background
+- Speech bubble at top:
+  "A debt-free journey is born! 
+  Log payments every day to keep 
+  your streak growing."
+- Dex hugging a large orange flame icon
+  centered on screen
+- Below that: giant bold orange "1"
+- Below that: "day streak" in orange
+- Weekly calendar row showing 7 day dots
+  (Sa Su Mo Tu We Th Fr or current day first)
+- Today's dot filled orange with white checkmark
+- Rest of dots grey/empty
+- Big blue "I'M COMMITTED" button at bottom
+- Small share icon to left of button
+
+---
+
+## SCREEN 9 — STREAK GOAL PICKER
+
+Exactly like Duolingo streak goal screen:
+- White background
+- Dex with flame/calendar icon centered
+- Speech bubble: "Let's commit to your 
+  debt payoff streak!"
+- 4 tappable option rows (not cards, full width rows):
+  - 7 days     Earn +150 XP
+  - 14 days    Earn +300 XP
+  - 30 days    Earn +500 XP
+  - 60 days    Earn +750 XP
+- Each row: bold day count on left, XP reward greyed on right
+- Tapping a row highlights it green
+- "COMMIT TO MY GOAL" button at bottom
+  (disabled/grey until one selected)
+- Selecting a goal saves to AsyncStorage: streakGoal
+- Tapping COMMIT awards the selected XP amount
+
+---
+
+## AFTER ONBOARDING COMPLETES
+
+- Set onboardingComplete = true in AsyncStorage
+- Navigate to main Dashboard tab
+- Dex on dashboard should be in celebrating state
+  for first 5 seconds then settle to idle
+- Dashboard shows XP already at 100 from CLAIM button
+- Streak shows 1 day
+
+---
+
+## GENERAL REQUIREMENTS
+
+- All screens white background (light mode)
+  dark background (dark mode)
+- Back button on every screen except splash
+- Smooth slide transitions between screens
+- All answers saved to AsyncStorage:
+  - onboardingGoal (Q1 answer)
+  - onboardingDebtRange (Q2 answer)  
+  - onboardingMotivation (Q3 answer)
+  - streakGoal (streak commitment)
+  - onboardingComplete (true when done)
+- Onboarding answers should personalize:
+  - Dex messages on dashboard
+  - Recommendation cards shown
+  - First tip of the day from Dex
+- Do NOT break any existing 
+  Milestone 1 or Milestone 2 functionality
+- Send QR when complete so I can test 
+  on device. ty!

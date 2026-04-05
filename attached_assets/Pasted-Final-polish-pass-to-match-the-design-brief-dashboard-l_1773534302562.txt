@@ -1,0 +1,84 @@
+Final polish pass to match the design 
+brief dashboard layout priority exactly.
+
+DASHBOARD PRIORITY ORDER 
+(must not change, visible without scroll 
+on iPhone SE):
+
+1. Dex card with today greeting
+2. Streak flame + count (side by side 
+   with XP bar)
+3. XP bar + level name
+4. Payoff date + impact counter
+5. LOG PAYMENT TODAY button 
+   (most prominent element on screen)
+
+NUMBER HIERARCHY:
+- Streak count: Nunito ExtraBold 48px+, 
+  Dex Orange #E8600A
+- XP and level: Nunito Bold 24px, 
+  Trust Blue #1F4E8C
+- Debt balance: Nunito Regular 18px, 
+  neutral dark gray (NEVER red)
+- Interest saved: Nunito Bold 20px, 
+  Freedom Green #1E7A45
+- Payoff date: Nunito ExtraBold 28px
+
+LOG PAYMENT BUTTON:
+- Full width, prominent
+- Freedom Green background
+- White Nunito Bold text
+- Always visible without scrolling
+- Rounded corners 16px
+
+DEBT PAID OFF GRAND FINALE 
+(most important screen in entire app):
+
+Phase 1 (0-0.5s): 
+Screen flashes white once
+
+Phase 2 (0.5-1.5s): 
+Full screen confetti explosion
+60-80 particles, rectangles + circles
+Colors: orange, blue, gold, green, white
+
+Phase 3 (1.0-2.0s): 
+"DEBT FREE" text animates in
+96px Nunito ExtraBold
+Dex in full legendary celebrating
+
+Phase 4 (2.0-5.0s): 
+Real numbers appear one by one:
+"Total interest saved: $[X]"
+"Months ahead of schedule: [X]"
+"Streak maintained: [X] days"
+Each with soft ping sound
+
+Phase 5 (5.0s+):
+"Share your win 🎉" button appears
+Opens native share sheet with:
+"I just paid off my [debt name] 
+using DebtPath! 🎉 #DebtFree 
+#DebtPath"
+
+ACCESSIBILITY:
+- All tap targets minimum 44x44pt
+- Dex is tappable (random speech bubble)
+- Reduce motion: replace bounces 
+  with fade transitions
+- All text minimum 4.5:1 contrast
+
+EMAIL NOTIFICATIONS:
+Add email notification option in Settings:
+- Weekly summary email (Sunday)
+- Streak at risk email
+- Milestone achievement email
+- Use Expo Notifications for scheduling
+- User enters email in Settings
+- Default ON if email provided
+
+Remove "Send test notification" 
+developer button from Personal Goal 
+screen before final build.
+
+Send QR for final Milestone 2 testing. ty!

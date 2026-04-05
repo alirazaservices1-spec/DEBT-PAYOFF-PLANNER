@@ -1,0 +1,52 @@
+We need to implement several updates to the debt payoff app. Here are the changes:
+
+---
+
+## 1. ADDITIONAL DEBT TYPES
+Add support for these new debt categories in the debt entry form:
+- Collection Account
+- Repossessed Vehicle
+- Business Credit Cards & Loans (separate category)
+- Secured Business Debts (separate from unsecured business debts)
+
+Separate business debt types clearly from personal debt types in the UI.
+
+---
+
+## 2. SMART RECOMMENDATION BANNERS (Monetization Engine)
+Build a real-time recommendation banner system that triggers based on user input. Banners should appear immediately/inline as users type — not hidden away.
+
+Trigger rules:
+- Interest rate >= 18% → Show: "See if you can lower your 18% interest with a personal loan →"
+- Total unsecured debt > $10,000 → Show: "See if you can reduce your $[amount] balance and monthly payment →"
+- Any tax debt entered → Show banner for tax resolution services
+- Any business debt entered → Show banner for business debt solutions
+
+Banner behavior:
+- Pop up RIGHT when the threshold is crossed (e.g., user types "24%" in interest field)
+- Frame as a USER BENEFIT, not an ad (e.g., "You may qualify for a lower rate")
+- Should feel helpful and personalized, not intrusive
+- This is the app's primary monetization mechanism — make it prominent but tasteful
+
+---
+
+## 3. DEBT PAYOFF STRATEGIES
+Audit and confirm we have 100% coverage of all payoff strategies offered by competitor paid apps, including but not limited to:
+- Avalanche (highest interest first)
+- Snowball (lowest balance first)
+- Hybrid/custom ordering
+- Debt consolidation scenarios
+- Any others found in top competitor apps
+
+All of these should be available FREE to users.
+
+---
+
+## 4. UI/UX NOTES
+- The personalized recommendation section is currently too hidden — surface it more prominently
+- Recommendation banners should feel like a feature/benefit callout, integrated naturally into the debt entry flow
+- Keep the overall app "always free" positioning for core features
+
+---
+
+Please implement these changes and confirm what was updated.

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtPath – Welcome Back</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #111827;
+  display: flex; align-items: flex-start; justify-content: center;
+  min-height: 100vh; font-family: 'Nunito', sans-serif; padding: 24px 16px;
+}
+.phone {
+  width: 340px;
+  background: #F7F2EA; border-radius: 44px;
+  border: 8px solid #1e2535;
+  box-shadow: 0 40px 90px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.15);
+  overflow: hidden; position: relative; display: flex; flex-direction: column;
+}
+.phone::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 88px; height: 24px; background: #1e2535;
+  border-radius: 0 0 14px 14px; z-index: 20;
+}
+
+/* ── HERO ── */
+.hero {
+  background: linear-gradient(165deg,#1A0A00 0%,#2A1400 55%,#1A0A00 100%);
+  padding: 36px 18px 20px; position: relative; overflow: hidden;
+}
+.hero::before {
+  content:''; position:absolute; top:-50px; right:-50px;
+  width:180px; height:180px;
+  background:radial-gradient(circle,rgba(245,192,48,.08) 0%,transparent 70%);
+  border-radius:50%;
+}
+
+.days-away-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(255,255,255,.08); border:1.5px solid rgba(255,255,255,.15);
+  border-radius:20px; padding:5px 12px; margin-bottom:14px;
+  font-family:'Nunito Sans',sans-serif; font-size:.68rem; font-weight:800;
+  color:rgba(255,255,255,.6); letter-spacing:.06em; text-transform:uppercase;
+}
+.days-away-chip span { color:#F5C030; }
+
+.hero-title {
+  font-family:'Nunito',sans-serif; font-size:1.6rem; font-weight:900;
+  color:#ffffff; line-height:1.15; margin-bottom:4px;
+}
+.hero-title em { color:#F5C030; font-style:normal; }
+.hero-sub {
+  font-family:'Nunito Sans',sans-serif; font-size:.82rem; font-weight:600;
+  color:rgba(255,255,255,.55); margin-bottom:16px; line-height:1.55;
+}
+
+/* Dex with sad→happy animation */
+.dex-center { display:flex; justify-content:center; margin-bottom:12px; }
+.dex-wrap { position:relative; cursor:pointer; }
+.dex-wrap svg { animation:dexWelcome 3s ease-in-out infinite; }
+@keyframes dexWelcome {
+  0%,100% { transform:translateY(0) rotate(0); }
+  40%     { transform:translateY(-8px) rotate(1deg); }
+  70%     { transform:translateY(-4px) rotate(-.5deg); }
+}
+
+/* speech bubble pointing down */
+.dex-bubble {
+  background:#fff; border:2px solid rgba(245,192,48,.5);
+  border-radius:14px; padding:10px 14px;
+  font-family:'Nunito Sans',sans-serif; font-size:.82rem; font-weight:700;
+  color:#1A0A00; line-height:1.5; text-align:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.15); position:relative;
+}
+.dex-bubble::after {
+  content:''; position:absolute; bottom:-9px; left:50%; transform:translateX(-50%);
+  border-left:8px solid transparent; border-right:8px solid transparent;
+  border-top:9px solid rgba(245,192,48,.5);
+}
+
+/* streak lost / new streak */
+.streak-row {
+  display:flex; align-items:center; gap:10px; margin-top:14px;
+  background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.1);
+  border-radius:12px; padding:10px 14px;
+}
+.streak-old {
+  flex:1; text-align:center; border-right:1px solid rgba(255,255,255,.1); padding-right:10px;
+}
+.streak-new { flex:1; text-align:center; }
+.sl-val { font-family:'Nunito',sans-serif; font-size:1.3rem; font-weight:900; line-height:1; }
+.sl-lbl { font-family:'Nunito Sans',sans-serif; font-size:.6rem; font-weight:700; color:rgba(255,255,255,.4); text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+.streak-arrow { color:rgba(255,255,255,.3); font-size:1.1rem; }
+
+/* ── SCROLL ── */
+.scroll-area { flex:1; overflow-y:auto; padding:14px 14px 20px; scrollbar-width:none; }
+.scroll-area::-webkit-scrollbar { display:none; }
+
+/* Section label */
+.sec-label {
+  font-family:'Nunito Sans',sans-serif; font-size:.65rem; font-weight:800;
+  color:#8A7060; text-transform:uppercase; letter-spacing:.12em; margin-bottom:8px;
+}
+
+/* CATCH UP SUMMARY */
+.catchup-card {
+  background:#1A0A00; border-radius:16px; padding:14px 16px; margin-bottom:12px;
+}
+.cc-title { font-family:'Nunito',sans-serif; font-size:.88rem; font-weight:900; color:#F5C030; margin-bottom:10px; }
+.cc-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 0; border-bottom:1px solid rgba(255,255,255,.07);
+}
+.cc-row:last-child { border-bottom:none; padding-bottom:0; }
+.cc-label { font-family:'Nunito Sans',sans-serif; font-size:.72rem; font-weight:700; color:rgba(255,255,255,.5); }
+.cc-val { font-family:'Nunito',sans-serif; font-size:.85rem; font-weight:800; color:#fff; }
+.cc-val.green { color:#8BC34A; }
+.cc-val.amber { color:#F5C030; }
+.cc-val.red { color:#FF8A80; }
+
+/* MISSED PAYMENTS */
+.missed-header {
+  display:flex; align-items:center; gap:8px; margin-bottom:8px;
+}
+.missed-icon { font-size:1.1rem; }
+.missed-title { font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:900; color:#C03010; }
+
+.payment-card {
+  background:#fff; border-radius:14px; padding:13px 14px; margin-bottom:8px;
+  border:2px solid #E0D8CE; position:relative; overflow:hidden;
+}
+.payment-card.overdue { border-color:#FF8A80; background:#FFF5F5; }
+.payment-card.due-soon { border-color:#F5C030; background:#FFFBEB; }
+.payment-card.current { border-color:#E0D8CE; }
+
+.pc-urgency {
+  display:inline-block; font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:900;
+  padding:2px 8px; border-radius:6px; margin-bottom:7px;
+  text-transform:uppercase; letter-spacing:.06em;
+}
+.urg-overdue { background:#FECACA; color:#991B1B; }
+.urg-soon { background:#FEF3C7; color:#8A5C00; }
+.urg-today { background:#DCFCE7; color:#166534; }
+
+.pc-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.pc-left { display:flex; align-items:center; gap:9px; }
+.pc-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+.pc-icon-cc { background:#EFF6FF; }
+.pc-icon-loan { background:#F3E8FF; }
+.pc-name { font-family:'Nunito',sans-serif; font-size:.9rem; font-weight:800; color:#1A0A00; }
+.pc-type { font-family:'Nunito Sans',sans-serif; font-size:.65rem; font-weight:700; color:#8A7060; }
+.pc-amount { font-family:'Nunito',sans-serif; font-size:1.1rem; font-weight:900; color:#1A0A00; }
+
+.pc-detail {
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px;
+  background:#F7F2EA; border-radius:9px; padding:8px 10px;
+}
+.pcd-item {}
+.pcd-lbl { font-family:'Nunito Sans',sans-serif; font-size:.58rem; font-weight:700; color:#A09080; text-transform:uppercase; }
+.pcd-val { font-family:'Nunito',sans-serif; font-size:.78rem; font-weight:800; color:#1A0A00; margin-top:1px; }
+.pcd-val.red { color:#C03010; }
+.pcd-val.amber { color:#D4900A; }
+
+.pay-btn {
+  width:100%; margin-top:10px; border-radius:10px; padding:10px;
+  border:none; font-family:'Nunito',sans-serif; font-size:.88rem; font-weight:800;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px;
+  transition:all .15s;
+}
+.pay-btn-primary { background:linear-gradient(135deg,#1A6FC4,#0D5BAE); color:white; box-shadow:0 6px 18px rgba(26,111,196,.3); }
+.pay-btn-secondary { background:#F7F2EA; border:2px solid #D4C8B8; color:#5A3A10; }
+.pay-btn:hover { transform:translateY(-1px); }
+
+/* TODAY'S TASKS (compact) */
+.task-mini {
+  background:#fff; border:2px solid #E0D8CE; border-radius:12px;
+  padding:10px 13px; margin-bottom:7px; cursor:pointer;
+  display:flex; align-items:center; gap:9px; transition:all .14s;
+}
+.task-mini:hover { border-color:#3A9A20; }
+.task-mini.done { border-color:#3A9A20; background:#F0FFF4; }
+.tm-ring {
+  width:28px; height:28px; border-radius:50%; flex-shrink:0;
+  border:2.5px solid #D4C8B8; background:#F7F2EA;
+  display:flex; align-items:center; justify-content:center;
+  font-size:.68rem; font-weight:900; color:white; transition:all .18s;
+}
+.task-mini.done .tm-ring { background:#3A9A20; border-color:#3A9A20; }
+.task-mini.done .tm-ring::after { content:'✓'; }
+.tm-icon { font-size:1.1rem; flex-shrink:0; }
+.tm-body { flex:1; }
+.tm-name { font-family:'Nunito',sans-serif; font-size:.85rem; font-weight:800; color:#1A0A00; }
+.task-mini.done .tm-name { text-decoration:line-through; color:#5A7A50; }
+.tm-desc { font-family:'Nunito Sans',sans-serif; font-size:.67rem; font-weight:600; color:#8A7060; margin-top:1px; }
+.tm-xp { font-family:'Nunito',sans-serif; font-size:.68rem; font-weight:900; color:#1A6FC4; background:#EFF6FF; border-radius:7px; padding:2px 7px; flex-shrink:0; }
+.task-mini.done .tm-xp { color:#3A9A20; background:#DCFCE7; }
+
+/* RESTART CTA */
+.restart-btn {
+  width:100%; border-radius:22px; padding:16px;
+  background:linear-gradient(135deg,#F5C030,#D4900A);
+  border:none; color:#1A0A00;
+  font-family:'Nunito',sans-serif; font-size:1rem; font-weight:900;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  box-shadow:0 10px 28px rgba(245,192,48,.4); transition:all .15s;
+  position:relative; overflow:hidden; margin-top:4px;
+}
+.restart-btn::before {
+  content:''; position:absolute; top:0; left:-100%; width:55%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);
+  animation:shimmer 2s ease-in-out infinite;
+}
+@keyframes shimmer{0%{left:-100%}100%{left:220%}}
+.restart-btn:hover { transform:translateY(-2px); }
+
+/* xp toast */
+.xp-toast {
+  position:fixed; pointer-events:none; z-index:9999;
+  font-family:'Nunito',sans-serif; font-weight:900; font-size:1.1rem;
+  text-shadow:0 2px 8px rgba(0,0,0,.2); white-space:nowrap;
+  animation:xpFloat 1.8s cubic-bezier(.22,1,.36,1) both forwards;
+}
+@keyframes xpFloat { 0%{opacity:0;transform:scale(.5) translateY(0)} 18%{opacity:1;transform:scale(1.3) translateY(-10px)} 75%{opacity:1;transform:scale(1.05) translateY(-55px)} 100%{opacity:0;transform:scale(.9) translateY(-80px)} }
+@keyframes dexPop { from{transform:scale(.7) rotate(-8deg)} to{transform:scale(1) rotate(0)} }
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="days-away-chip">Away for <span id="daysAway">12 days</span></div>
+    <div class="hero-title">Welcome back,<br><em>Eric!</em> 👋</div>
+    <div class="hero-sub" id="heroSub">We missed you. Your plan is still here and your debt-free date is still Sep 2028. Let's get back on track together.</div>
+
+    <!-- Dex happy to see them -->
+    <div class="dex-center">
+      <div class="dex-wrap" onclick="tapDex()">
+        <svg viewBox="0 0 100 100" width="90" height="90" id="dexSvg">
+          <!-- arms open wide - welcoming -->
+          <ellipse cx="4" cy="45" rx="8.5" ry="16" fill="#D4900A" transform="rotate(-30,4,45)"/>
+          <ellipse cx="96" cy="45" rx="8.5" ry="16" fill="#D4900A" transform="rotate(30,96,45)"/>
+          <circle cx="50" cy="52" r="33" fill="#EAA835"/>
+          <ellipse cx="50" cy="70" rx="25" ry="12" fill="#C07820" opacity=".18"/>
+          <circle cx="22" cy="26" r="11" fill="#D09828"/>
+          <circle cx="78" cy="26" r="11" fill="#D09828"/>
+          <circle cx="22" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+          <circle cx="78" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+          <!-- warm eyes -->
+          <ellipse cx="35" cy="46" rx="12" ry="13" fill="white"/>
+          <ellipse cx="65" cy="46" rx="12" ry="13" fill="white"/>
+          <circle cx="36" cy="44" r="8.5" fill="#1A0800"/>
+          <circle cx="66" cy="44" r="8.5" fill="#1A0800"/>
+          <circle cx="32" cy="40" r="3" fill="white"/>
+          <circle cx="62" cy="40" r="3" fill="white"/>
+          <!-- happy brows -->
+          <path d="M22 30 Q34 23 44 28" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M56 28 Q66 23 78 30" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <!-- warm big smile -->
+          <path d="M26 62 Q50 80 74 62" stroke="#A86010" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <circle cx="26" cy="62" r="2" fill="#C07820" opacity=".5"/>
+          <circle cx="74" cy="62" r="2" fill="#C07820" opacity=".5"/>
+          <ellipse cx="22" cy="55" rx="7" ry="4.5" fill="#E87050" opacity=".28"/>
+          <ellipse cx="78" cy="55" rx="7" ry="4.5" fill="#E87050" opacity=".28"/>
+          <text x="72" y="18" style="font-size:11px;font-family:sans-serif">👋</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="dex-bubble" id="dexBubble">
+      Life happens. No judgment. You built a great plan and it is still waiting. Let's pick up right where you left off. 💪
+    </div>
+
+    <!-- Streak reset row -->
+    <div class="streak-row">
+      <div class="streak-old">
+        <div class="sl-val" style="color:rgba(255,255,255,.3)">🔥 7</div>
+        <div class="sl-lbl">Old streak</div>
+      </div>
+      <div class="streak-arrow">→</div>
+      <div class="streak-new">
+        <div class="sl-val" style="color:#F5C030">🌱 Start fresh</div>
+        <div class="sl-lbl">Build a new one today</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-area">
+
+    <!-- CATCH-UP SUMMARY -->
+    <div class="sec-label">What happened while you were away</div>
+    <div class="catchup-card">
+      <div class="cc-title">12-Day Catch-Up 📋</div>
+      <div class="cc-row">
+        <span class="cc-label">Your plan</span>
+        <span class="cc-val green">Still on track ✓</span>
+      </div>
+      <div class="cc-row">
+        <span class="cc-label">Debt-free date</span>
+        <span class="cc-val">Sep 2028 — unchanged</span>
+      </div>
+      <div class="cc-row">
+        <span class="cc-label">Payments due or overdue</span>
+        <span class="cc-val red">2 need attention</span>
+      </div>
+      <div class="cc-row">
+        <span class="cc-label">Interest accrued (est.)</span>
+        <span class="cc-val amber">~$55 while away</span>
+      </div>
+      <div class="cc-row">
+        <span class="cc-label">Days until next payment</span>
+        <span class="cc-val amber">3 days — act now</span>
+      </div>
+    </div>
+
+    <!-- PENDING PAYMENTS -->
+    <div class="missed-header">
+      <span class="missed-icon">⚠️</span>
+      <span class="missed-title">Payments needing attention</span>
+    </div>
+
+    <!-- OVERDUE -->
+    <div class="payment-card overdue">
+      <span class="pc-urgency urg-overdue">Overdue — 5 days</span>
+      <div class="pc-top">
+        <div class="pc-left">
+          <div class="pc-icon pc-icon-cc">💳</div>
+          <div>
+            <div class="pc-name">Chase Sapphire</div>
+            <div class="pc-type">Credit Card · 24.99% APR</div>
+          </div>
+        </div>
+        <div class="pc-amount">$364</div>
+      </div>
+      <div class="pc-detail">
+        <div class="pcd-item">
+          <div class="pcd-lbl">Due Date</div>
+          <div class="pcd-val red">Mar 12 — LATE</div>
+        </div>
+        <div class="pcd-item">
+          <div class="pcd-lbl">Min. Payment</div>
+          <div class="pcd-val">$116</div>
+        </div>
+        <div class="pcd-item">
+          <div class="pcd-lbl">Your Target</div>
+          <div class="pcd-val amber">$364 ⚡</div>
+        </div>
+      </div>
+      <button class="pay-btn pay-btn-primary" onclick="logPayment(this,'Chase Sapphire','$364')">
+        📝 Log Payment — $364
+      </button>
+    </div>
+
+    <!-- DUE SOON -->
+    <div class="payment-card due-soon">
+      <span class="pc-urgency urg-soon">Due in 3 days</span>
+      <div class="pc-top">
+        <div class="pc-left">
+          <div class="pc-icon pc-icon-loan">🏦</div>
+          <div>
+            <div class="pc-name">Personal Loan</div>
+            <div class="pc-type">Installment · 18.00% APR</div>
+          </div>
+        </div>
+        <div class="pc-amount">$248</div>
+      </div>
+      <div class="pc-detail">
+        <div class="pcd-item">
+          <div class="pcd-lbl">Due Date</div>
+          <div class="pcd-val amber">Mar 20</div>
+        </div>
+        <div class="pcd-item">
+          <div class="pcd-lbl">Min. Payment</div>
+          <div class="pcd-val">$248</div>
+        </div>
+        <div class="pcd-item">
+          <div class="pcd-lbl">Balance</div>
+          <div class="pcd-val">$11,000</div>
+        </div>
+      </div>
+      <button class="pay-btn pay-btn-secondary" onclick="logPayment(this,'Personal Loan','$248')">
+        📝 Log Payment — $248
+      </button>
+    </div>
+
+    <!-- TODAY'S TASKS -->
+    <div class="sec-label" style="margin-top:4px">Complete today to start your new streak</div>
+
+    <div class="task-mini" id="t1" onclick="doTask('t1',1)">
+      <div class="tm-ring" id="tr1"></div>
+      <span class="tm-icon">🚫</span>
+      <div class="tm-body">
+        <div class="tm-name">No new debt today</div>
+        <div class="tm-desc">Confirm no new charges on enrolled cards.</div>
+      </div>
+      <div class="tm-xp" id="tx1">+25 XP</div>
+    </div>
+
+    <div class="task-mini" id="t2" onclick="doTask('t2',2)">
+      <div class="tm-ring" id="tr2"></div>
+      <span class="tm-icon">💰</span>
+      <div class="tm-body">
+        <div class="tm-name">Saved today's $0.50</div>
+        <div class="tm-desc">Small daily habit = big momentum over time.</div>
+      </div>
+      <div class="tm-xp" id="tx2">+25 XP</div>
+    </div>
+
+    <div class="task-mini" id="t3" onclick="doTask('t3',3)">
+      <div class="tm-ring" id="tr3"></div>
+      <span class="tm-icon">📅</span>
+      <div class="tm-body">
+        <div class="tm-name">Log Chase Sapphire payment</div>
+        <div class="tm-desc">Log above to clear the overdue status.</div>
+      </div>
+      <div class="tm-xp" id="tx3">+50 XP</div>
+    </div>
+
+    <button class="restart-btn" onclick="restartStreak()">
+      🔥 I'm Back — Restart My Streak!
+    </button>
+
+    <div style="text-align:center;font-family:'Nunito Sans',sans-serif;font-size:.7rem;font-weight:700;color:#A09080;margin-top:10px;line-height:1.55;padding:0 4px">
+      Your debt-free date is Sep 2028. Missing a few days does not change that.<br>What matters is today. 💪
+    </div>
+
+  </div>
+</div>
+
+<script>
+var daysAway = 12;
+var tasksDone = 0;
+var paymentsDone = 0;
+
+// Set dynamic content
+document.getElementById('daysAway').textContent = daysAway + ' days';
+if (daysAway <= 3) {
+  document.getElementById('heroSub').textContent = "Just a couple days away - your streak was so close! Let's get it back right now.";
+  document.querySelector('.dex-bubble').textContent = "Only " + daysAway + " days! Your streak is still warm. Let's fire it back up! 🔥";
+} else if (daysAway <= 7) {
+  document.getElementById('heroSub').textContent = "A week away - totally understandable. Your plan survived. Let's review what you missed and get moving.";
+} else {
+  document.getElementById('heroSub').textContent = "Life got busy - we get it. Your plan is still solid and your debt-free date is still Sep 2028. Let's catch you up and get back on track.";
+}
+
+function tapDex() {
+  var msgs = [
+    "I kept your plan safe while you were gone! 😄",
+    "Every champion takes a break. Champions also come back! 💪",
+    "Your future self is SO glad you came back today. 🌟",
+    "Sep 2028 is still yours. Let's get there together! 🎯"
+  ];
+  document.getElementById('dexBubble').textContent = msgs[Math.floor(Math.random()*msgs.length)];
+  var dex = document.getElementById('dexSvg');
+  dex.style.animation = 'dexPop .5s cubic-bezier(.34,1.56,.64,1) both';
+  setTimeout(function(){ dex.style.animation = ''; }, 600);
+}
+
+function logPayment(btn, name, amount) {
+  btn.textContent = '✓ ' + name + ' ' + amount + ' — Logged!';
+  btn.style.background = '#3A9A20';
+  btn.style.color = 'white';
+  btn.style.boxShadow = '0 6px 18px rgba(58,154,32,.3)';
+  btn.onclick = null;
+  paymentsDone++;
+  burstConfetti(28);
+  showXP('+50 XP 💰', '#3A9A20');
+  // Auto-complete task 3 if Chase was logged
+  if (name === 'Chase Sapphire') {
+    setTimeout(function(){ doTask('t3', 3); }, 400);
+  }
+  updateDexOnProgress();
+}
+
+function doTask(id, num) {
+  var el = document.getElementById(id);
+  if (el.classList.contains('done')) return;
+  el.classList.add('done');
+  tasksDone++;
+  burstConfetti(22);
+  var xpMap = {1:25, 2:25, 3:50};
+  showXP('+' + xpMap[num] + ' XP', '#1A6FC4');
+  updateDexOnProgress();
+}
+
+function updateDexOnProgress() {
+  var total = tasksDone + paymentsDone;
+  var msgs = [
+    "That is one step forward. Keep going! 💪",
+    "Look at you go! Two things done already! ⭐",
+    "You are almost there. Do not stop now! 🔥",
+    "ALL DONE! Streak is back. You are a champion! 🏆"
+  ];
+  if (total <= msgs.length) {
+    document.getElementById('dexBubble').textContent = msgs[Math.min(total-1, msgs.length-1)];
+  }
+}
+
+function restartStreak() {
+  burstConfetti(70);
+  setTimeout(function(){ burstConfetti(50); }, 250);
+  setTimeout(function(){ burstConfetti(40); }, 500);
+  showXP('🔥 STREAK RESTARTED! Day 1!', '#F5C030');
+  var btn = document.querySelector('.restart-btn');
+  btn.textContent = '🎉 Day 1 streak started!';
+  btn.style.background = 'linear-gradient(135deg,#3A9A20,#2A8010)';
+  btn.style.boxShadow = '0 10px 28px rgba(58,154,32,.4)';
+  btn.onclick = null;
+  document.getElementById('dexBubble').textContent = "Day 1 of your new streak! It only gets easier from here. I am so proud of you for coming back. 🏆";
+  // Animate Dex
+  var dex = document.getElementById('dexSvg');
+  dex.style.animation = 'dexPop .6s cubic-bezier(.34,1.56,.64,1) both';
+  setTimeout(function(){ dex.style.animation = ''; }, 700);
+}
+
+function burstConfetti(count) {
+  var phone = document.getElementById('phone');
+  var rect = phone.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + 160;
+  var colors = ['#F5C030','#1A6FC4','#3A9A20','#F06030','#9B59B6','#E8A020','#fff'];
+  for (var i = 0; i < count; i++) {
+    (function(){
+      var c = document.createElement('div');
+      var size = 5 + Math.random()*7;
+      var angle = Math.random()*360;
+      var dist = 40 + Math.random()*110;
+      c.style.cssText =
+        'position:fixed;width:'+size+'px;height:'+size+'px;' +
+        'left:'+(cx + Math.cos(angle*Math.PI/180)*dist - size/2)+'px;' +
+        'top:'+(cy + Math.sin(angle*Math.PI/180)*dist - 50 - size/2)+'px;' +
+        'background:'+colors[Math.floor(Math.random()*colors.length)]+';' +
+        'border-radius:'+(Math.random()>.4?'50%':'2px')+';pointer-events:none;z-index:9999;' +
+        'transition:transform '+(0.7+Math.random()*.8)+'s cubic-bezier(.2,.8,.3,1),' +
+        'opacity '+(0.5+Math.random()*.4)+'s ease '+(0.2+Math.random()*.3)+'s;';
+      document.body.appendChild(c);
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){
+        c.style.transform = 'translate(0,0) rotate('+(Math.random()*720)+'deg)';
+        c.style.opacity = '0';
+      }); });
+      setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); }, 1500);
+    })();
+  }
+}
+
+function showXP(text, color) {
+  var phone = document.getElementById('phone');
+  var rect = phone.getBoundingClientRect();
+  var t = document.createElement('div');
+  t.className = 'xp-toast';
+  t.textContent = text;
+  t.style.color = color || '#3A9A20';
+  t.style.left = (rect.left + rect.width/2 - 80) + 'px';
+  t.style.top = (rect.top + 130) + 'px';
+  document.body.appendChild(t);
+  setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 2000);
+}
+</script>
+</body>
+</html>

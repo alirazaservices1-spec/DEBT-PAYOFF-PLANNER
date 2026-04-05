@@ -1,0 +1,1323 @@
+import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useLocalSearchParams, router } from "expo-router";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  Animated as RNAnimated,
+} from "react-native";
+import { Image as ExpoImage } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
+import { useDebts } from "@/context/DebtContext";
+import { useIsDark } from "@/context/ThemeContext";
+import { useCurrency } from "@/context/CurrencyContext";
+import {
+  monthsToText,
+  runStrategy,
+} from "@/lib/calculations";
+import { ProgressRing } from "@/components/ProgressRing";
+import { CTACards } from "@/components/CTACards";
+import { XPProgressBar } from "@/components/XPProgressBar";
+import { DexCard } from "@/components/DexCard";
+import { StreakWidget } from "@/components/StreakWidget";
+import { ImpactCounter } from "@/components/ImpactCounter";
+import { InterestSavingsBar } from "@/components/InterestSavingsBar";
+import { DailyActionList } from "@/components/DailyActionList";
+import { PathToFreedomMap } from "@/components/PathToFreedomMap";
+import { useGame } from "@/context/GameContext";
+import { useStreakReminder } from "@/context/StreakReminderContext";
+import { useGoal } from "@/context/GoalContext";
+import { useDesignBriefNotifications } from "@/context/DesignBriefNotificationsContext";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import { soundManager } from "@/utils/SoundManager";
+import {
+  usePaymentEffects,
+  PaymentEffectsOverlay,
+} from "@/components/PaymentSuccessEffects";
+
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function formatPayoffDate(date: Date): string {
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function daysUntil(date: Date): number {
+  const now = new Date();
+  return Math.max(0, Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function StatCard({ label, value, sub, color, icon, C, isDark }: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  C: typeof Colors.light;
+  isDark: boolean;
+}) {
+  return (
+    <View style={[styles.statCard, { backgroundColor: C.surface, borderColor: isDark ? C.border : "rgba(0,0,0,0.06)", shadowColor: isDark ? "#000" : Colors.primary }]}>
+      <View style={[styles.statIcon, { backgroundColor: color + "20" }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <Text style={[styles.statLabel, { color: C.textSecondary }]}>{label}</Text>
+      <Text style={[styles.statValue, { color: C.text }]}>{value}</Text>
+      {sub && <Text style={[styles.statSub, { color: C.textSecondary }]}>{sub}</Text>}
+    </View>
+  );
+}
+
+export default function DashboardScreen() {
+  const isDark = useIsDark();
+  const C = isDark ? Colors.dark : Colors.light;
+  const insets = useSafeAreaInsets();
+  const {
+    debts,
+    totalBalance,
+    activeResult,
+    avalancheResult,
+    extraPayment,
+    setExtraPayment,
+    payments,
+    logPayment,
+  } = useDebts();
+  const { fmt } = useCurrency();
+  const {
+    triggerDex, triggerDexWithMessage, awardXp, recordPaymentForStreak, grantBonusXp, triggerFlamePulse, streakCount,
+  } = useGame();
+  const {
+    btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
+  } = usePaymentEffects();
+  const { cancelTonightsReminder } = useStreakReminder();
+  const { addGoalProgress } = useGoal();
+  const { schedulePayoffDateMoved } = useDesignBriefNotifications();
+  const { openLog } = useLocalSearchParams<{ openLog?: string }>();
+
+  const [whatIfCollapsed, setWhatIfCollapsed] = useState(false);
+  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [dailySavingModalVisible, setDailySavingModalVisible] = useState(false);
+  const [dailySavingAmount, setDailySavingAmount] = useState("");
+  const [paymentLogSeq, setPaymentLogSeq] = useState(0);
+  const [logDebtId, setLogDebtId] = useState<string>(debts[0]?.id ?? "");
+  const [logAmount, setLogAmount] = useState("");
+  const [logMissed, setLogMissed] = useState(false);
+
+  useEffect(() => {
+    if (openLog === "1") {
+      setLogModalVisible(true);
+    }
+  }, [openLog]);
+
+  const originalBalance = useRef(totalBalance + payments.filter(p => !p.isMissed).reduce((s, p) => s + p.amount, 0));
+  const paidOff = Math.max(0, originalBalance.current - totalBalance);
+  const progress = originalBalance.current > 0 ? paidOff / originalBalance.current : 0;
+
+  const baselineResult = useMemo(() => runStrategy(debts, 0, "avalanche"), [debts]);
+
+  const interestSaved = Math.max(0, baselineResult.totalInterestPaid - avalancheResult.totalInterestPaid);
+  const monthsSaved = Math.max(0, baselineResult.totalMonths - avalancheResult.totalMonths);
+
+  const extraThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return payments
+      .filter((p) => !p.isMissed && new Date(p.date) >= monthStart)
+      .reduce((sum, p) => {
+        const debt = debts.find((d) => d.id === p.debtId);
+        const minPay = debt?.minimumPayment ?? 0;
+        return sum + Math.max(0, p.amount - minPay);
+      }, 0);
+  }, [payments, debts]);
+
+  const payoffDate = activeResult.payoffDate;
+  const days = daysUntil(payoffDate);
+
+  const totalInterestSaved = Math.max(
+    0,
+    (debts.reduce((s, d) => s + d.balance * (d.apr / 100) * (activeResult.totalMonths / 12), 0)) - activeResult.totalInterestPaid
+  );
+
+  const monthlyInterest = debts.reduce((s, d) => s + d.balance * (d.apr / 100 / 12), 0);
+  const totalMonthlies = debts.reduce((s, d) => s + d.minimumPayment + extraPayment, 0);
+  const principalRatio = totalMonthlies > 0 ? Math.max(0, Math.min(1, (totalMonthlies - monthlyInterest) / totalMonthlies)) : 0;
+
+  const webTopPad = Platform.OS === "web" ? 67 : 0;
+
+  // Track payoff date changes to trigger Dex message and payoff-date-moved notification
+  const prevPayoffDateRef = useRef<string>(payoffDate.toISOString().split("T")[0]);
+  useEffect(() => {
+    const curr = payoffDate.toISOString().split("T")[0];
+    const prev = prevPayoffDateRef.current;
+    if (curr !== prev) {
+      const oldD = new Date(prev);
+      const newD = payoffDate;
+      const daysMoved = Math.round((oldD.getTime() - newD.getTime()) / 86_400_000);
+      if (daysMoved > 0) {
+        const monthsAhead = Math.round(daysMoved / 30);
+        const msg = daysMoved >= 30
+          ? `Your debt-free date just moved up ${daysMoved} days — that is over a month reclaimed! 🎉`
+          : `Your debt-free date just moved up ${daysMoved} day${daysMoved > 1 ? "s" : ""}! 📅`;
+        triggerDexWithMessage("happy", msg, 6000);
+        if (monthsAhead > 0) {
+          schedulePayoffDateMoved(payoffDate, monthsAhead).catch(() => {});
+        }
+        if (daysMoved >= 30) {
+          setTimeout(() => triggerDexWithMessage("celebrating", "You are making real progress — keep the momentum going! 🔥", 5000), 6500);
+        }
+      }
+      prevPayoffDateRef.current = curr;
+    }
+  }, [payoffDate, triggerDexWithMessage, schedulePayoffDateMoved]);
+
+  const handleMilestone = (amount: number) => {
+    soundManager.play("milestone");
+    triggerFlamePulse();
+    const milestoneLabels: Record<number, string> = {
+      50:   "You just crossed $50 saved! Every dollar counts. 🌱",
+      100:  "You just crossed $100 saved! That's a car payment you kept. 🚗",
+      250:  "You just crossed $250 saved! That's a dinner out every month. 🍽️",
+      500:  "You just crossed $500 saved! That's real money back in your pocket. 💚",
+      1000: "You just crossed $1,000 saved! You are absolutely crushing debt! 🏆",
+    };
+    triggerDexWithMessage("celebrating", milestoneLabels[amount] ?? `You just crossed $${amount} saved!`, 7000);
+  };
+
+  const handleLogDailySaving = async (amount: number) => {
+    if (debts.length === 0 || amount <= 0) return;
+    const targetDebtId = [...debts].sort((a, b) => b.apr - a.apr)[0].id;
+    await logPayment({ debtId: targetDebtId, amount, date: new Date().toISOString(), isMissed: false });
+    recordPaymentForStreak();
+    grantBonusXp(25);
+    triggerDex("happy");
+    triggerFlamePulse();
+    cancelTonightsReminder();
+    setPaymentLogSeq((s) => s + 1);
+    setDailySavingModalVisible(false);
+    setDailySavingAmount("");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    soundManager.play("payment_logged");
+  };
+
+  const handleLogPayment = async () => {
+    if (!logDebtId || !logAmount) return;
+    const amount = parseFloat(logAmount) || 0;
+
+    if (logMissed) {
+      await logPayment({ debtId: logDebtId, amount, date: new Date().toISOString(), isMissed: true });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLogModalVisible(false);
+      setLogAmount("");
+      setLogMissed(false);
+      return;
+    }
+
+    await runPayment(
+      async () => {
+        await logPayment({ debtId: logDebtId, amount, date: new Date().toISOString(), isMissed: false });
+        awardXp("LOG_PAYMENT");
+        recordPaymentForStreak();
+        cancelTonightsReminder();
+        const milestoneHit = await addGoalProgress(amount);
+        if (milestoneHit !== null) awardXp("HIT_MILESTONE");
+        return { milestoneHit: milestoneHit ?? null };
+      },
+      {
+        onBonus: () => {
+          grantBonusXp(50);
+          soundManager.play("xp_earned");
+        },
+        onFlamePulse: () => triggerFlamePulse(),
+        onDex: (isBonus) => {
+          if (isBonus) {
+            triggerDex("surprised", 450);
+            setTimeout(() => triggerDex("celebrating", 3000), 450);
+          } else {
+            triggerDex("happy");
+          }
+        },
+        onClose: () => {
+          setLogModalVisible(false);
+          setLogAmount("");
+          setLogMissed(false);
+          setPaymentLogSeq((s) => s + 1);
+        },
+        onSuccessAfterSheetClosed: (isBonus, milestoneHit) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          soundManager.play("payment_logged");
+          if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+          setTimeout(() => router.push("/day-complete"), 400);
+        },
+      }
+    );
+  };
+
+  const handleExportSummary = async () => {
+    if (debts.length === 0) {
+      Alert.alert("Nothing to export", "Add at least one debt to export a summary PDF.");
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const asOf = now.toLocaleDateString();
+      const payoffDateStr = formatPayoffDate(payoffDate);
+      const payoffMonthsStr = monthsToText(activeResult.totalMonths);
+
+      const html = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+                margin: 24px;
+                color: #111827;
+              }
+              h1 { font-size: 24px; margin-bottom: 4px; }
+              h2 { font-size: 18px; margin-top: 24px; margin-bottom: 8px; }
+              p { font-size: 13px; margin: 2px 0; color: #4b5563; }
+              .section {
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                padding: 12px 14px;
+                margin-top: 12px;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                font-size: 13px;
+                margin: 4px 0;
+              }
+              .label { color: #6b7280; }
+              .value { font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <h1>Debt Payoff Summary</h1>
+            <p>Generated on ${asOf}</p>
+
+            <div class="section">
+              <div class="row">
+                <span class="label">Total remaining balance</span>
+                <span class="value">${fmt(totalBalance)}</span>
+              </div>
+              <div class="row">
+                <span class="label">Projected payoff date</span>
+                <span class="value">${payoffDateStr}</span>
+              </div>
+              <div class="row">
+                <span class="label">Time to debt-free</span>
+                <span class="value">${payoffMonthsStr}</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Monthly Payments</h2>
+              <div class="row">
+                <span class="label">Minimums + extra</span>
+                <span class="value">${fmt(debts.reduce((s, d) => s + d.minimumPayment, 0) + extraPayment)}/mo</span>
+              </div>
+              <div class="row">
+                <span class="label">Interest per month (approx.)</span>
+                <span class="value">${fmt(monthlyInterest)}/mo</span>
+              </div>
+              <div class="row">
+                <span class="label">Portion to principal</span>
+                <span class="value">${Math.round(principalRatio * 100)}%</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Projected Interest</h2>
+              <div class="row">
+                <span class="label">At current strategy</span>
+                <span class="value">${fmt(activeResult.totalInterestPaid)}</span>
+              </div>
+              <div class="row">
+                <span class="label">With extra payment (${fmt(extraPayment)}/mo)</span>
+                <span class="value">${fmt(avalancheResult.totalInterestPaid)}</span>
+              </div>
+              <div class="row">
+                <span class="label">Interest saved</span>
+                <span class="value">${fmt(interestSaved)}</span>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      // On web, fall back to the browser print dialog.
+      if (Platform.OS === "web") {
+        await Print.printAsync({ html });
+        return;
+      }
+
+      // On native, generate a PDF file and open the share sheet
+      // so the user can save/download it.
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Share debt payoff summary",
+        UTI: "com.adobe.pdf",
+      });
+    } catch (err: any) {
+      const message = err?.message ?? "";
+      // Treat common "user cancelled" cases as normal:
+      // - expo-print: "Printing did not complete"
+      // - expo-sharing: "User did not share"
+      if (message.includes("Printing did not complete") || message.includes("User did not share")) {
+        return;
+      }
+      console.error("Export summary failed", err);
+      Alert.alert("Export failed", "Something went wrong while creating the PDF. Please try again.");
+    }
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: C.background }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Platform.OS === "web" ? webTopPad : insets.top + 8,
+            backgroundColor: C.background,
+            borderBottomColor: C.border,
+          },
+        ]}
+      >
+        <View>
+          <View style={styles.headerBrand}>
+            <ExpoImage
+              source={require("@/assets/images/iconApp.png")}
+              style={styles.headerBrandIcon}
+              contentFit="contain"
+              transition={0}
+              cachePolicy="memory-disk"
+            />
+            <Text style={[styles.headerBrandName, { color: C.textSecondary }]}>
+              DebtPath: Payoff Planner
+            </Text>
+          </View>
+          <Text style={[styles.headerTitle, { color: C.text }]}>Dashboard</Text>
+          <Text style={[styles.headerSub, { color: C.textSecondary }]}>
+            Your path to debt freedom
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={handleExportSummary}
+            style={[styles.logBtn, { backgroundColor: Colors.primary + "12", borderColor: Colors.primary + "30" }]}
+          >
+            <Ionicons name="download-outline" size={16} color={Colors.primary} />
+            <Text style={[styles.logBtnText, { color: Colors.primary }]}>Export</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+            style={[styles.logBtn, { backgroundColor: Colors.primary + "20", borderColor: Colors.primary + "40" }]}
+          >
+            <Ionicons name="add" size={18} color={Colors.primary} />
+            <Text style={[styles.logBtnText, { color: Colors.primary }]}>Log</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[
+          styles.scroll,
+          Platform.OS === "web" && { paddingBottom: 34 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Priority 1: Dex greeting */}
+        <DexCard />
+
+        {/* Priority 2-3: Streak flame + XP bar side by side */}
+        <View style={styles.xpStreakRow}>
+          <StreakWidget style={styles.xpStreakItem} />
+          <Pressable style={styles.xpStreakItem} onPress={() => router.push("/levels")} accessibilityRole="button" accessibilityLabel="View your levels">
+            <XPProgressBar style={{ flex: 1 }} />
+          </Pressable>
+        </View>
+
+        {/* Priority 4: Payoff date + impact counter (compact) */}
+        <ImpactCounter compact />
+
+        {/* Priority 5: LOG PAYMENT TODAY + LOG DAILY SAVING */}
+        {debts.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <Pressable
+              onPress={() => { setLogModalVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }}
+              style={styles.logPayBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Log a payment today"
+            >
+              <Ionicons name="flash" size={18} color="#FFFFFF" />
+              <Text style={styles.logPayBtnText}>LOG PAYMENT TODAY</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { setDailySavingModalVisible(true); setDailySavingAmount(""); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+              style={[styles.logPayBtn, { backgroundColor: Colors.accent + "E6", borderWidth: 2, borderColor: Colors.accent }]}
+              accessibilityRole="button"
+              accessibilityLabel="Log daily saving"
+            >
+              <Ionicons name="wallet" size={18} color="#FFFFFF" />
+              <Text style={styles.logPayBtnText}>LOG DAILY SAVING</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Priority 6: New Gamified Daily Actions */}
+        <DailyActionList isDark={isDark} />
+
+        {/* Priority 7: Visual Map */}
+        <PathToFreedomMap isDark={isDark} streak={streakCount} />
+
+        {/* Interest savings bar — grows with every payment */}
+        {interestSaved > 0 && <InterestSavingsBar interestSaved={interestSaved} onMilestone={handleMilestone} />}
+        {debts.length > 0 ? (
+          <>
+            {/* WCAG AA Required: Contrast ratio must be 4.5:1 minimum. Verify with https://webaim.org/resources/contrastchecker/ */}
+            <LinearGradient
+              colors={isDark ? ["#2C2014", "#1C1610"] : ["#FFFFFF", "#F2EFE8"]}
+              style={styles.heroCard}
+            >
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.heroLabel, { color: C.textSecondary }]}>Total Remaining</Text>
+                  <Text
+                    style={[styles.heroBalance, { color: C.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
+                    {fmt(totalBalance)}
+                  </Text>
+                  <View style={styles.heroMeta}>
+                    <Text style={[styles.heroMetaText, { color: C.textSecondary }]}>
+                      Debt-free date: <Text style={{ color: Colors.green, fontFamily: Fonts.semiBold }}>{formatPayoffDate(payoffDate)}</Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.heroRing}>
+                  <ProgressRing
+                    size={100}
+                    strokeWidth={10}
+                    progress={progress}
+                    color={Colors.progressGreen}
+                    trackColor={isDark ? "rgba(192,120,32,0.22)" : "rgba(192,120,32,0.18)"}
+                  />
+                  <View style={styles.heroRingCenter}>
+                    <Text
+                      style={[styles.heroRingPct, { color: Colors.progressGreen }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.5}
+                    >
+                      {Math.round(progress * 100)}%
+                    </Text>
+                    <Text style={[styles.heroRingLabel, { color: C.textSecondary }]}>paid</Text>
+                  </View>
+                </View>
+              </View>
+
+              {paidOff > 0 && (
+                <View style={[styles.progressBar, { backgroundColor: isDark ? "rgba(192,120,32,0.22)" : "rgba(192,120,32,0.18)" }]}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.round(progress * 100)}%`,
+                        backgroundColor: Colors.progressGreen,
+                      },
+                    ]}
+                  />
+                </View>
+              )}
+            </LinearGradient>
+
+            <View style={styles.statsGrid}>
+              <StatCard
+                label="Monthly Payment"
+                value={fmt(debts.reduce((s, d) => s + d.minimumPayment, 0) + extraPayment)}
+                sub="minimums + extra"
+                color={Colors.primary}
+                icon="wallet"
+                C={C}
+                isDark={isDark}
+              />
+              <StatCard
+                label="Payoff Timeline"
+                value={monthsToText(activeResult.totalMonths)}
+                sub={formatPayoffDate(payoffDate)}
+                color={Colors.accent}
+                icon="time"
+                C={C}
+                isDark={isDark}
+              />
+              <StatCard
+                label="Projected Interest"
+                value={fmt(activeResult.totalInterestPaid)}
+                sub="at current strategy"
+                color={C.textSecondary}
+                icon="trending-up"
+                C={C}
+                isDark={isDark}
+              />
+              <StatCard
+                label="Principal/Interest"
+                value={`${Math.round(principalRatio * 100)}%`}
+                sub="goes to principal"
+                color={Colors.warning}
+                icon="pie-chart"
+                C={C}
+                isDark={isDark}
+              />
+            </View>
+
+            <CTACards />
+
+            <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="analytics" size={18} color={Colors.primary} />
+                <Text style={[styles.sectionTitle, { color: C.text }]}>Payment Breakdown</Text>
+              </View>
+
+              <View style={styles.ringRow}>
+                <View style={{ alignItems: "center" }}>
+                  <ProgressRing
+                    size={80}
+                    strokeWidth={8}
+                    progress={principalRatio}
+                    color={Colors.progressGreen}
+                    trackColor={"#44444430"}
+                  />
+                  <Text style={[styles.ringLabel, { color: C.textSecondary }]}>Principal</Text>
+                </View>
+                <View style={styles.ringLegend}>
+                  <View style={styles.ringLegendItem}>
+                    <View style={[styles.ringLegendDot, { backgroundColor: Colors.progressGreen }]} />
+                    <Text style={[styles.ringLegendText, { color: C.text }]}>
+                      Principal: {fmt(Math.max(0, totalMonthlies - monthlyInterest))}/mo
+                    </Text>
+                  </View>
+                  <View style={styles.ringLegendItem}>
+                    <View style={[styles.ringLegendDot, { backgroundColor: "#444444" }]} />
+                    <Text style={[styles.ringLegendText, { color: C.text }]}>
+                      Interest: {fmt(monthlyInterest)}/mo
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border, gap: whatIfCollapsed ? 0 : 12 }]}>
+              <Pressable
+                onPress={() => { setWhatIfCollapsed(c => !c); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={styles.whatIfHeader}
+              >
+                <Ionicons name="bulb" size={18} color={Colors.warning} />
+                <Text style={[styles.sectionTitle, { color: C.text, flex: 1 }]}>What-If Scenarios</Text>
+                {extraPayment > 0 && !whatIfCollapsed && (
+                  <View style={[styles.whatIfActivePill, { backgroundColor: Colors.primary + "18", borderColor: Colors.primary + "40" }]}>
+                    <Text style={[styles.whatIfActivePillText, { color: Colors.primary }]}>+{fmt(extraPayment)}/mo</Text>
+                  </View>
+                )}
+                <Ionicons
+                  name={whatIfCollapsed ? "chevron-down" : "chevron-up"}
+                  size={18}
+                  color={C.textSecondary}
+                />
+              </Pressable>
+
+              {!whatIfCollapsed && (
+                <>
+                  <Text style={[styles.whatIfLabel, { color: C.textSecondary }]}>
+                    Extra monthly payment — applies globally to all tabs
+                  </Text>
+
+                  <View style={[styles.whatIfTrack, { backgroundColor: C.border }]}>
+                    <View
+                      style={[
+                        styles.whatIfTrackFill,
+                        {
+                          width: `${Math.min(100, (extraPayment / 500) * 100)}%`,
+                          backgroundColor: Colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.whatIfPresetRow}
+                  >
+                    {[0, 50, 100, 200, 500].map((v) => (
+                      <Pressable
+                        key={v}
+                        onPress={() => { setExtraPayment(v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        style={[
+                          styles.whatIfBtn,
+                          {
+                            backgroundColor: extraPayment === v ? Colors.primary : C.surfaceSecondary,
+                            borderColor: extraPayment === v ? Colors.primary : C.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.whatIfBtnText, { color: extraPayment === v ? "#fff" : C.textSecondary }]}>
+                          {v === 0 ? "Min only" : `+$${v}`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+
+                  <View style={[styles.whatIfResult, { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" }]}>
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Debt-Free</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {formatPayoffDate(activeResult.payoffDate)}
+                      </Text>
+                    </View>
+                    <View style={[styles.whatIfDivider, { backgroundColor: Colors.primary + "30" }]} />
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Interest Saved</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {extraPayment > 0 ? fmt(interestSaved) : "—"}
+                      </Text>
+                    </View>
+                    <View style={[styles.whatIfDivider, { backgroundColor: Colors.primary + "30" }]} />
+                    <View style={styles.whatIfResultStat}>
+                      <Text style={[styles.whatIfResultLabel, { color: C.textSecondary }]}>Sooner</Text>
+                      <Text style={[styles.whatIfResultValue, { color: Colors.primary }]}>
+                        {extraPayment > 0 && monthsSaved > 0 ? `${monthsSaved}mo` : "—"}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {payments.length > 0 && (
+              <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="receipt" size={18} color={Colors.accent} />
+                  <Text style={[styles.sectionTitle, { color: C.text }]}>Recent Payments</Text>
+                </View>
+                {payments.slice(0, 5).map((p) => {
+                  const debt = debts.find((d) => d.id === p.debtId);
+                  return (
+                    <View key={p.id} style={[styles.paymentRow, { borderBottomColor: C.border }]}>
+                      <View style={[styles.paymentDot, { backgroundColor: p.isMissed ? Colors.danger : Colors.progressGreen }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.paymentName, { color: C.text }]}>
+                          {debt?.name ?? "Unknown"}
+                        </Text>
+                        <Text style={[styles.paymentDate, { color: C.textSecondary }]}>
+                          {new Date(p.date).toLocaleDateString()}
+                          {p.isMissed ? " • Missed" : ""}
+                        </Text>
+                      </View>
+                      <Text style={[styles.paymentAmount, { color: p.isMissed ? Colors.danger : Colors.progressGreen }]}>
+                        {p.isMissed ? "—" : fmt(p.amount)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <View style={styles.comingSoonWrap}>
+            <LinearGradient
+              colors={isDark ? ["#2C2014", "#1C1610"] : ["#FFFFFF", "#F2EFE8"]}
+              style={[styles.comingSoonCard, { borderColor: isDark ? "rgba(192,120,32,0.30)" : "rgba(192,120,32,0.35)" }]}
+            >
+                <View style={styles.comingSoonBadge}>
+                  <Ionicons name="rocket-outline" size={14} color="#fff" />
+                  <Text style={styles.comingSoonBadgeText}>We're building</Text>
+                </View>
+                <View style={styles.comingSoonCardHeader}>
+                  <View style={styles.comingSoonCardIconWrap}>
+                    <LinearGradient
+                      colors={[Colors.primary, Colors.primaryDark]}
+                      style={styles.comingSoonCardIcon}
+                    >
+                      <Ionicons name="sparkles" size={26} color="#fff" />
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.comingSoonTitleWrap}>
+                    <Text style={[styles.comingSoonCardTitle, { color: C.text }]}>Coming soon</Text>
+                    <Text style={[styles.comingSoonCardSub, { color: C.textSecondary }]}>
+                      Small, game-like steps to help you stay on track getting out of debt
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.comingSoonPills}>
+                  {[
+                    { icon: "people" as const, label: "Friends" },
+                    { icon: "people-circle" as const, label: "Community" },
+                    { icon: "flame" as const, label: "Streaks" },
+                    { icon: "sparkles" as const, label: "Celebrations" },
+                  ].map((item) => (
+                    <View
+                      key={item.label}
+                      style={[
+                        styles.comingSoonPill,
+                        { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.9)" },
+                      ]}
+                    >
+                      <Ionicons name={item.icon} size={16} color={Colors.primary} />
+                      <Text style={[styles.comingSoonPillLabel, { color: C.text }]}>{item.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </LinearGradient>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Zero-state balance card */}
+            <LinearGradient
+              colors={isDark ? ["#2C2014", "#1C1610"] : ["#FFFFFF", "#F2EFE8"]}
+              style={styles.heroCard}
+            >
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.heroLabel, { color: C.textSecondary }]}>Total Remaining</Text>
+                  <Text style={[styles.heroBalance, { color: C.text }]}>{fmt(0)}</Text>
+                  <View style={styles.heroMeta}>
+                    <Ionicons name="add-circle-outline" size={13} color={Colors.primary} />
+                    <Text style={[styles.heroMetaText, { color: C.textSecondary }]}>
+                      Add a debt to track your payoff journey
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.heroRing}>
+                  <ProgressRing
+                    size={100}
+                    strokeWidth={10}
+                    progress={0}
+                    color={Colors.progressGreen}
+                    trackColor={isDark ? "rgba(192,120,32,0.22)" : "rgba(192,120,32,0.18)"}
+                  />
+                  <View style={styles.heroRingCenter}>
+                    <Text style={[styles.heroRingPct, { color: Colors.progressGreen }]}>0%</Text>
+                    <Text style={[styles.heroRingLabel, { color: C.textSecondary }]}>paid</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+
+            <View style={styles.emptyDash}>
+              <LinearGradient
+                colors={[Colors.primary + "20", Colors.primary + "05"]}
+                style={styles.emptyDashIcon}
+              >
+                <Ionicons name="speedometer-outline" size={56} color={Colors.primary} />
+              </LinearGradient>
+              <Text style={[styles.emptyDashTitle, { color: C.text }]}>
+                Add debts to see your dashboard
+              </Text>
+              <Text style={[styles.emptyDashBody, { color: C.textSecondary }]}>
+                Head to the Debts tab to add your accounts. Your progress, payoff date, and personalized options will appear here.
+              </Text>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      <Modal
+        visible={logModalVisible}
+        animationType="slide"
+        presentationStyle="formSheet"
+        onRequestClose={() => setLogModalVisible(false)}
+      >
+        <View style={[styles.logModal, { backgroundColor: C.surface }]}>
+          <View style={[styles.logModalHeader, { borderBottomColor: C.border }]}>
+            <Pressable onPress={() => setLogModalVisible(false)} hitSlop={12} style={styles.logModalHeaderBtn}>
+              <Ionicons name="close" size={24} color={C.textSecondary} />
+            </Pressable>
+            <Text style={[styles.logModalTitle, { color: C.text }]}>Log Payment</Text>
+            <Pressable
+              onPress={handleLogPayment}
+              style={styles.logModalHeaderBtn}
+              disabled={btnState !== "idle"}
+            >
+              {btnState === "idle" && (
+                <Text style={[styles.logModalSave, { color: Colors.primary }]}>Save</Text>
+              )}
+              {btnState === "loading" && (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              )}
+              {btnState === "success" && (
+                <RNAnimated.View style={{ transform: [{ scale: btnScale }] }}>
+                  <Ionicons name="checkmark-circle" size={24} color="#1E7A45" />
+                </RNAnimated.View>
+              )}
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.logModalContent} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.logModalLabel, { color: C.textSecondary }]}>Debt Account</Text>
+            <View style={styles.debtSelectRow}>
+              {debts.map((d) => (
+                <Pressable
+                  key={d.id}
+                  onPress={() => setLogDebtId(d.id)}
+                  style={[
+                    styles.debtSelectChip,
+                    {
+                      backgroundColor: logDebtId === d.id ? Colors.primary : C.surfaceSecondary,
+                      borderColor: logDebtId === d.id ? Colors.primary : C.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.debtSelectText, { color: logDebtId === d.id ? "#fff" : C.text }]} numberOfLines={1}>
+                    {d.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={[styles.logModalLabel, { color: C.textSecondary }]}>Payment Type</Text>
+            <View style={styles.typeRow}>
+              <Pressable
+                onPress={() => setLogMissed(false)}
+                style={[
+                  styles.typeChip,
+                  {
+                    backgroundColor: !logMissed ? Colors.primary : C.surfaceSecondary,
+                    borderColor: !logMissed ? Colors.primary : C.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.typeChipText, { color: !logMissed ? "#fff" : C.text }]}>Payment Made</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setLogMissed(true)}
+                style={[
+                  styles.typeChip,
+                  {
+                    backgroundColor: logMissed ? Colors.danger : C.surfaceSecondary,
+                    borderColor: logMissed ? Colors.danger : C.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.typeChipText, { color: logMissed ? "#fff" : C.text }]}>Missed Payment</Text>
+              </Pressable>
+            </View>
+
+            {!logMissed && (
+              <>
+                <Text style={[styles.logModalLabel, { color: C.textSecondary }]}>Amount ($)</Text>
+                <TextInput
+                  style={[styles.logInput, { backgroundColor: C.surfaceSecondary, color: C.text, borderColor: C.border }]}
+                  value={logAmount}
+                  onChangeText={setLogAmount}
+                  placeholder="150.00"
+                  placeholderTextColor={C.textSecondary}
+                  keyboardType="decimal-pad"
+                />
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={dailySavingModalVisible}
+        animationType="slide"
+        presentationStyle="formSheet"
+        onRequestClose={() => setDailySavingModalVisible(false)}
+      >
+        <View style={[styles.logModal, { backgroundColor: C.surface }]}>
+          <View style={[styles.logModalHeader, { borderBottomColor: C.border }]}>
+            <Pressable onPress={() => setDailySavingModalVisible(false)} hitSlop={12} style={styles.logModalHeaderBtn}>
+              <Ionicons name="close" size={24} color={C.textSecondary} />
+            </Pressable>
+            <Text style={[styles.logModalTitle, { color: C.text }]}>Log Daily Saving</Text>
+            <View style={styles.logModalHeaderBtn} />
+          </View>
+          <ScrollView contentContainerStyle={[styles.logModalContent, { padding: 20 }]} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.logModalLabel, { color: C.textSecondary, marginBottom: 14 }]}>Quick options — tap to log</Text>
+            <View style={styles.dailySavingGrid}>
+              {[
+                { label: "Skipped coffee", amount: 5, icon: "cafe-outline" as const },
+                { label: "Packed lunch", amount: 8, icon: "restaurant-outline" as const },
+                { label: "Skipped takeout", amount: 12, icon: "fast-food-outline" as const },
+                { label: "Cooked at home", amount: 15, icon: "home-outline" as const },
+                { label: "Used coupon", amount: 10, icon: "pricetag-outline" as const },
+                { label: "Skipped dessert", amount: 7, icon: "ice-cream-outline" as const },
+              ].map(({ label, amount, icon }) => (
+                <Pressable
+                  key={`${label}-${amount}`}
+                  onPress={() => handleLogDailySaving(amount)}
+                  style={({ pressed }) => [
+                    styles.dailySavingCard,
+                    { backgroundColor: C.surfaceSecondary, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <View style={[styles.dailySavingIconWrap, { backgroundColor: Colors.green + "22" }]}>
+                    <Ionicons name={icon} size={22} color={Colors.green} />
+                  </View>
+                  <Text style={[styles.dailySavingLabel, { color: C.text }]} numberOfLines={2}>{label}</Text>
+                  <Text style={[styles.dailySavingAmount, { color: Colors.green }]}>+${amount}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[styles.logModalLabel, { color: C.textSecondary }]}>Custom amount ($)</Text>
+            <TextInput
+              style={[styles.logInput, { backgroundColor: C.surfaceSecondary, color: C.text, borderColor: C.border }]}
+              value={dailySavingAmount}
+              onChangeText={setDailySavingAmount}
+              placeholder="0.50"
+              placeholderTextColor={C.textSecondary}
+              keyboardType="decimal-pad"
+            />
+            <Pressable
+              onPress={() => {
+                const amt = parseFloat(dailySavingAmount) || 0;
+                if (amt > 0) handleLogDailySaving(amt);
+              }}
+              style={[styles.logPayBtn, { marginTop: 16 }]}
+            >
+              <Text style={styles.logPayBtnText}>LOG CUSTOM AMOUNT</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <PaymentEffectsOverlay
+        xpFloatActive={xpFloatActive}
+        xpAmount={xpAmount}
+        xpY={xpY}
+        xpOpacity={xpOpacity}
+        xpScale={xpScale}
+        bonusActive={bonusActive}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  xpStreakRow: {
+    flexDirection: "row",
+    marginBottom: 0,
+    gap: 10,
+  },
+  xpStreakItem: {
+    flex: 1,
+    marginHorizontal: 0,
+    marginBottom: 0,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerBrand: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  headerBrandIcon: { width: 24, height: 24, borderRadius: 6 },
+  headerBrandName: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
+  headerTitle: { fontSize: 28, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.5 },
+  headerSub: { fontSize: 16, fontFamily: Fonts.regular, marginTop: 2 },
+  logBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  logBtnText: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  logPayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#1F4E8C",
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    marginBottom: 0,
+    shadowColor: "#1E7A45",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  logPayBtnText: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.6,
+  },
+  scroll: { padding: 16, gap: 14 },
+  heroCard: {
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 16 },
+  heroLabel: { fontSize: 11, fontFamily: Fonts.bold, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 },
+  heroBalance: { fontSize: 38, fontFamily: Fonts.mono, fontWeight: "500", letterSpacing: -1, marginTop: 4 },
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
+  heroMetaText: { fontSize: 14, fontFamily: Fonts.regular },
+  heroRing: { position: "relative", alignItems: "center", justifyContent: "center" },
+  heroRingCenter: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    maxWidth: "75%",
+  },
+  heroRingPct: { fontSize: 20, fontFamily: Fonts.mono, fontWeight: "500" },
+  heroRingLabel: { fontSize: 12, fontFamily: Fonts.regular, marginTop: -2 },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  statCard: {
+    width: "48%",
+    borderRadius: 14,
+    padding: 14,
+    gap: 6,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statLabel: { fontSize: 11, fontFamily: Fonts.bold, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  statValue: { fontSize: 18, fontFamily: Fonts.mono, fontWeight: "500" },
+  statSub: { fontSize: 12, fontFamily: Fonts.regular },
+  section: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitle: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700" },
+  ringRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  ringLabel: { fontSize: 13, marginTop: 4 },
+  ringLegend: { flex: 1, gap: 8 },
+  ringLegendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ringLegendDot: { width: 10, height: 10, borderRadius: 5 },
+  ringLegendText: { fontSize: 14 },
+  whatIfLabel: { fontSize: 14, fontWeight: "500" },
+  whatIfHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  whatIfActivePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  whatIfActivePillText: { fontSize: 12, fontFamily: Fonts.bold, fontWeight: "700" },
+  whatIfTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  whatIfTrackFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  whatIfPresetRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  whatIfBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  whatIfBtnText: { fontSize: 14, fontWeight: "500" },
+  whatIfResult: {
+    flexDirection: "row",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 4,
+  },
+  whatIfResultStat: { flex: 1, alignItems: "center" },
+  whatIfResultLabel: { fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
+  whatIfResultValue: { fontSize: 20, fontFamily: Fonts.mono, fontWeight: "500", marginTop: 2 },
+  whatIfResultSub: { fontSize: 13, marginTop: 2 },
+  whatIfDivider: { width: StyleSheet.hairlineWidth },
+  paymentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  paymentDot: { width: 8, height: 8, borderRadius: 4 },
+  paymentName: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  paymentDate: { fontSize: 14, marginTop: 1 },
+  paymentAmount: { fontSize: 15, fontFamily: Fonts.mono, fontWeight: "500" },
+  emptyDash: { alignItems: "center", paddingVertical: 48, gap: 16, paddingHorizontal: 32 },
+  comingSoonWrap: { marginTop: 4 },
+  comingSoonCard: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 18,
+    gap: 14,
+    overflow: "hidden",
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  comingSoonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    backgroundColor: Colors.buttonGreenDark,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  comingSoonBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: Fonts.bold, fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  comingSoonCardHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
+  comingSoonCardIconWrap: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  comingSoonCardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  comingSoonTitleWrap: { flex: 1 },
+  comingSoonCardTitle: { fontSize: 19, fontFamily: Fonts.extraBold, fontWeight: "800", letterSpacing: -0.3 },
+  comingSoonCardSub: { fontSize: 14, lineHeight: 20, marginTop: 2 },
+  comingSoonPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  comingSoonPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  comingSoonPillLabel: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  emptyDashIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyDashTitle: { fontSize: 20, fontFamily: Fonts.bold, fontWeight: "700", textAlign: "center" },
+  emptyDashBody: { fontSize: 15, textAlign: "center", lineHeight: 22 },
+  logModal: { flex: 1 },
+  logModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  logModalHeaderBtn: { minWidth: 44, alignItems: "center", justifyContent: "center" },
+  logModalTitle: { flex: 1, fontSize: 18, fontFamily: Fonts.bold, fontWeight: "700", textAlign: "center" },
+  logModalSave: { fontSize: 16, fontFamily: Fonts.semiBold, fontWeight: "600" },
+  logModalContent: { padding: 24, gap: 16 },
+  logModalLabel: { fontSize: 13, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  debtSelectRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  debtSelectChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, maxWidth: "48%", alignItems: "center", justifyContent: "center" },
+  debtSelectText: { fontSize: 14, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },
+  dailySavingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 },
+  dailySavingCard: {
+    width: "47%",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(30, 122, 69, 0.2)",
+    minHeight: 96,
+  },
+  dailySavingIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  dailySavingLabel: { fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600", marginBottom: 4 },
+  dailySavingAmount: { fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700" },
+  typeRow: { flexDirection: "row", gap: 10 },
+  typeChip: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  typeChipText: { fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600", textAlign: "center" },
+  logInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 18,
+    fontFamily: Fonts.semiBold, fontWeight: "600",
+  },
+});

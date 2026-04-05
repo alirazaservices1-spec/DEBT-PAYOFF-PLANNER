@@ -1,0 +1,99 @@
+I need you to implement the following changes to my React Native / Expo debt payoff app. 
+Go through each item carefully and implement all of them:
+
+---
+
+## COPY & CLAIMS CLEANUP
+1. Remove or soften all bold claims throughout the app:
+   - Remove "always free", "everything free", "every feature needed", "best"
+   - Replace with: "I found the same payoff features other apps charged for — available here"
+   - Change "we find a way to save you money" → "See if you could save on your debt"
+   - Change "Get Free Debt Consultation" → "See If You Qualify For Debt Relief"
+   - Remove ALL double dashes "--" anywhere in the app (users associate this with AI-generated text)
+
+## GRAMMAR & TEXT POLISH
+2. Run ALL on-screen text through grammar correction:
+   - "Track all your debts in one place and watch your path to financial freedom" 
+     → "Track all your debts in one place and watch your path to financial freedom unfold."
+   - "payoff 6 yr" → "payoff 6 yrs"
+   - Fix ALL grammar issues across every screen
+   - Every screen's copy should sound natural and human
+
+## UI / LAYOUT FIXES
+3. Dark mode: App currently follows system theme. Keep this behavior but ensure 
+   Light mode option is accessible in app settings (top header settings icon).
+
+4. App icon: Replace the current chain/arrow icon with something related to 
+   being debt-free (e.g., broken chain, checkmark on dollar sign, 
+   rising graph, or something tied to the app name "DebtFree").
+
+5. Fix banner layout: When user enters $10,000 debt, the "$10,000" text is 
+   being cut off at the screen edge. Make it wrap to the next line properly 
+   on smaller screens.
+
+6. Fix contrast issue: White text on green backgrounds is hard to read on 
+   some screens. Improve contrast ratios across all affected screens to meet 
+   accessibility standards.
+
+7. Fix scrolling on main "DebtFree" home screen — user cannot scroll up and down.
+
+## DEBT ENTRY FIXES
+8. Tax debt entry is missing fields. Add the following fields for tax debt type:
+   - Interest rate
+   - Minimum payment
+   - Day of month (payment due date)
+
+## DEBT METHODS / STRATEGY SCREENS
+9. When user clicks on any debt payoff method (Snowball, Avalanche, etc.), 
+   it should:
+   - Open an explanation screen describing how that method works
+   - Then lead the user toward getting started / sign up flow
+   - Tone down any big claims on these screens
+
+10. Add TWO new payoff methods:
+
+   METHOD: "Debt Tsunami (Emotional Approach)"
+   - Description: Pay off debts based on the psychological stress they cause 
+     (e.g., debt to a family member, or a collections account), regardless 
+     of balance or interest rate.
+   - Best for: People whose debt is causing severe anxiety or relational strain.
+   - Once most stressful debt is paid, move to next most stressful 
+     or switch to Snowball/Avalanche.
+
+   METHOD: "Highest Monthly Payment First (Cash-Flow Approach)"
+   - Description: Order debts by whichever has the highest minimum monthly payment.
+   - Best for: People struggling month-to-month who need to free up cash flow 
+     fast to avoid defaulting on other bills.
+
+## CUSTOM PLAN / DRAG & DROP
+11. Custom plan method: Implement drag-and-drop so users can manually reorder 
+    their debts into a custom priority list. Make it intuitive — 
+    show a drag handle icon next to each debt card, with helper text like 
+    "Hold and drag to reorder your debts."
+
+## PAYOFF PLAN DISPLAY
+12. Where it shows "Paid off" → change to "Paid off [Card/Debt Name]"
+    Where it shows "Total Interest" → change to "Total Interest Paid to Date"
+
+13. Payoff plan calendar shows "Overdue" — add a way for users to 
+    confirm payments they've made in their plan 
+    (e.g., a "Mark as Paid" button per payment).
+
+## CALCULATIONS / LOGIC
+14. Verify that each debt strategy (Snowball, Avalanche, Tsunami, 
+    Cash-Flow, Custom) shows DIFFERENT interest savings — 
+    they should not all show the same number.
+
+15. Consolidation loan simulator: Fix so that changing the interest rate 
+    input actually updates the savings calculation dynamically.
+
+## REGISTRATION / DATA
+16. No registration required for now. Confirm that all debt data 
+    and payoff plans are saved locally on the device (AsyncStorage or similar) 
+    so data persists when the user closes and reopens the app.
+
+---
+
+Please implement all of the above changes. 
+After making changes, confirm which items are done and flag anything 
+that needs clarification.

@@ -1,0 +1,50 @@
+Add the following 4 features to my existing debt/loan tracker app. Do not break any existing functionality. Implement each feature completely:
+
+---
+
+### 1. PAYMENT REMINDERS (Push/In-App Notifications)
+- Add a notification system for upcoming payment due dates
+- Allow users to set reminders: 1 day before, 3 days before, 7 days before due date
+- Show a notification bell icon in the navbar with a badge count for pending reminders
+- Display a dropdown/panel listing all upcoming payments sorted by due date
+- Mark reminders as read/dismissed
+- Store reminder preferences in localStorage
+
+---
+
+### 2. CURRENCY SELECTION
+- Add a global currency selector (dropdown) in the app settings or navbar
+- Support at minimum: USD ($), PKR (₨), EUR (€), GBP (£), AED (د.إ), SAR (﷼)
+- When currency is changed, ALL monetary values across the entire app update instantly
+- Store selected currency in localStorage so it persists on refresh
+- Show the currency symbol consistently next to all amounts
+
+---
+
+### 3. CALCULATORS SECTION
+Create a dedicated "Calculators" page/tab with 3 tools in this exact order:
+
+**A) Payoff Date + Extra Payments Calculator** (show this first)
+- Inputs: Loan balance, interest rate, minimum monthly payment, extra monthly payment
+- Outputs: Payoff date with extra payments vs. without, total interest saved, months saved
+
+**B) Monthly Payment Calculator** (show second)
+- Inputs: Loan amount, annual interest rate, loan term (months or years)
+- Output: Monthly payment amount, total payment, total interest
+
+**C) Refinance Calculator** (show third)
+- Inputs: Current balance, current rate, current remaining term, new rate, new term, closing costs
+- Output: New monthly payment, monthly savings, break-even point (months), total savings over life of loan
+
+All calculators should update results in real-time as the user types.
+
+---
+
+### 4. CALENDAR SCHEDULE VIEW
+- Add a "Calendar" view option on the payments/schedule screen
+- Display a full monthly grid calendar (Sun–Sat columns)
+- Show payment due dates as colored chips/dots on the correct days
+- Each chip shows the loan name and amount due
+- Allow navigation between months (prev/next arrows)
+- Clicking a payment chip opens a detail popup with loan name, amount, and status (paid/upcoming/overdue)
+- Color code: green = paid, blue = upcoming, red = overdue

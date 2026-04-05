@@ -1,0 +1,22 @@
+Subject: Rewards / Dex / XP spreadsheet — ready for review
+
+Hi —
+
+The consolidated spreadsheet is ready. It’s a single CSV you can open in Excel or Google Sheets:
+
+File: docs/spreadsheets/Debt_Payoff_Planner_Rewards_Dex_Motivation.csv
+
+What’s in it (filter on the “section” column):
+• XP & points — every reward type and how many XP it grants (payments, streaks, daily actions, milestones, shield, etc.)
+• Streak milestone bonuses — days 3 through 100 and the extra XP + celebration behavior
+• Levels — engine XP bands (source of truth for level number) plus display names/icons from the app
+• Celebrations & SFX — what fires for level-up, first payment, debt cleared, streak milestones
+• Dex — game states, per-screen moods/motions, and streak-based presentation tiers
+• Flows — plan/debt logging stack, onboarding tasks, pledge copy vs what’s actually granted
+• PROPOSAL_LONG_JOURNEY — design notes for sustaining motivation over a 5–6 year payoff (not shipped): longer streak tiers, % paid milestones, anniversaries, quarterly check-ins, interest-saved style progress, plus a few product honesty items (pledge XP, bonus-day copy, level band alignment)
+
+Use the filter on “section” and ignore PROPOSAL_ rows if you only want current app behavior.
+
+Happy to walk through it or turn the proposal section into a concrete roadmap next.
+
+Thanks,

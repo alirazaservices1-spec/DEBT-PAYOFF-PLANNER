@@ -1,0 +1,13 @@
+Hi — thanks for helping test DebtPath (iPhone only).
+
+1. Install Expo Go from the App Store: https://apps.apple.com/app/expo-go/id982107779
+
+2. I’ll send you a QR code (or link). Open the Camera app, point it at the QR, then tap the banner to open the project in Expo Go.
+
+3. Your iPhone and my Mac need to be on the same Wi‑Fi. If you’re not nearby, tell me and I’ll send a tunnel link instead.
+
+4. If iOS asks to allow Local Network for Expo Go, please tap Allow.
+
+If it doesn’t open, try turning VPN off or send me a screenshot of any error.
+
+Thanks again.

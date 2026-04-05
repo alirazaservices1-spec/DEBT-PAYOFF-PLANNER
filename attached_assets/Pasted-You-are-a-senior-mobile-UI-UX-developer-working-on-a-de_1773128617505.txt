@@ -1,0 +1,257 @@
+You are a senior mobile UI/UX developer working on a debt payoff app called DebtPath (iOS). 
+Implement the following changes across all screens. Prioritize conversion, trust, 
+accessibility, and calm financial UX. Follow all instructions exactly.
+
+---
+
+## SCREEN 1: WELCOME SCREEN
+
+GRAPHIC: Replace the upward-trending line chart with either the official DebtPath winding 
+road logo or a chart showing a line trending downward to zero.
+
+ACCESSIBILITY: The light green italic "Finally." text has low contrast against the mint 
+background. Darken its hex code by 15–20% to pass WCAG accessibility standards.
+
+BULLET POINTS — Replace all four with:
+1. "5 Payoff Strategies (Snowball, Avalanche, Tsunami & more)"
+2. "Discover the exact day you become 100% debt-free"
+3. "See how an extra $25/mo shaves years off your loans"
+4. "Beautiful, simple charts to track your progress"
+
+CTA BUTTON: Change "Start My Journey" → "Calculate My Debt-Free Date ➔"
+
+REMOVE: Delete the "I'll Explore On My Own" secondary text entirely.
+
+TRUST TRIGGER: Add a micro-copy line directly above the main button with a 🔒 icon:
+"100% Free • No Account Required"
+
+---
+
+## SCREEN 2: HOW IT WORKS
+
+HEADLINE: Replace with:
+- Line 1 (Black bold): "Your Blueprint."
+- Line 2 (Green): "To Zero Debt."
+
+SUB-HEADLINE: "A simple, proven system to pay off your loans faster and save thousands 
+in interest."
+
+CARD 1 (Blue): Header: "Add Your Debts" | Body: "Securely log your balances, APRs, 
+and minimum payments locally."
+
+CARD 2 (Green): Header: "Choose Your Strategy" | Body: "Compare Snowball, Avalanche, 
+Highest Monthly Payment, or drag-and-drop your custom Tsunami order."
+
+CARD 3 (Purple): Header: "Get Your Debt-Free Date" | Body: "See the exact month and 
+year you finally become 100% debt-free."
+
+CARD 4 (Orange): Header: "Fast-Track Your Progress" | Body: "Run 'what-if' scenarios 
+to see how extra payments shave years off your timeline."
+
+MAIN BUTTON: Change "See How It Works" → "Continue ➔"
+SECONDARY TEXT: Shorten "Skip To App" to just "Skip". Darken the grey font slightly.
+
+---
+
+## SCREEN 3: DEBT ENTRY INTRO
+
+HEADLINE:
+- Line 1 (Black): "Let's find your"
+- Line 2 (Green bold): "Debt-Free Date."
+
+SUB-HEADLINE: Change to "Takes 30 seconds. No account required."
+
+BODY COPY — Replace entirely with:
+"Enter your first balance to see the magic happen. You can easily add the rest of 
+your accounts later to unlock your complete, personalized timeline."
+
+TRUST TRIGGER: Below the paragraph, add a line with a 🛡️ icon:
+"100% Private. Your data stays securely on your device."
+
+EMPTY SPACE: Insert a clean, subtle illustration in the blank middle section — 
+a floating 3D calendar icon, bullseye target, or lock graphic to make the screen 
+feel premium.
+
+MAIN BUTTON: Change "Add A Debt" → "Add My First Debt ➔"
+SECONDARY BUTTON: Change "Skip. I'll Add Debts Later" → "Skip for now"
+
+---
+
+## SCREEN 4: DEBT INPUT FORM
+
+HEADER: Change "Debt free date" → "Add a Debt" (or "Add Your First Debt" on first entry)
+
+ASTERISKS: Remove all required-field asterisks (*) from every label. Instead, disable 
+the "Save" button until all required fields are filled.
+
+LABELS — Reformat to Title Case and plain language:
+- "CURRENT BALANCE" → "Current Balance"
+- "ANNUAL PERCENTAGE RATE" → "Interest Rate (APR)"
+- "MINIMUM PAYMENT" → "Minimum Payment"
+- "DAY OF THE MONTH" → "Due Date"
+
+DATE PICKER: Replace the 31-bubble grid with a native iOS scroll wheel or a clean 
+dropdown menu (1–31).
+
+SAVE BUTTON: Change "Add Debt" → "Save & See My Date ➔"
+
+---
+
+## SCREEN 4 — MONETIZATION CARDS (CRITICAL RELOCATION)
+
+REMOVE: Strip both the green and red affiliate recommendation cards completely 
+from the input form. Zero ads on data entry screens.
+
+RELOCATE: Move all conditional affiliate cards to the Results Dashboard (after 
+the user sees their Debt-Free Date).
+
+REDESIGN — When displayed on the dashboard:
+- KILL ALL RED: Change debt relief card from red/alert styling to deep blue, 
+  dark purple, or gold with a 💡 or ✨ icon instead of [!]
+- Loan Card copy: Header → "💡 Smart Insight: Lower Your Interest" | Body → 
+  "You are paying [X]% on this balance. See if you qualify to cut that rate in 
+  half with a consolidation loan."
+- Debt Relief Card copy: Header → "✨ Faster Payoff Option" | Body → "Because 
+  your balance is over $10,000, you may qualify for programs that safely reduce 
+  the principal amount you owe. Tap to see if you qualify."
+
+---
+
+## MAIN DASHBOARD
+
+GREEN BANNER: Change all text inside (Debt-Free date, Principal Paid, $0 amounts) 
+to pure white or bright mint green for contrast. Must pass Apple accessibility standards.
+
+ICON: Swap the wallet/credit card icon for a universal goal icon: bullseye 🎯, 
+finish flag 🏁, or downward chart 📉
+
+RECOMMENDATION CARDS: Insert a horizontal swipeable carousel (slim height, 
+approximately one debt card tall) between the green banner and the first debt card. 
+Convert all red cards to premium colors (gold or deep blue).
+
+STRATEGY LABEL: Above the first debt card, add a tappable sub-header:
+"Sorting Strategy: Snowball (Lowest Balance) ✏️"
+Tapping opens a bottom sheet to switch strategies.
+
+ADD DEBT PROMPT: Insert a high-visibility card below the green banner:
+- Header: "Is this all of it?"
+- Body: "Your Debt-Free Date is only accurate if we have the full picture."
+- Button: "➕ Add Another Debt"
+- Logic: Dismiss permanently once tapped or a second debt is added.
+
+DEBT CARD COLORS: Remove all red and blue text from "Payoff Est." fields. 
+Change to neutral dark grey. Only use color-coding for the APR if needed — 
+never for the payoff timeline estimate.
+
+---
+
+## DEBT DETAIL SCREEN
+
+CHART LABELS:
+- "TOTAL INTEREST PAID TO DATE" → "Projected Interest"
+- "PRINCIPAL PAID" → "Principal Paid (Since Added)"
+
+DONUT CHART COLORS:
+- Remaining Balance: Change from red → neutral dark grey or black
+- Interest: Change from orange → soft grey-blue
+- Green = Paid (the only color that should pop)
+
+WHAT-IF CALCULATOR: When user taps +$50, +$100, +$500 pills or types a custom 
+amount, the Debt-Free Date and "Balance Over Time" line chart must animate and 
+update in real-time. No "Calculate" button required.
+
+CONTEXTUAL AFFILIATE (Phase 2): Below the What-If box, add a slim banner 
+(only if APR > 15%): "💡 Paying [X]% APR? Tap here to see if you can lower it."
+
+---
+
+## STRATEGY SCREEN
+
+MATH FIX (CRITICAL): Avalanche method must ALWAYS calculate a lower "Total 
+Interest Paid" than Snowball. Fix the backend sorting algorithm to reflect 
+mathematically accurate results.
+
+MENU RESTRUCTURE — Remove "OTHER APPROACHES" header. Flatten to one scrollable 
+list of four equal cards:
+1. Snowball — "Pay smallest balance first for quick wins."
+2. Avalanche — "Pay highest APR first to save the most money."
+3. Highest Payment First (Cash-Flow) — "Free up monthly cash flow fastest."
+4. Tsunami (Custom Order) — "Drag and drop debts to tackle what stresses you most."
+
+REMOVE: Delete the separate "Custom" card. Tsunami IS the custom order.
+
+WINNER BADGES (dynamic, not hardcoded):
+- Lowest interest strategy: show green pill badge "🏆 Saves Most Money"
+- Fastest payoff strategy: show badge "⚡️ Fastest Payoff"
+
+TEXT COLOR: Change all red interest/dollar amounts to neutral dark grey.
+
+TSUNAMI INTERACTION: When user taps the Tsunami card, a list of their debts 
+slides open directly beneath it with ≡ drag handles on the right side of each 
+row for immediate reordering.
+
+---
+
+## PLAN / AMORTIZATION SCREEN
+
+LABELS — Replace past-tense wording throughout:
+- "TOTAL PAID" → "Total Projected Payoff"
+- "TOTAL INTEREST PAID TO DATE" (all instances) → "Total Projected Interest"
+- Row-level "Total Interest Paid to Date" → "Cumulative Interest"
+
+COLORS: Change all red interest text in monthly rows to neutral dark grey 
+or muted blue. Red must not appear in amortization rows.
+
+MONTH TAGS: Remove "MO 1", "MO 2" etc. labels. Show only calendar dates 
+(Apr 2026, May 2026).
+
+EXPANDED ROW FORMATTING — Structure like a clean receipt:
+- Top right: bold label + value → "Payment: $X,XXX.XX"
+- Bottom right: lighter label + value → "Remaining: $XXX,XXX.XX"
+
+CALENDAR BUTTON: The floating dark green Calendar FAB should sync payment 
+due dates to the user's native Apple Calendar or Google Calendar with reminders.
+
+---
+
+## MONETIZATION RULES ENGINE
+
+DO NOT hardcode affiliate banners. Build a conditional rules engine:
+
+Rule 1: IF debt category = "IRS / Tax Debt" → show Tax Relief affiliate only 
+on that debt's detail screen. Copy: "⚖️ Owe the IRS more than $10,000? See if 
+you qualify for the Fresh Start Initiative or an Offer in Compromise."
+
+Rule 2: IF debt category = "Business Loan" OR "Merchant Cash Advance" → show 
+Business Debt Relief affiliate only on that debt's detail screen. Copy: 
+"🏢 Business debt dragging your cash flow down? Tap here to explore commercial 
+debt restructuring."
+
+Rule 3: IF total unsecured debt balance > $10,000 → show Debt Relief card 
+in swipeable dashboard carousel.
+
+Rule 4: IF any single debt APR > 15% → show Consolidation Loan card on:
+(a) that debt's detail screen, and (b) the Calc tab results screen.
+
+Rule 5: IF calculated Debt-Free Date is more than 5 years away → show 
+Debt Relief banner at the bottom of the Strategy screen. Copy: "Struggling 
+to find a strategy that works? Debt Relief might be your fastest path to zero."
+
+RESOURCE CENTER: Add a "Financial Lifelines" section in the Settings/nav menu 
+as a permanent directory of all affiliate partners, organized as:
+- Lower My Interest (Loans)
+- Reduce My Balance (Debt Relief)
+- Help with Business Debt
+- Help with IRS Debt
+
+---
+
+## GLOBAL RULES (Apply to Every Screen)
+
+1. NEVER use red for data, estimates, or interest amounts. Red = errors/alerts only.
+2. NEVER use ALL CAPS labels on forms. Use Title Case.
+3. NEVER show affiliate cards during data entry flows.
+4. Guest Mode: Users must be able to reach "Calculate My Debt-Free Date" 
+   and enter data without creating an account or hitting a paywall.
+5. All text must pass WCAG AA contrast standards against its background color.
+6. Avalanche interest total must always be lower than Snowball in all calculations.

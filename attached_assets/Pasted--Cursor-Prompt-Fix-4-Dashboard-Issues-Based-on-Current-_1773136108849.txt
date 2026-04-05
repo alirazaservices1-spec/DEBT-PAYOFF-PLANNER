@@ -1,0 +1,88 @@
+# Cursor Prompt — Fix 4 Dashboard Issues (Based on Current Screenshot)
+
+```
+You are working on a React Native app called DebtPath. Open the Main Dashboard 
+screen file. Fix ONLY these 4 issues and nothing else:
+
+---
+
+ISSUE 1 — SHRINK THE RECOMMENDATION CARD:
+The affiliate recommendation card is too tall and takes up most of the screen.
+Find the recommendation card component or its container style.
+Apply these style constraints:
+
+- Set a maxHeight of 160 on the card container
+- Change the card's CTA button ("Check My Options Now") background color 
+  from red (#E53935 or similar) to the app's primary dark green (#2E7D32)
+- Keep the button text white
+- The card body text should be max 2 lines with ellipsis:
+  numberOfLines={2} ellipsizeMode="tail"
+
+This makes the card slim and removes the alarming red color.
+
+---
+
+ISSUE 2 — FIX ALL CAPS LABELS ON DEBT CARDS:
+Inside each debt card component, find these label strings and change to Title Case:
+
+- "MIN. PAYMENT" → "Min. Payment"
+- "DUE DAY" → "Due Date"  
+- "PAYOFF EST." → "Payoff Est."
+
+Also check for any other ALL CAPS strings inside the debt card and convert 
+them to Title Case.
+
+---
+
+ISSUE 3 — SHOW DRAG HANDLES WHEN TSUNAMI IS ACTIVE:
+When activeStrategy === 'tsunami', each debt card must show a ≡ drag handle 
+on the right side to signal to the user that cards are reorderable.
+
+Find the debt card component. Add this conditional render inside each card 
+on the far right side:
+
+{activeStrategy === 'tsunami' && (
+  <View style={{
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: 12,
+  }}>
+    <Text style={{ fontSize: 22, color: '#9CA3AF' }}>≡</Text>
+  </View>
+)}
+
+Also add a slim banner ABOVE the debt list only when activeStrategy === 'tsunami':
+
+{activeStrategy === 'tsunami' && (
+  <View style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FFF4',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  }}>
+    <Text style={{ fontSize: 13, color: '#065F46' }}>
+      🌊 Hold and drag cards to set your custom payoff order
+    </Text>
+  </View>
+)}
+
+---
+
+ISSUE 4 — REMOVE EMPTY SPACE AT BOTTOM:
+Find the main ScrollView or FlatList container of the dashboard.
+Check if there is a ListFooterComponent, paddingBottom, or marginBottom 
+that is adding excessive empty space below the last debt card.
+Reduce any paddingBottom or marginBottom on the list container to 100 
+(just enough for the floating + button not to cover the last card).
+
+---
+
+Do not change navigation, sorting logic, debt data, or any other screen.
+Only fix these 4 specific issues on the Dashboard screen.
+```

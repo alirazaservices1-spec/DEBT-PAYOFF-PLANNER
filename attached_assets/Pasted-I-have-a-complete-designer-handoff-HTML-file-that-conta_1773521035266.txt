@@ -1,0 +1,78 @@
+I have a complete designer handoff HTML file that contains 
+all the visual specs, animations, colors, fonts and sounds 
+for DebtPath. Please implement everything from this file 
+into the React Native app.
+
+The file is at: [upload the HTML file to Replit]
+
+Here is what to extract and implement:
+
+COLORS (already defined as CSS variables in the file):
+- --orange: #E8600A (Dex orange, streak flame)
+- --blue: #1F4E8C (XP bars, buttons)
+- --green: #1E7A45 (interest saved, positive)
+- --gold: #D4A017 (achievements, badges)
+- --red: #E24B4A (streak risk ONLY)
+- Dark backgrounds: #0E0F11, #161719, #1E2023, #262A2E
+
+FONTS:
+- Nunito (all weights 400-900) for all text
+- JetBrains Mono for all numbers
+- Install both via expo-google-fonts
+
+FLAME SYSTEM:
+5 different flame SVG components based on streak length:
+- 1-6 days: small 32x48px, #E8600A, 1.8s animation
+- 7-13 days: medium 40x58px, orange+gold core, 1.5s
+- 14-29 days: large 50x68px, deep orange+gold, 1.2s
+- 30-99 days: XL 60x80px, multi-tone, 1.0s, shield badge
+- 100+ days: XXL 72x96px, white-hot core, sparks, 0.8s
+- At-risk: dimmed, heartbeat pulse 0.4s
+
+DEX ANIMATIONS (extract from file):
+- bob: translateY 0 to -8px, 3s loop (idle)
+- celebrate: scale+rotate+translateY combo (milestone)
+- worry-shake: rotate -6 to 6 degrees (streak risk)
+- zzz-float: translateY up with opacity fade (sleeping)
+
+XP BAR:
+- Height 14px, border-radius 99px
+- Blue gradient fill with white particle dot at edge
+- Smooth 1.4s transition on fill
+
+PAYMENT ANIMATION SEQUENCE:
+- Button → green checkmark with spring bounce
+- "+50 XP" floats up 60px and fades
+- Confetti burst fires
+- XP bar increments smoothly
+- 15% chance of bonus 2x XP celebration
+
+SOUND SYSTEM (using expo-av):
+- payment_logged: warm coin tone C5, 0.3s decay
+- xp_earned: bright bell E5, 0.15s
+- streak_maintained: two note ascending chord, 0.4s
+- level_up: 3-4 note fanfare, 0.8s
+- milestone: extended fanfare 1.2s
+- streak_at_risk: descending minor second, 0.3s
+- debt_paid_off: full 3s celebration sequence
+
+$0.50/DAY IMPACT COUNTER on dashboard:
+- Shows: extra paid this month, interest avoided, 
+  days shaved off, new debt-free date
+- Updates in real time on every payment logged
+- Dex copy changes based on extra amount
+
+PAYOFF DATE ANIMATION:
+- Old date: red-gray with strikethrough line 
+  drawing left to right over 0.4s
+- New date: Freedom Green, scales in with spring bounce
+- Dex speech bubble shows days moved up
+
+All animations must match exactly what is shown 
+in the HTML file. The file is the source of truth 
+for all visual and animation specs.
+
+Do not break any existing Milestone 1 or 
+Milestone 2 functionality.
+
+Send QR when done. ty!

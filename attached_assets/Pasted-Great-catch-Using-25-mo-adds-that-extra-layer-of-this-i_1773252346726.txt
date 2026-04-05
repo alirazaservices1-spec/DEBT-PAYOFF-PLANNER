@@ -1,0 +1,108 @@
+Great catch. Using $25+/mo adds that extra layer of "this is just the start," and cleaning up the shorthand makes the UI feel much more modern and less cluttered.
+
+
+
+Here is the finalized copy and layout with the grammar fixes, the specific pricing tweak, and the single-action focus you requested.
+
+
+
+---
+
+
+
+## 1. Finalized Feature List
+
+
+
+The bullets are now grammatically consistent and punchy:
+
+
+
+Choose a strategy: *Snowball, Avalanche, Tsunami, or another.**
+Discover the exact date you will be *100% debt-free.**
+See how an extra *$25+/mo** shaves years off your timeline.
+Track your progress with *simple, intuitive charts.**
+
+
+
+---
+
+
+
+## 2. The Refined Action Stack
+
+
+
+We've removed the "Build My Blueprint" distraction to funnel everyone toward data entry.
+
+
+
+### Primary Button (Solid Green)
+
+
+
+[ + Add My First Debt ]
+
+
+
+### Secondary Link (Subtle Green/Grey Text)
+
+
+
+Learn more about how it works
+
+
+
+---
+
+
+
+## 3. Visual Layout Summary
+
+### Break Free From Debt.
+
+
+
+#### Finally.
+
+
+
+Free features included in the app:
+✅ Choose a strategy: *Snowball, Avalanche, Tsunami, or another.**
+✅ Discover the exact date you will be *100% debt-free.**
+✅ See how an extra *$25+/mo** shaves years off your timeline.
+✅ Track your progress with *simple, intuitive charts.**
+
+
+
+[ + Add My First Debt ]
+<center><small>Learn more about how it works</small></center>
+
+---
+
+
+
+Would you like me to generate a new image of this screen so you can see exactly how the $25+/mo and the single-button layout look in situ?
+
+Screenshot 2026-03-11 at 12.30.30 PM.png 
+Screenshot 2026-03-11 at 12.30.30 PM.png
+Also needs the 100% private, no account needed to start with a lock
+
+Seems the buttons should be to add a debt or small below learn more
+
+Screenshot 2026-03-11 at 12.31.16 PM.png 
+Screenshot 2026-03-11 at 12.31.16 PM.png
+and if someone clicks the tabs at top take them to that section ?
+
+Add a Debt -> Add A Debt
+
+Woo hoo. Looks great. Just update text at bottom Add all your debts to unlock the .. ,... and other comparisons.
+
+Screenshot 2026-03-11 at 12.32.55 PM.png 
+Screenshot 2026-03-11 at 12.32.55 PM.png
+And - instead of long --
+
+I think instead of consolidate - see if a lower interest rate loan can help pay off faster? Also should have a card for the debt relief program too
+
+Screenshot 2026-03-11 at 12.34.19 PM.png 
+Screenshot 2026-03-11 at 12.34.19 PM.png

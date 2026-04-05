@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtPath – Daily Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #111827;
+  display: flex; align-items: flex-start; justify-content: center;
+  min-height: 100vh; font-family: 'Nunito', sans-serif; padding: 32px 20px;
+}
+.phone {
+  width: 340px; min-height: 680px;
+  background: #F7F2EA; border-radius: 44px;
+  border: 8px solid #1e2535;
+  box-shadow: 0 40px 90px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.15);
+  overflow: hidden; position: relative; display: flex; flex-direction: column;
+}
+.phone::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 88px; height: 24px; background: #1e2535; border-radius: 0 0 14px 14px; z-index: 20;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  padding: 32px 16px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.day-info {}
+.day-label {
+  font-family: 'Nunito', sans-serif; font-size: 1.2rem; font-weight: 900;
+  color: #1A0A00; display: flex; align-items: center; gap: 6px;
+}
+.day-date { font-family: 'Nunito Sans', sans-serif; font-size: .72rem; font-weight: 700; color: #8A7060; margin-top: 1px; }
+.streak-badge {
+  background: #1A0A00; border-radius: 20px; padding: 6px 12px;
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'Nunito', sans-serif; font-size: .82rem; font-weight: 900; color: #F5C030;
+}
+
+/* XP bar */
+.xp-bar-wrap { padding: 4px 16px 10px; }
+.xp-top { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.xp-level { font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:800; color:#1A0A00; }
+.xp-count { font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:800; color:#D4900A; }
+.xp-track { height:10px; background:#E0D8CE; border-radius:5px; overflow:hidden; }
+.xp-fill { height:100%; background:linear-gradient(90deg,#D4900A,#F5C030); border-radius:5px; width:50%; transition:width .5s ease; }
+
+/* ── DEX AREA ── */
+.dex-area {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 16px 8px; position: relative;
+}
+.dex-svg-wrap { animation: dexIdle 2.6s ease-in-out infinite; cursor: pointer; }
+@keyframes dexIdle { 0%,100%{transform:translateY(0) rotate(0)} 45%{transform:translateY(-6px) rotate(.5deg)} }
+.dex-status {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 2px solid #E0D8CE; border-radius: 20px;
+  padding: 6px 14px; margin-top: 6px;
+  font-family: 'Nunito', sans-serif; font-size: .8rem; font-weight: 800; color: #1A0A00;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.status-dot { width:8px; height:8px; border-radius:50%; background:#3A9A20; animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(58,154,32,.4)} 50%{box-shadow:0 0 0 6px rgba(58,154,32,0)} }
+
+/* completed banner */
+.complete-banner {
+  display: none;
+  background: linear-gradient(165deg,#1A0A00,#2A1408);
+  border-radius: 0;
+  animation: celebSlideUp .5s cubic-bezier(.34,1.1,.64,1) both;
+}
+@keyframes celebSlideUp {
+  from { transform:translateY(30px); opacity:0; }
+  to   { transform:translateY(0); opacity:1; }
+}
+/* show handled by JS */
+.cb-icon { font-size:1.8rem; }
+.cb-content {}
+.cb-title { font-family:'Nunito',sans-serif; font-size:.95rem; font-weight:900; color:white; }
+.cb-sub { font-family:'Nunito Sans',sans-serif; font-size:.72rem; font-weight:700; color:rgba(255,255,255,.7); margin-top:1px; }
+
+/* ── TASKS ── */
+.tasks-wrap { padding: 0 14px 16px; flex: 1; }
+.tasks-label {
+  font-family:'Nunito Sans',sans-serif; font-size:.65rem; font-weight:800;
+  color:#8A7060; text-transform:uppercase; letter-spacing:.12em; margin-bottom:8px;
+}
+.task {
+  background:#fff; border:2px solid #E0D8CE; border-radius:14px;
+  padding:12px 13px; margin-bottom:8px; cursor:pointer;
+  display:flex; align-items:center; gap:10px; transition:all .15s;
+  position:relative; overflow:hidden;
+}
+.task:hover:not(.done):not(.locked) { border-color:#1A6FC4; transform:translateY(-1px); }
+.task.done { border-color:#3A9A20; background:#F0FFF4; }
+.task.locked { opacity:.45; cursor:not-allowed; }
+.task.payment-due { border-color:#F5C030; background:#FFFBEB; }
+
+.task-ring {
+  width:32px; height:32px; border-radius:50%; flex-shrink:0;
+  border:2.5px solid #D4C8B8; background:#F7F2EA;
+  display:flex; align-items:center; justify-content:center;
+  font-size:.75rem; font-weight:900; color:white; transition:all .18s;
+}
+.task.done .task-ring { background:#3A9A20; border-color:#3A9A20; }
+.task.done .task-ring::after { content:'✓'; }
+.task.payment-due .task-ring { background:#F5C030; border-color:#D4900A; }
+
+.task-icon { font-size:1.3rem; flex-shrink:0; }
+.task-body { flex:1; min-width:0; }
+.task-name {
+  font-family:'Nunito',sans-serif; font-size:.9rem; font-weight:800; color:#1A0A00; line-height:1.2;
+}
+.task.done .task-name { text-decoration:line-through; color:#5A7A50; }
+.task-desc { font-family:'Nunito Sans',sans-serif; font-size:.7rem; font-weight:600; color:#8A7060; margin-top:2px; line-height:1.4; }
+.task.done .task-desc { color:#7A9A70; }
+.task-xp { font-family:'Nunito',sans-serif; font-size:.7rem; font-weight:900; color:#1A6FC4; background:#EFF6FF; border-radius:8px; padding:3px 8px; flex-shrink:0; white-space:nowrap; }
+.task.done .task-xp { color:#3A9A20; background:#DCFCE7; }
+.task.payment-due .task-xp { color:#8A5C00; background:#FEF3C7; }
+
+/* eval special */
+.task.eval-task { border-color:#9B59B6; background:#FAF5FF; }
+.task.eval-task .task-ring { background:#9B59B6; border-color:#7B3FA6; }
+
+/* payment breakdown rows */
+.pay-debt-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 10px; background:#fff; border-radius:10px; margin-bottom:5px;
+  border:1.5px solid #E0D8CE;
+}
+.pdr-left { display:flex; align-items:center; gap:8px; }
+.pdr-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0; }
+.pdr-name { font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:800; color:#1A0A00; }
+.pdr-sub  { font-family:'Nunito Sans',sans-serif; font-size:.6rem; font-weight:700; color:#8A7060; margin-top:1px; }
+.pdr-right { text-align:right; }
+.pdr-amount { font-family:'Nunito',sans-serif; font-size:.95rem; font-weight:900; color:#1A0A00; }
+.pdr-target { font-family:'Nunito Sans',sans-serif; font-size:.6rem; font-weight:700; color:#3A9A20; }
+
+.eval-badge { font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:900; color:#7B3FA6; background:#F3E8FF; border-radius:6px; padding:2px 7px; }
+
+/* payment countdown chip */
+.pay-chip {
+  display:none; background:#FEF3C7; border:1.5px solid #F5C030;
+  border-radius:8px; padding:2px 8px;
+  font-family:'Nunito',sans-serif; font-size:.65rem; font-weight:900; color:#8A5C00;
+}
+.task.payment-due .pay-chip { display:block; }
+
+/* confetti */
+.xp-toast {
+  position:fixed; pointer-events:none; z-index:9999;
+  font-family:'Nunito',sans-serif; font-weight:900; font-size:1.1rem;
+  color:#3A9A20; text-shadow:0 2px 8px rgba(58,154,32,.4);
+  white-space:nowrap;
+  animation:xpFloat 1.8s cubic-bezier(.22,1,.36,1) both forwards;
+}
+@keyframes xpFloat {
+  0%  { opacity:0; transform:scale(.5) translateY(0); }
+  18% { opacity:1; transform:scale(1.3) translateY(-10px); }
+  75% { opacity:1; transform:scale(1.05) translateY(-55px); }
+  100%{ opacity:0; transform:scale(.9) translateY(-80px); }
+}
+@keyframes dexSpin {
+  0%   { transform: rotate(0deg) scale(1); }
+  30%  { transform: rotate(180deg) scale(1.2); }
+  60%  { transform: rotate(300deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+@keyframes dexJump {
+  0%   { transform: translateY(0) scale(1); }
+  35%  { transform: translateY(-20px) scale(1.12); }
+  65%  { transform: translateY(-9px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes dexCelebPop {
+  0%   { transform: scale(0) rotate(-12deg); opacity:0; }
+  60%  { transform: scale(1.2) rotate(5deg); opacity:1; }
+  100% { transform: scale(1) rotate(0); opacity:1; }
+}
+@keyframes dexWiggle {
+  0%,100% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-10deg) scale(1.08); }
+  50% { transform: rotate(10deg) scale(1.1); }
+  80% { transform: rotate(-6deg) scale(1.05); }
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="day-info">
+      <div class="day-label">Day 7 🚀 <span style="font-size:.7rem;color:#3A9A20;font-weight:700;background:#DCFCE7;border-radius:8px;padding:2px 8px">+7 days</span></div>
+      <div class="day-date" id="todayDate"></div>
+    </div>
+    <div class="streak-badge">🔥 <span id="streakCount">7</span> day streak</div>
+  </div>
+
+  <!-- XP BAR -->
+  <div class="xp-bar-wrap">
+    <div class="xp-top">
+      <span class="xp-level" id="levelLabel">Level 2 - Committed</span>
+      <span class="xp-count" id="xpLabel">340 / 500 XP</span>
+    </div>
+    <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:68%"></div></div>
+  </div>
+
+  <!-- DEX -->
+  <div class="dex-area">
+    <div class="dex-svg-wrap" id="dexWrap" onclick="tapDex()">
+      <svg viewBox="5 8 90 84" width="86" height="86" id="dexSvg">
+        <ellipse cx="14" cy="62" rx="8" ry="15" fill="#D4900A" transform="rotate(12,14,62)"/>
+        <ellipse cx="86" cy="52" rx="8" ry="14" fill="#D4900A" transform="rotate(-25,86,52)"/>
+        <circle cx="50" cy="52" r="33" fill="#EAA835"/>
+        <ellipse cx="50" cy="70" rx="24" ry="11" fill="#C07820" opacity=".18"/>
+        <circle cx="22" cy="26" r="11" fill="#D09828"/>
+        <circle cx="78" cy="26" r="11" fill="#D09828"/>
+        <circle cx="22" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+        <circle cx="78" cy="24" r="5" fill="#EAA835" opacity=".45"/>
+        <ellipse cx="35" cy="46" rx="12" ry="13" fill="white"/>
+        <ellipse cx="65" cy="46" rx="12" ry="13" fill="white"/>
+        <circle cx="36" cy="44" r="8.5" fill="#1A0800" id="pupL"/>
+        <circle cx="66" cy="44" r="8.5" fill="#1A0800" id="pupR"/>
+        <circle cx="32" cy="40" r="3" fill="white"/>
+        <circle cx="62" cy="40" r="3" fill="white"/>
+        <path d="M22 30 Q34 23 44 28" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round" id="browL"/>
+        <path d="M56 28 Q66 23 78 30" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round" id="browR"/>
+        <path d="M28 63 Q50 76 72 63" stroke="#A86010" stroke-width="3.5" fill="none" stroke-linecap="round" id="dexMouth"/>
+        <ellipse cx="22" cy="55" rx="7" ry="4" fill="#E87050" opacity=".22"/>
+        <ellipse cx="78" cy="55" rx="7" ry="4" fill="#E87050" opacity=".22"/>
+      </svg>
+    </div>
+    <div class="dex-status">
+      <div class="status-dot"></div>
+      <span id="dexStatusText">Tap your tasks to stay on track!</span>
+    </div>
+  </div>
+
+  <!-- COMPLETE BANNER (hidden until all done) -->
+  <div class="complete-banner" id="completeBanner" style="display:none;flex-direction:column;align-items:center;padding:18px 16px 14px;text-align:center">
+    <div style="animation:dexCelebPop .7s cubic-bezier(.34,1.56,.64,1) both" id="celebDex">
+      <svg viewBox="0 0 100 100" width="80" height="80">
+        <ellipse cx="5" cy="26" rx="8.5" ry="16" fill="#D4900A" transform="rotate(-52,5,26)"/>
+        <ellipse cx="95" cy="26" rx="8.5" ry="16" fill="#D4900A" transform="rotate(52,95,26)"/>
+        <text x="-4" y="8" style="font-size:12px;font-family:sans-serif">⭐</text>
+        <text x="84" y="8" style="font-size:12px;font-family:sans-serif">🌟</text>
+        <circle cx="50" cy="52" r="33" fill="#EAA835"/>
+        <ellipse cx="50" cy="70" rx="26" ry="12" fill="#C07820" opacity=".2"/>
+        <circle cx="22" cy="26" r="11" fill="#D09828"/>
+        <circle cx="78" cy="26" r="11" fill="#D09828"/>
+        <ellipse cx="35" cy="46" rx="12" ry="13" fill="white"/>
+        <ellipse cx="65" cy="46" rx="12" ry="13" fill="white"/>
+        <circle cx="36" cy="44" r="8.5" fill="#1A0800"/>
+        <circle cx="66" cy="44" r="8.5" fill="#1A0800"/>
+        <circle cx="32" cy="40" r="3" fill="white"/>
+        <circle cx="62" cy="40" r="3" fill="white"/>
+        <path d="M20 62 Q50 90 80 62" stroke="#A86010" stroke-width="4.5" fill="#fff" stroke-linecap="round"/>
+        <path d="M24 66 Q50 80 76 66" fill="#A86010"/>
+        <line x1="50" y1="62" x2="50" y2="73" stroke="white" stroke-width="2.5"/>
+        <path d="M19 29 Q33 20 44 26" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M56 26 Q67 20 81 29" stroke="#8A4A0C" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="20" cy="57" rx="8" ry="5" fill="#E86040" opacity=".35"/>
+        <ellipse cx="80" cy="57" rx="8" ry="5" fill="#E86040" opacity=".35"/>
+      </svg>
+    </div>
+    <div style="font-family:'Nunito',sans-serif;font-size:1.25rem;font-weight:900;color:white;line-height:1.2;margin:8px 0 3px">Day Complete! 🎉</div>
+    <div style="font-family:'Nunito',sans-serif;font-size:.9rem;font-weight:800;color:#F5C030;margin-bottom:10px" id="celebStreak">🔥 8 day streak locked in!</div>
+    <div style="background:rgba(255,255,255,.09);border:1.5px solid rgba(255,255,255,.14);border-radius:12px;padding:11px 14px;margin-bottom:10px;width:100%">
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:.6rem;font-weight:800;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">On track for your dream</div>
+      <div style="font-family:'Nunito',sans-serif;font-size:.95rem;font-weight:900;color:#F5C030" id="celebDreamLine">Home — 29 months away 🏡</div>
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:.7rem;font-weight:600;color:rgba(255,255,255,.5);margin-top:3px" id="celebDreamSub">Every day you check in moves that date closer.</div>
+    </div>
+    <div style="font-family:'Nunito Sans',sans-serif;font-size:.8rem;font-weight:700;color:rgba(255,255,255,.65);line-height:1.55" id="celebSeeYou">See you tomorrow! Dex will be here. 👋</div>
+
+    <!-- OPTIONAL INVITE NUDGE -->
+    <div style="width:100%;margin-top:12px;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;position:relative">
+      <div style="position:absolute;top:-1px;right:10px;background:#3A9A20;color:white;font-family:'Nunito',sans-serif;font-size:.58rem;font-weight:900;padding:2px 9px;border-radius:0 0 8px 8px;letter-spacing:.06em;text-transform:uppercase">+100 XP per friend</div>
+      <div style="font-family:'Nunito',sans-serif;font-size:.88rem;font-weight:900;color:white;margin-bottom:3px">Know someone drowning in debt? 👀</div>
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:.72rem;font-weight:600;color:rgba(255,255,255,.55);margin-bottom:10px;line-height:1.5">Share DebtPath and earn 100 XP for each friend who joins. Totally optional.</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="shareWhatsApp()" style="flex:1;border-radius:10px;padding:9px 6px;border:none;background:#25D366;color:white;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.118 1.533 5.845L.057 23.5l5.808-1.451A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.644-.523-5.147-1.432l-.368-.219-3.448.861.924-3.36-.24-.384A9.96 9.96 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          WhatsApp
+        </button>
+        <button onclick="shareFacebook()" style="flex:1;border-radius:10px;padding:9px 6px;border:none;background:#1877F2;color:white;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Post to Facebook
+        </button>
+        <button onclick="skipInvite(this)" style="width:32px;border-radius:10px;padding:9px 4px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.4);font-family:'Nunito',sans-serif;font-size:.75rem;font-weight:800;cursor:pointer" title="Skip">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="tasks-wrap">
+    <div class="tasks-label">Today's tasks</div>
+
+    <!-- Task 1: No new debt -->
+    <div class="task" id="task1" onclick="doTask(1)">
+      <div class="task-ring" id="ring1"></div>
+      <span class="task-icon">🚫</span>
+      <div class="task-body">
+        <div class="task-name">No new debt added</div>
+        <div class="task-desc">Confirm you did not charge new purchases to your enrolled cards today.</div>
+      </div>
+      <div class="task-xp" id="xp1">+25 XP</div>
+    </div>
+
+    <!-- Task 2: Save the amount -->
+    <div class="task" id="task2" onclick="doTask(2)">
+      <div class="task-ring" id="ring2"></div>
+      <span class="task-icon">💰</span>
+      <div class="task-body">
+        <div class="task-name">Saved today's amount</div>
+        <div class="task-desc">Set aside <strong style="color:#3A9A20">$0.50</strong> (your daily commitment). Every dollar moves the needle.</div>
+      </div>
+      <div class="task-xp" id="xp2">+25 XP</div>
+    </div>
+
+    <!-- Task 3: Payment due - expands with per-debt breakdown (shows 3-5 days before due) -->
+    <div class="task payment-due" id="task3" style="flex-direction:column;align-items:stretch;cursor:default;padding:0;overflow:hidden">
+
+      <!-- Collapsed header row (always visible) -->
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 13px;cursor:pointer" onclick="togglePaymentDetail()">
+        <div class="task-ring" id="ring3" style="background:#F5C030;border-color:#D4900A;flex-shrink:0">!</div>
+        <span class="task-icon">📅</span>
+        <div class="task-body">
+          <div class="task-name">Payment due soon</div>
+          <div class="task-desc" id="paymentSummaryDesc">2 payments — <strong style="color:#D4900A">$612 total</strong> due by Mar 20</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+          <div class="task-xp" id="xp3">+50 XP</div>
+          <div class="pay-chip" id="daysChip">3 days left</div>
+        </div>
+      </div>
+
+      <!-- Expanded payment detail (shown when tapped) -->
+      <div id="paymentDetail" style="display:none;border-top:1.5px solid rgba(245,192,48,.3);padding:0 13px 12px">
+
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:.62rem;font-weight:800;color:#8A5C00;text-transform:uppercase;letter-spacing:.1em;padding:8px 0 6px">What to pay now</div>
+
+        <!-- Debt payment rows -->
+        <div id="paymentRows"></div>
+
+        <!-- Total row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#FEF3C7;border-radius:9px;padding:9px 11px;margin-top:6px;border:1.5px solid rgba(245,192,48,.4)">
+          <span style="font-family:'Nunito',sans-serif;font-size:.82rem;font-weight:900;color:#8A5C00">Total to pay</span>
+          <span style="font-family:'Nunito',sans-serif;font-size:1rem;font-weight:900;color:#1A0A00" id="totalPayment">$612</span>
+        </div>
+
+        <!-- Log all paid button -->
+        <button onclick="doTask(3)" style="width:100%;margin-top:9px;border-radius:10px;padding:11px;background:linear-gradient(135deg,#1A6FC4,#0D5BAE);border:none;color:white;font-family:'Nunito',sans-serif;font-size:.9rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 6px 18px rgba(26,111,196,.3)">
+          ✅ Log All Payments Made
+        </button>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:.62rem;font-weight:600;color:#8A7060;text-align:center;margin-top:5px">Minimum counts — every payment keeps your streak alive</div>
+      </div>
+
+    </div>
+
+    <!-- Task 4: Free evaluation (smart recommendation) -->
+    <div class="task eval-task" id="task4" onclick="doTask(4)">
+      <div class="task-ring" id="ring4" style="background:#9B59B6;border-color:#7B3FA6">→</div>
+      <span class="task-icon">🔎</span>
+      <div class="task-body">
+        <div class="task-name">Get a free debt relief eval</div>
+        <div class="task-desc">Your credit card APRs average 22%. A specialist may reduce what you owe - free consultation.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <div class="eval-badge">FREE</div>
+        <div class="task-xp" id="xp4">+100 XP</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var tasksTotal = 4;
+var tasksDone = 0;
+var xpBase = 340;
+var xpMax = 500;
+var xpCurrent = xpBase;
+var streakCount = 7;
+
+var TASK_XP = { 1:25, 2:25, 3:50, 4:100 };
+var taskState = { 1:false, 2:false, 3:false, 4:false };
+
+var DEX_REACTIONS = [
+  { anim:'jump', mouth:'M24 62 Q50 80 76 62', browL:'M22 29 Q34 22 44 27', browR:'M56 27 Q66 22 78 29', status:'YES! One down! Keep going! 💪' },
+  { anim:'wiggle', mouth:'M22 60 Q50 82 78 60', browL:'M21 27 Q34 20 44 26', browR:'M56 26 Q66 20 79 27', status:'Amazing! Halfway there! 🌟' },
+  { anim:'spin', mouth:'M20 60 Q50 86 80 60', browL:'M20 26 Q34 19 44 25', browR:'M56 25 Q66 19 80 26', status:'THREE! You are on fire! 🔥' },
+  { anim:'jump', mouth:'M18 60 Q50 90 82 60', browL:'M19 24 Q34 17 44 23', browR:'M56 23 Q66 17 81 24', status:'ALL DONE! Day complete! You champion! 🏆' }
+];
+
+// Set today's date
+var d = new Date();
+document.getElementById('todayDate').textContent = d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+
+// Payment data (from step 1 debts - due within 3-5 days)
+var upcomingPayments = [
+  {
+    name: 'Chase Sapphire',
+    type: 'Credit Card',
+    icon: '💳',
+    iconBg: '#EFF6FF',
+    dueDate: 'Mar 20',
+    daysUntil: 3,
+    minPayment: 116,
+    targetPayment: 364,  // snowball target amount
+    balance: 5800,
+    apr: 24.99,
+    isTarget: true       // snowball attack debt
+  },
+  {
+    name: 'Citi Double Cash',
+    type: 'Credit Card',
+    icon: '💳',
+    iconBg: '#EFF6FF',
+    dueDate: 'Mar 22',
+    daysUntil: 5,
+    minPayment: 164,
+    targetPayment: 164,  // min only (not attack debt)
+    balance: 8200,
+    apr: 22.49,
+    isTarget: false
+  }
+];
+
+function buildPaymentRows() {
+  var container = document.getElementById('paymentRows');
+  if (!container) return;
+  var total = 0;
+  var html = '';
+  upcomingPayments.forEach(function(p) {
+    total += p.targetPayment;
+    var urgency = p.daysUntil <= 1 ? '🔴 Due tomorrow' :
+                  p.daysUntil <= 3 ? '⚠️ ' + p.daysUntil + ' days left' :
+                  '📅 ' + p.daysUntil + ' days left';
+    var targetLabel = p.isTarget
+      ? 'Target: $' + p.targetPayment + ' (attack!) ⚡'
+      : 'Min: $' + p.targetPayment;
+    html +=
+      '<div class="pay-debt-row">' +
+        '<div class="pdr-left">' +
+          '<div class="pdr-icon" style="background:' + p.iconBg + '">' + p.icon + '</div>' +
+          '<div>' +
+            '<div class="pdr-name">' + p.name + '</div>' +
+            '<div class="pdr-sub">' + urgency + ' · ' + p.apr + '% APR</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pdr-right">' +
+          '<div class="pdr-amount">$' + p.targetPayment + '</div>' +
+          '<div class="pdr-target">' + targetLabel + '</div>' +
+        '</div>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+  document.getElementById('totalPayment').textContent = '$' + total;
+  var minDays = Math.min.apply(null, upcomingPayments.map(function(p){return p.daysUntil;}));
+  document.getElementById('daysChip').textContent = minDays + ' days left';
+  document.getElementById('paymentSummaryDesc').innerHTML =
+    upcomingPayments.length + ' payments — <strong style="color:#D4900A">$' + total + ' total</strong> due by ' +
+    upcomingPayments[upcomingPayments.length-1].dueDate;
+}
+
+function togglePaymentDetail() {
+  var det = document.getElementById('paymentDetail');
+  if (!det) return;
+  var open = det.style.display !== 'none';
+  det.style.display = open ? 'none' : 'block';
+}
+
+// Init on load
+buildPaymentRows();
+
+
+function doTask(n) {
+  if (taskState[n]) return; // already done
+  taskState[n] = true;
+  tasksDone++;
+
+  // Mark task done
+  var task = document.getElementById('task'+n);
+  task.classList.add('done');
+  task.classList.remove('payment-due','eval-task');
+  var ring = document.getElementById('ring'+n);
+  ring.style.background = '#3A9A20';
+  ring.style.borderColor = '#3A9A20';
+  ring.style.color = 'white';
+
+  // Add XP
+  var gained = TASK_XP[n];
+  xpCurrent = Math.min(xpCurrent + gained, xpMax);
+  var pct = (xpCurrent / xpMax) * 100;
+  document.getElementById('xpFill').style.width = pct + '%';
+  document.getElementById('xpLabel').textContent = xpCurrent + ' / ' + xpMax + ' XP';
+  if (xpCurrent >= xpMax) {
+    document.getElementById('levelLabel').textContent = 'Level 3 - Champion';
+    document.getElementById('xpFill').style.background = 'linear-gradient(90deg,#3A9A20,#8BC34A)';
+  }
+
+  // Dex reaction
+  var r = DEX_REACTIONS[tasksDone - 1];
+  animateDex(r.anim);
+  updateDexFace(r.mouth, r.browL, r.browR);
+  document.getElementById('dexStatusText').textContent = r.status;
+
+  // Confetti + XP toast
+  burstConfetti(30 + tasksDone * 10);
+  showXP('+' + gained + ' XP' + (n===4?' 🔥':''));
+
+  // All done - full celebration
+  if (tasksDone === tasksTotal) {
+    setTimeout(triggerDayComplete, 500);
+  }
+}
+
+function triggerDayComplete() {
+  streakCount++;
+  document.getElementById('streakCount').textContent = streakCount;
+  document.getElementById('dexStatusText').textContent = 'DAY COMPLETE! You are incredible! 🏆';
+
+  // 4 confetti waves
+  [0, 220, 440, 680].forEach(function(delay, i){
+    setTimeout(function(){ burstConfetti(80 - i*10); }, delay);
+  });
+
+  // Big XP toast
+  showXP('🏆 DAY ' + streakCount + ' STREAK! +100 BONUS XP');
+
+  // Spin Dex, then settle happy
+  setTimeout(function(){
+    var wrap = document.getElementById('dexWrap');
+    wrap.style.animation = 'none';
+    void wrap.offsetWidth;
+    wrap.style.animation = 'dexSpin .9s cubic-bezier(.34,1.2,.64,1) both';
+    setTimeout(function(){ wrap.style.animation = 'dexIdle 2.6s ease-in-out infinite'; }, 950);
+    updateDexFace('M20 62 Q50 88 80 62','M19 28 Q33 19 44 25','M56 25 Q67 19 81 28');
+  }, 300);
+
+  // Show celebration banner after 900ms
+  setTimeout(function(){
+    var banner = document.getElementById('completeBanner');
+    banner.style.display = 'flex';
+
+    document.getElementById('celebStreak').textContent = '🔥 ' + streakCount + ' day streak locked in!';
+
+    // Dream personalisation
+    var dreams = {Home:'🏡',Trip:'✈️','New Car':'🚗',Business:'💼',Retire:'🏖️',College:'🎓'};
+    var dreamName = 'Home';
+    var dreamMonths = 29;
+    document.getElementById('celebDreamLine').textContent =
+      dreamName + ' - ' + dreamMonths + ' months away ' + (dreams[dreamName] || '🌟');
+    document.getElementById('celebDreamSub').textContent =
+      'Every day you check in moves that date closer. Keep going!';
+
+    // Contextual tomorrow message
+    var msg = streakCount >= 30 ? 'THIRTY DAYS! You are unstoppable. See you tomorrow! 🔥' :
+              streakCount >= 7  ? 'Week ' + Math.floor(streakCount/7) + ' strong! See you tomorrow. 💪' :
+              streakCount >= 2  ? 'Tomorrow is Day ' + (streakCount+1) + '. You are building something real. 👋' :
+              'See you tomorrow! Dex will be here. 👋';
+    document.getElementById('celebSeeYou').textContent = msg;
+
+    // Pop celebDex
+    var cd = document.getElementById('celebDex');
+    cd.style.animation = 'none';
+    void cd.offsetWidth;
+    cd.style.animation = 'dexCelebPop .7s cubic-bezier(.34,1.56,.64,1) both';
+  }, 900);
+}
+
+// ── SHARE / INVITE ──
+var APP_URL = 'https://debtpath.app';  // replace with real URL at launch
+var SHARE_TEXT = "I'm using DebtPath to pay off my debt and get to my dream faster. Free app - check it out!";
+
+function shareWhatsApp() {
+  var url = 'https://wa.me/?text=' + encodeURIComponent(SHARE_TEXT + ' ' + APP_URL + '?ref=wa');
+  window.open(url, '_blank');
+  grantInviteXP('WhatsApp');
+}
+
+function shareFacebook() {
+  var url = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(APP_URL + '?ref=fb') +
+            '&quote=' + encodeURIComponent(SHARE_TEXT);
+  window.open(url, '_blank', 'width=600,height=400');
+  grantInviteXP('Facebook');
+}
+
+function skipInvite(btn) {
+  var card = btn.closest('div[style*="border-radius:14px"]');
+  if (card) { card.style.opacity='0'; card.style.transition='opacity .3s'; setTimeout(function(){ card.style.display='none'; },300); }
+}
+
+function grantInviteXP(platform) {
+  // Optimistic XP - real tracking would verify join on backend
+  setTimeout(function(){
+    showXP('+100 XP for sharing! 🎉', '#25D366');
+    xpCurrent = Math.min(xpCurrent + 100, xpMax + 100);
+    document.getElementById('xpLabel').textContent = xpCurrent + ' / ' + xpMax + ' XP';
+    document.getElementById('xpFill').style.width = Math.min((xpCurrent/xpMax)*100,100) + '%';
+  }, 800);
+}
+
+function tapDex() {
+  // Easter egg tap
+  animateDex('wiggle');
+  var msgs = [
+    'I believe in you! Keep it up! 💪',
+    'You are doing great! Every day counts!',
+    'Stay consistent and your dream gets closer! 🌟',
+    'Look at that streak! You are a machine! 🔥'
+  ];
+  document.getElementById('dexStatusText').textContent = msgs[Math.floor(Math.random()*msgs.length)];
+}
+
+function animateDex(type) {
+  var wrap = document.getElementById('dexWrap');
+  wrap.style.animation = 'none';
+  void wrap.offsetWidth;
+  var anims = {
+    jump: 'dexJump .7s cubic-bezier(.34,1.56,.64,1) both',
+    spin: 'dexSpin .8s cubic-bezier(.34,1.2,.64,1) both',
+    wiggle: 'dexWiggle .6s ease-in-out both'
+  };
+  wrap.style.animation = anims[type] || anims.jump;
+  setTimeout(function(){ wrap.style.animation = 'dexIdle 2.6s ease-in-out infinite'; }, 900);
+}
+
+function updateDexFace(mouth, browL, browR) {
+  var m = document.getElementById('dexMouth');
+  var bl = document.getElementById('browL');
+  var br = document.getElementById('browR');
+  if (m) m.setAttribute('d', mouth);
+  if (bl) bl.setAttribute('d', browL);
+  if (br) br.setAttribute('d', browR);
+}
+
+function burstConfetti(count) {
+  var phone = document.getElementById('phone');
+  var rect = phone.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + 150;
+  var colors = ['#F5C030','#1A6FC4','#3A9A20','#F06030','#9B59B6','#E8A020','#fff'];
+  for (var i = 0; i < count; i++) {
+    (function(){
+      var c = document.createElement('div');
+      var size = 5 + Math.random()*7;
+      var angle = Math.random()*360;
+      var dist = 40 + Math.random()*110;
+      var dx = Math.cos(angle*Math.PI/180)*dist;
+      var dy = Math.sin(angle*Math.PI/180)*dist - 40;
+      c.style.cssText =
+        'position:fixed;width:'+size+'px;height:'+size+'px;' +
+        'left:'+(cx-size/2)+'px;top:'+(cy-size/2)+'px;' +
+        'background:'+colors[Math.floor(Math.random()*colors.length)]+';' +
+        'border-radius:'+(Math.random()>.4?'50%':'2px')+';pointer-events:none;z-index:9999;' +
+        'transition:transform '+(0.7+Math.random()*.8)+'s cubic-bezier(.2,.8,.3,1),' +
+        'opacity '+(0.5+Math.random()*.4)+'s ease '+(0.2+Math.random()*.3)+'s;';
+      document.body.appendChild(c);
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          c.style.transform = 'translate('+dx+'px,'+dy+'px) rotate('+(Math.random()*720)+'deg)';
+          c.style.opacity = '0';
+        });
+      });
+      setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); }, 1500);
+    })();
+  }
+}
+
+function showXP(text) {
+  var phone = document.getElementById('phone');
+  var rect = phone.getBoundingClientRect();
+  var t = document.createElement('div');
+  t.className = 'xp-toast';
+  t.textContent = text;
+  t.style.left = (rect.left + rect.width/2 - 70) + 'px';
+  t.style.top = (rect.top + 140) + 'px';
+  document.body.appendChild(t);
+  setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 2000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+I have a debt payoff planner app. Please review my entire codebase and check if the following features are implemented. For each point, tell me YES (implemented), PARTIAL (partially done), or NO (not implemented), and if NO or PARTIAL, implement it or fix it.
+FEATURE CHECKLIST:
+1. Free Core Features
+
+Are the core debt tracking and payoff planning features available to all users without a paywall?
+Confirm that features competitors charge for (extra payments, multiple strategies, reports) are free in our app.
+
+2. Smart Recommendation Banner Engine
+Check if there is a recommendation/banner system that triggers automatically based on user data. Specifically:
+
+If a user enters an interest rate of 18% or higher → show a banner: "See if you can lower your 18% interest with a personal loan"
+If total unsecured debt exceeds $10,000 → show a banner: "See if you can reduce your $Xamount debt and lower your monthly payment"
+If total unsecured debt exceeds $24,000 → show a more urgent version of that banner
+If the user has tax debt → show a banner specific to tax debt relief options
+If the user has business debt → show a banner for business debt solutions
+
+3. Banner Trigger Timing (CRITICAL)
+
+Banners must appear IMMEDIATELY and AUTOMATICALLY the moment a user types in a qualifying value — not hidden in a menu or shown later
+For example: user types "24%" in the interest rate field → banner pops up instantly
+Or: total debt crosses $10k → banner appears right away on the dashboard
+Banners should be presented as a BENEFIT to the user, not as an ad (e.g., "We found a way that might save you money")
+
+4. Business Debt — Separate Categories
+
+Is business debt separated from personal debt?
+Are business credit cards and business loans shown as separate categories from secured business debts (like equipment loans, mortgages)?
+If not, add these distinct categories:
+
+Business Credit Cards
+Business Loans (unsecured)
+Secured Business Debts (equipment, property, etc.)
+
+
+
+5. Personalized Recommendations Section
+
+Is there a visible "Personalized Recommendations" or "For You" section on the main dashboard?
+If it exists but is hidden or hard to find, move it to a prominent position — ideally at the top of the dashboard or as a card that appears immediately after debt entry
+This section is our primary monetization engine, so it must be impossible to miss
+
+6. Banner/Recommendation Design
+
+Banners should look like helpful tips, not ads
+They should include the user's actual numbers (e.g., their exact interest rate or debt amount) to feel personalized
+There should be a call-to-action button on each banner (e.g., "Check My Options" or "See Offers")
+
+Please go through every file, check all these points, report what is and isn't implemented, then implement everything that is missing or partial. Show me the result after changes.

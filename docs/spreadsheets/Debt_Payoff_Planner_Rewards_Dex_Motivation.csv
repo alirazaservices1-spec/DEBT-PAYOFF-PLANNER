@@ -1,0 +1,95 @@
+section,item,xp_points,band_or_trigger,dex_presentation,celebration_or_sound,motivation_what_player_feels,detail_notes,source_file
+GUIDE,How_to_use_this_sheet,,,,"In Excel/Google Sheets: turn on Filter; filter column ""section"". Shipped = all except PROPOSAL_. XP column blank when not a point grant.",,,
+GUIDE,Column_meaning,,,,xp_points = total XP for that row when numeric. band_or_trigger = streak day level XP range or trigger summary.,,,
+XP_AND_POINTS,LOG_PAYMENT,50,Each logged payment (after onboarding flows),happy then idle,payment_logged.wav,Small win every time you log reality,First payment adds +100 below; plan/debt flows also grantBonusXp +10 and sometimes +50 path,multiple
+XP_AND_POINTS,LOG_PAYMENT_first_payment_bonus,100,First LOG_PAYMENT only,celebrating,milestone.wav,Big dopamine on first log,Stacks with 50 → 150 total first time,GameContext awardXp
+XP_AND_POINTS,PAY_OFF_DEBT,500,Debt balance to zero,celebrating,debt_paid_off.wav,Major milestone — one enemy defeated,,GameContext XP_REWARDS
+XP_AND_POINTS,HIT_MILESTONE,200,Plan/debt milestone hit,celebrating or level_up if crosses threshold,level_up or payment flow,Progress is visible,,GameContext XP_REWARDS
+XP_AND_POINTS,DAILY_STREAK,25,New calendar streak day (recordPaymentForStreak),celebrating on milestone else idle,milestone / streak_maintained,Daily identity: I showed up,,GameContext recordPaymentForStreak
+XP_AND_POINTS,DAILY_SAVING,20,Daily action checklist,,,Habit reinforcement,,GameContext; DailyActionList
+XP_AND_POINTS,NO_SPEND,15,Daily action checklist,,,Habit reinforcement,,GameContext; DailyActionList
+XP_AND_POINTS,SOCIAL_SHARE,10,Daily action checklist,,,Light social accountability,,GameContext; DailyActionList
+XP_AND_POINTS,BONUS_CHECK,10,Daily action bonus checklist,,,Extra checklist completion,,GameContext; DailyActionList
+XP_AND_POINTS,COMPLETE_ONBOARDING,100,Defined but unused in awardXp callsites,n/a,n/a,Reserved constant,No awardXp('COMPLETE_ONBOARDING') found in repo,GameContext XP_REWARDS
+XP_AND_POINTS,plan_debt_grantBonusXp,10,After LOG_PAYMENT in plan/debt UI,happy / surprised path,,Small stack on top of 50+ streak math,~15% bonus-day UI shows +100 while code grantBonusXp(50),plan.tsx debt/[id].tsx
+XP_AND_POINTS,streak_shield_purchase,-500,Buy shield when totalXp >= 500,celebrating,level_up.wav,Insurance against one miss,Sets streakShield true,GameContext buyStreakShield
+STREAK_BONUS_XP,streak_day_3,75,First time streak hits 3 (plus +25 daily),celebrating,milestone.wav,Early momentum validated,Message: You're building real momentum!,GameContext STREAK_MILESTONES
+STREAK_BONUS_XP,streak_day_7,150,First hit day 7,celebrating,milestone.wav,One week proof,One full week - you're unstoppable!,GameContext
+STREAK_BONUS_XP,streak_day_14,300,First hit day 14,celebrating,milestone.wav,Habit forming,Two weeks of dedication. Amazing!,GameContext
+STREAK_BONUS_XP,streak_day_30,500,First hit day 30,celebrating,milestone.wav,Monthly identity,Shield granted if not owned,GameContext
+STREAK_BONUS_XP,streak_day_60,750,First hit day 60,celebrating,milestone.wav,Two-month grit,Two months! Debt freedom is closer!,GameContext
+STREAK_BONUS_XP,streak_day_100,1000,First hit day 100,celebrating,milestone.wav,Legend arc for streak,100 days! You're a debt-crushing legend!,GameContext
+LEVEL_ENGINE_XP_BANDS,engine_level_1,,0–199 XP total,n/a,level_up when leaving band,Level number in UI comes from engine not LEVELS_DATA alone,Band min/max inclusive,GameContext computeLevel
+LEVEL_ENGINE_XP_BANDS,engine_level_2,,200–499,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_3,,500–999,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_4,,1000–1999,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_5,,2000–3999,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_6,,4000–9999,,,,LEVELS_DATA shows L7 name from 7000; engine still L6 until 10000 — reconcile in product,levelsData vs GameContext
+LEVEL_ENGINE_XP_BANDS,engine_level_7,,10000–12999,,,,Then +3000 XP per level,GameContext getThresholdForLevel
+LEVEL_ENGINE_XP_BANDS,engine_level_8,,13000–15999,,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_9,,16000–18999,,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_10,,19000–21999,,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_11,,22000–24999,,,,,,
+LEVEL_ENGINE_XP_BANDS,engine_level_12,,25000–27999,,,,,,
+LEVEL_DISPLAY_NAMES,display_L1_Seedling,,0–199 (data) matches engine,🌱 Seedling,level_up,Name tier,Social-safe label,constants/levelsData.ts
+LEVEL_DISPLAY_NAMES,display_L2_Bronze_Starter,,200–499,🥉 Bronze Starter,,,,
+LEVEL_DISPLAY_NAMES,display_L3_Momentum_Builder,,500–999,⚡ Momentum Builder,,,,
+LEVEL_DISPLAY_NAMES,display_L4_Gold_Saver,,1000–1999,🪙 Gold Saver,,,,
+LEVEL_DISPLAY_NAMES,display_L5_Diamond_Warrior,,2000–3999,💎 Diamond Warrior,,,,
+LEVEL_DISPLAY_NAMES,display_L6_Freedom_Champion,,4000–6999 (data),🏆 Freedom Champion,,"Engine L6 spans 4000–9999; name ""Debt-Free Legend"" may show early if tied only to data file",,
+LEVEL_DISPLAY_NAMES,display_L7_Debt_Free_Legend,,7000+ in data,🌟 Debt-Free Legend,,,Engine L7 starts 10000 XP,constants/levelsData.ts
+CELEBRATIONS_SFX,level_up,,XP crosses engine threshold,celebrating,level_up.wav,Level-up overlay,,GameContext
+CELEBRATIONS_SFX,debt_cleared,,PAY_OFF_DEBT,celebrating,debt_paid_off.wav,Debt cleared overlay,,GameContext
+CELEBRATIONS_SFX,streak_milestone,,Days 3/7/14/30/60/100 first hit,celebrating,milestone.wav,Streak milestone modal + Dex,,GameContext
+CELEBRATIONS_SFX,first_payment,,First LOG_PAYMENT,celebrating,milestone.wav,First payment celebration,,GameContext
+CELEBRATIONS_SFX,normal_payment,,After first payment,happy,payment_logged.wav,Floating XP feedback,,GameContext
+CELEBRATIONS_SFX,streak_maintained,,Streak +1 no milestone,idle,streak_maintained.wav,Quiet continuity,,GameContext
+CELEBRATIONS_SFX,grace_hydrate,,Open app streak at risk,idle,streak_at_risk.wav,Urgency without shame,,GameContext hydrate
+DEX_GAME_CONTEXT_STATE,idle,,Default,neutral,,Calm baseline,,GameContext DexState
+DEX_GAME_CONTEXT_STATE,happy,,Brief post-payment,happyClassic / vocal approval,,Warm feedback,,GameContext triggerDex
+DEX_GAME_CONTEXT_STATE,celebrating,,Big wins,vocal approval,,Peak animation,,GameContext
+DEX_GAME_CONTEXT_STATE,worried,,Shield too expensive,vocal concern,,Gentle constraint,,GameContext
+DEX_GAME_CONTEXT_STATE,sleeping,,DexCard variant,,,Resting mascot,,DexCard
+DEX_GAME_CONTEXT_STATE,encouraging,,DexCard / maps,vocal optional,,Nudge energy,,DexCard dexScreenMap
+DEX_GAME_CONTEXT_STATE,onboarding_clipboard,,Onboarding,,,Tutorial tone,,GameContext
+DEX_GAME_CONTEXT_STATE,surprised,,Bonus path,vocal surprise → approval,,Delight beat,,Payment flows
+DEX_PER_SCREEN,homeOnTrack,,Home — on track,happyClassic float,,Stable positivity,constants/dexScreenMap.ts
+DEX_PER_SCREEN,homeNeedsBoost,,Home — needs boost,happyClassic float,,Soft nudge,,
+DEX_PER_SCREEN,welcomeBack,,Return / welcome,encouraging float,,Re-entry care,,
+DEX_PER_SCREEN,dayComplete,,Day complete,keepGoing nod,,Forward motion,,
+DEX_PER_SCREEN,debtsHeader,,Debts tab,happyClassic float,,Confidence,,
+DEX_PER_SCREEN,strategyHeader,,Strategy,smartAnalyst float,,Analyst mode,,
+DEX_PER_SCREEN,strategyHero,,Strategy hero,smartAnalyst float,,Plan clarity,,
+DEX_PER_SCREEN,planHeader,,Plan tab,congratulating pulse,,You are executing,,
+DEX_PER_SCREEN,levelsHero,,Levels screen,happy float,,Progress pride,,
+DEX_PER_SCREEN,levelsNudge,,Levels nudge,encouraging float,,Keep climbing,,
+DEX_PER_SCREEN,settingsDexVocal,,More / settings,proud nod,,Proud companion,,
+DEX_BY_STREAK_LENGTH,streak_365_plus,,Streak >= 365 days,celebrating pulse,,Year+ companion energy — matches long payoff horizon,Home-tier presentation,DEX_STREAK_MAP
+DEX_BY_STREAK_LENGTH,streak_180_to_364,,Streak >= 180,celebrating bounce,,Half-year gravity,,
+DEX_BY_STREAK_LENGTH,streak_90_to_179,,Streak >= 90,happy bounce,,Quarter habit,,
+DEX_BY_STREAK_LENGTH,streak_30_to_89,,Streak >= 30,happy pulse,,Monthly rhythm,,
+DEX_BY_STREAK_LENGTH,streak_7_to_29,,Streak >= 7,encouraging bounce,,First curve,,
+DEX_BY_STREAK_LENGTH,streak_0_to_6,,Streak < 7,encouraging float,,Fresh start,,
+PAYMENT_FLOWS,plan_log_payment,,awardXp LOG_PAYMENT + recordPaymentForStreak + grantBonusXp 10,,,Full stack reward on main loop,Bonus day path +50 XP (banner copy may say 100),plan.tsx
+PAYMENT_FLOWS,calendar_mark_paid,,Same as plan,,,,,plan.tsx
+PAYMENT_FLOWS,debt_detail_paid,,LOG_PAYMENT + streak +10; PAY_OFF_DEBT if zeroed,,,Debt screen parity with plan,Same bonus-day behavior,debt/[id].tsx
+ONBOARDING_XP,day1_commit_complete,,recordPaymentForStreak only (often +25 streak),celebrating,,Finish day 1,No flat 200 XP grant in handleDay1Complete,onboarding.tsx
+ONBOARDING_XP,pledge_commit_alternate,,0 on commit,celebrating,,Pledge complete,COMMITS_DATA bonusXP is copy unless implemented elsewhere,onboarding.tsx
+ONBOARDING_XP,commit_task_index_0,25,Task tap,celebrating,,Early tasks feel easy,TASK_XP_D1,onboarding.tsx
+ONBOARDING_XP,commit_task_index_1,25,Task tap,,,,,
+ONBOARDING_XP,commit_task_index_2_per_payment,10,Per due payment logged,,,Payment granularity,DAY1_PER_PAYMENT_XP,onboarding.tsx
+ONBOARDING_XP,commit_task_index_3,0,Optional task,,,No array XP,,onboarding.tsx
+ONBOARDING_XP,intro_carousel_chips,,0 real XP,marketing only,n/a,Illustrates future rewards,+50 / +175 / +500 are demo art only not grantBonusXp,onboarding intro slides
+PLEDGE_UI_ONLY,pledge_7_days,,25 shown on day 7 in copy,false,,"Promise of bonus",Not granted on handleCommitStreak,COMMITS_DATA
+PLEDGE_UI_ONLY,pledge_14_days,,60 shown,false,,,,
+PLEDGE_UI_ONLY,pledge_30_days,,150 shown,false,,,,
+PLEDGE_UI_ONLY,pledge_60_days,,400 shown,false,,,,
+PROPOSAL_LONG_JOURNEY,extend_streak_milestones,TBD,Add 180d 365d 500d 730d 1000d 1825d,celebrating tiers,milestone family,Long-horizon proof — 5–6y ≈ 2000 days; current cap 100d bonus,Pair each with story + small cosmetic or title not only XP; avoid inflation,design suggestion
+PROPOSAL_LONG_JOURNEY,percent_paid_milestones,TBD,5% 10% 25% 50% 75% 100% principal,contextual Dex moods,unique SFX per band,Money progress not only calendar streak,Many users break streaks but still pay — reward paid-down % monthly,design suggestion
+PROPOSAL_LONG_JOURNEY,anniversary_journey_year,TBD,Each 12 months on plan,celebrating + year badge,n/a,You survived another year of the grind,Separate from streak; email/push optional,design suggestion
+PROPOSAL_LONG_JOURNEY,quarterly_checkin,TBD,Every 90 days,encouraging analyst,n/a,Boring-middle antidote — refinance fees goals,Short Dex script + optional XP 25–100,design suggestion
+PROPOSAL_LONG_JOURNEY,interest_saved_counter,TBD,Running tally vs minimums,proud nod,n/a,Concrete $ saved reinforces patience,Could unlock Dex lines at $500 $2k $10k saved,design suggestion
+PROPOSAL_LONG_JOURNEY,reconcile_bonus_day_UI,,Fix banner vs grantBonusXp(50),surprised → celebrating,n/a,Trust — show what you grant,Align copy to 50 or change code to 100,engineering + design
+PROPOSAL_LONG_JOURNEY,reconcile_level7_band,,Align LEVELS_DATA 7000 vs engine 10000,n/a,n/a,No confusing title at wrong XP,Single source of truth for level thresholds,engineering
+PROPOSAL_LONG_JOURNEY,implement_pledge_or_fix_copy,,Either grant COMMITS_DATA on day N or reword,celebrating on grant,n/a,Honest commitment device,Currently UI promises bonus not auto-granted,engineering + copy
+PROPOSAL_LONG_JOURNEY,dex_seasonal_lines,TBD,Winter holiday tax season etc,variant moods,n/a,Real-world rhythm for multi-year journeys,Low cost high relatability,design suggestion
