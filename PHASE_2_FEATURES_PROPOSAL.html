@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title>DebtPath - Phase 2 Proposal</title>
+  <meta name="Author" content="DebtPath">
+  <meta name="LastAuthor" content="Un-named">
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.3">
+  <style type="text/css">
+    p.p1 {margin: 30.0px 0.0px 8.0px 0.0px; text-align: center; font: 26.0px Arial; color: #1f4e8c}
+    p.p2 {margin: 0.0px 0.0px 6.0px 0.0px; text-align: center; font: 14.0px Arial; color: #555555}
+    p.p3 {margin: 0.0px 0.0px 26.0px 0.0px; text-align: center; font: 11.0px Arial; color: #777777}
+    p.p4 {margin: 0.0px 0.0px 9.0px 0.0px; font: 13.0px Arial}
+    p.p6 {margin: 21.0px 0.0px 11.0px 0.0px; font: 18.0px Arial; color: #1f4e8c}
+    p.p7 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Arial; color: #ffffff}
+    p.p8 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Arial; color: #1a1a1a}
+    p.p9 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 12.0px Arial; color: #ffffff}
+    p.p10 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 12.0px Arial; color: #1a1a1a}
+    p.p11 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; min-height: 14.0px}
+    li.li5 {margin: 0.0px 0.0px 7.0px 0.0px; font: 13.0px Arial}
+    span.s1 {color: #1e7a45}
+    span.s2 {color: #1f4e8c}
+    table.t1 {border-collapse: collapse}
+    td.td1 {border-style: solid; border-width: 1.0px 1.0px 1.0px 1.0px; border-color: #bfbfbf #bfbfbf #bfbfbf #bfbfbf; padding: 0.0px 5.0px 0.0px 5.0px}
+    ul.ul1 {list-style-type: disc}
+  </style>
+</head>
+<body>
+<p class="p1"><b>DebtPath - Phase 2 Proposal</b></p>
+<p class="p2"><i>Turning DebtPath from a tracker into a guided system</i></p>
+<p class="p3">Prepared for Eric<span class="Apple-converted-space">  </span>|<span class="Apple-converted-space">  </span>April 2026</p>
+<p class="p4">Hey Eric - here's the plan for the next phase, broken down the way I think about it. The app is in a good place after the v1 work. Phase 2 is about turning it from a useful calculator into something users actually finish their debt journey with.</p>
+<p class="p4">From watching real user behavior across the other debt apps out there, three problems show up over and over:</p>
+<ul class="ul1">
+  <li class="li5"><b>Knowing what to do next </b>- people want clear guidance, not just numbers.</li>
+  <li class="li5"><b>Staying consistent </b>- motivation drops sharply after the first few days.</li>
+  <li class="li5"><b>Trusting the outcome </b>- they want clarity on savings, payoff time, and progress.</li>
+</ul>
+<p class="p4">Phase 2 is built around fixing those three things, and AI is the thing that makes it work.</p>
+<p class="p6"><b>Why AI keeps the build fast and the price low</b></p>
+<p class="p4">Phase 2 is built AI-first. A lot of the work that used to take weeks of hand-coded logic - personalized copy, behavior triggers, content generation, ranking - is now handled by the AI layer at runtime. That's how we keep the engineering scope tight and the price competitive.</p>
+<ul class="ul1">
+  <li class="li5"><b>AI Coach </b>- explains strategy, runs what-if scenarios, recovers lost streaks.</li>
+  <li class="li5"><b>AI-personalized notifications </b>- written per user from their actual debt data, not from templates.</li>
+  <li class="li5"><b>AI-driven insights </b>- weekly summaries and milestone messages tailored to each user.</li>
+  <li class="li5"><b>AI-matched financial opportunities </b>- ranks bonuses and offers by each user's debt and APR profile.</li>
+</ul>
+<p class="p4">All of these share the same AI foundation - we build it once and it powers everything else.</p>
+<p class="p6"><b>What users complain about in other debt apps</b></p>
+<p class="p4">From App Store and Google Play reviews, Reddit threads, and recent comparison articles. These are the gaps Phase 2 is designed to fill:</p>
+<table cellspacing="0" cellpadding="0" class="t1">
+  <tbody>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p7"><b><i>What users say</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p7"><b><i>Where it shows up</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>"It feels like a calculator, not a guide."</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Common across Snowball, Undebt.it, and Debt Payoff Planner. Users want a coach, not a spreadsheet.</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>"I lose motivation after a few days."</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Drop-off pattern in App Store reviews of every major payoff app. None of them have a real engagement loop.</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>"I don't trust the results."</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Debt Payoff Planner reviewers say it shows debts as paid off when APR isn't applied. YNAB loan accounts also drift from real balances.</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>"Nothing pushes me to take action."</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Generic reminders get ignored. Users want context-aware nudges like "add $25 today, save $312 in interest."</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Predatory or hidden subscriptions.</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Bright Money users report unauthorized $97 charges. Rocket Money sits at 1.6 stars on Trustpilot largely because of surprise fees.</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Apps shutting down and trapping money.</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Tally (closed Aug 2024) and Qoins (closed Jun 2023) stranded user funds. Trust is now a real differentiator.</i></b></p>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<p class="p6"><b>What we're building</b></p>
+<p class="p4"><span class="s1"><b>1. AI Smart Coach.<span class="Apple-converted-space">  </span></b></span>A focused assistant - not open-ended chat. It does three things really well: explains the user's strategy in plain English, lets them ask "what if I add $X?" and shows the new payoff date, and nudges them with practical next steps when they're stuck or behind.</p>
+<p class="p4"><span class="s1"><b>2. AI-Personalized Notifications.<span class="Apple-converted-space">  </span></b></span>No more generic reminders. Every notification is generated from the user's actual plan - things like "add $25 today and save $312 in interest" or "7 days to your next milestone."</p>
+<p class="p4"><span class="s1"><b>3. Motivation System.<span class="Apple-converted-space">  </span></b></span>An XP and streak leaderboard (no debt balances shown - users compete on consistency, not on what they owe), a referral system with invite codes, and better streak mechanics including streak-freeze tokens and bonus days.</p>
+<p class="p4"><span class="s1"><b>4. AI-Driven Financial Opportunity Layer.<span class="Apple-converted-space">  </span></b></span>Surface real bonuses, accounts, and balance-transfer cards that fit each user's situation, with step-by-step guidance so they actually claim them. Tracked outcomes feed back into the payoff math.</p>
+<p class="p6"><b>Pricing</b></p>
+<p class="p4">Three options so you can pick the scope that fits the budget. The price is kept low because the AI layer is doing the heavy lifting - it would cost a lot more to hand-code all this personalization the old way.</p>
+<table cellspacing="0" cellpadding="0" class="t1">
+  <tbody>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p7"><b><i>Tier</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p7"><b><i>What you get</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p9"><b><i>Price (USD)</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Tier 1</i></b></p>
+        <p class="p8"><b><i>AI Coach</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>AI Smart Coach with three focused use cases - it explains the strategy, runs what-if scenarios, and nudges users when they fall behind.</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p10"><b><i>$1,500 - $2,000</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Tier 2</i></b></p>
+        <p class="p8"><b><i>Coach + Engagement</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Everything in Tier 1, plus AI-personalized notifications, an XP &amp; streak leaderboard (no debt amounts shown), and a referral system with invite codes.</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p10"><b><i>$2,500 - $3,200</i></b></p>
+      </td>
+    </tr>
+    <tr>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Tier 3</i></b></p>
+        <p class="p8"><b><i>Full AI-Guided System</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p8"><b><i>Everything in Tier 2, plus the AI-driven Financial Opportunity Layer - matches each user to relevant bonuses, accounts, and balance-transfer cards with step-by-step guidance.</i></b></p>
+      </td>
+      <td valign="middle" class="td1">
+        <p class="p10"><b><i>$3,800 - $4,800</i></b></p>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<p class="p11"><br></p>
+<p class="p4">All prices include UI, the AI integration, basic QA on iOS and Android, and one round of revisions per feature.</p>
+<p class="p4"><span class="s2"><b>Honest recommendation: Tier 2.</b></span><span class="Apple-converted-space">  </span>It's the cleanest version of the full "guided system" pitch and gives you the strongest story to launch with - without committing to the offers-layer work in Tier 3 yet.</p>
+<p class="p6"><b>What this turns DebtPath into</b></p>
+<p class="p4">Right now: a strong tracker with gamification.</p>
+<p class="p4">After Phase 2: a guided system that tells each user what to do next, keeps them engaged when motivation slips, and helps them claim real-world wins along the way.</p>
+<p class="p4">This is the version of the app users describe to their friends - not as "a debt calculator," but as "the thing that actually helped me get out of debt."</p>
+</body>
+</html>

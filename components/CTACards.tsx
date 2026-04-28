@@ -82,7 +82,7 @@ export function CTACards() {
       debtType: "Unsecured Debt",
       amount: totalUnsecuredBalance,
       gradient: [Colors.buttonGreen, Colors.buttonGreenDark],
-      url: "https://www.curadebt.com/debtpps",
+      url: "https://lp.curadebt.com/spinwheel-verify",
     });
   }
 
@@ -146,7 +146,7 @@ export function CTACards() {
       debtType: "High Interest Debt",
       amount: totalUnsecuredBalance,
       gradient: ["#9B59B6", "#8E44AD"],
-      url: "https://www.curadebt.com/debtpps",
+      url: "https://lp.curadebt.com/spinwheel-verify",
     });
   }
 

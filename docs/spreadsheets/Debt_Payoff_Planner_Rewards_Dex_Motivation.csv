@@ -31,7 +31,7 @@ LEVEL_ENGINE_XP_BANDS,engine_level_9,,16000–18999,,,,,,
 LEVEL_ENGINE_XP_BANDS,engine_level_10,,19000–21999,,,,,,
 LEVEL_ENGINE_XP_BANDS,engine_level_11,,22000–24999,,,,,,
 LEVEL_ENGINE_XP_BANDS,engine_level_12,,25000–27999,,,,,,
-LEVEL_DISPLAY_NAMES,display_L1_Seedling,,0–199 (data) matches engine,🌱 Seedling,level_up,Name tier,Social-safe label,constants/levelsData.ts
+LEVEL_DISPLAY_NAMES,display_L1_Path_Starter,,0–199 (data) matches engine,🌱 Path Starter,level_up,Name tier,Social-safe label,constants/levelsData.ts
 LEVEL_DISPLAY_NAMES,display_L2_Bronze_Starter,,200–499,🥉 Bronze Starter,,,,
 LEVEL_DISPLAY_NAMES,display_L3_Momentum_Builder,,500–999,⚡ Momentum Builder,,,,
 LEVEL_DISPLAY_NAMES,display_L4_Gold_Saver,,1000–1999,🪙 Gold Saver,,,,

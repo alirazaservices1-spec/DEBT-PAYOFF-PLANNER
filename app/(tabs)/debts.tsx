@@ -26,7 +26,9 @@ import {
   Debt,
   DebtType,
   debtTypeLabel,
+  effectiveAprForDebtMonth,
 } from "@/lib/calculations";
+import { dateToMonthYear, formatMonthYear } from "@/lib/monthYear";
 import { WelcomeSetupBanner } from "@/components/WelcomeSetupBanner";
 import { DebtForm } from "@/components/DebtForm";
 import { DexCoin } from "@/components/DexCoin";
@@ -43,7 +45,7 @@ if (
 const BG    = "#F4EFE5";
 /** Plan tab hero gradient — reused for debts summary card */
 const PLAN_HERO_COLORS = ["#1A0A00", "#2E1408", "#1A0A00"] as const;
-const DARK  = "#1A0A00";
+const DARK  = "#000000";
 const AMBER = "#E8A020";
 const BLUE  = "#2563EB";
 const MUTED = Colors.light.textSecondary;
@@ -51,7 +53,7 @@ const BORDER = "#EDE7DA";
 
 // Some tooling only reliably exposes WarmContrast via the default export.
 const WarmContrast = (Colors as any).WarmContrast ?? {
-  textMuted: "#3D2E26",
+  textMuted: "#000000",
   textOnYellowBold: "#2A2014",
 };
 
@@ -61,6 +63,32 @@ function aprStyle(apr: number) {
   if (apr > 15) return { bg: "#fde8e8", color: "#c0392b" };
   if (apr > 10) return { bg: "#fef3cd", color: "#856404" };
   return { bg: "#d4edda", color: "#155724" };
+}
+
+/** True when intro/promo rate still applies this calendar month (matches payoff engine). */
+function isDebtInIntroPeriod(debt: Debt, asOf: Date = new Date()): boolean {
+  if (debt.debtType === "taxDebt") return false;
+  if (
+    debt.introApr == null ||
+    debt.introEndsMonth == null ||
+    debt.introEndsYear == null ||
+    Number.isNaN(debt.introApr)
+  ) {
+    return false;
+  }
+  const { month, year } = dateToMonthYear(asOf);
+  const endM = debt.introEndsMonth;
+  const endY = debt.introEndsYear;
+  return year < endY || (year === endY && month <= endM);
+}
+
+/** Subtitle line for My Debts list when a promotional intro is active. */
+function introPromoListNote(debt: Debt): string | null {
+  if (!isDebtInIntroPeriod(debt)) return null;
+  const thru = formatMonthYear(debt.introEndsMonth!, debt.introEndsYear!);
+  const r = debt.introApr!;
+  const introLabel = r === 0 ? "0% intro" : `${r}% promo`;
+  return `${introLabel} through ${thru} · then ${debt.apr}% APR`;
 }
 
 function debtEmoji(type: DebtType): string {
@@ -169,7 +197,11 @@ function DebtCard({
   const paid = allPayments.filter((p) => p.debtId === debt.id && !p.isMissed).reduce((s, p) => s + p.amount, 0);
   const origBal = debt.balance + paid;
   const pct = origBal > 0 ? Math.min(100, Math.round((paid / origBal) * 100)) : 0;
-  const a = aprStyle(debt.apr);
+  const asOf = new Date();
+  const inIntro = isDebtInIntroPeriod(debt, asOf);
+  const displayApr = inIntro ? effectiveAprForDebtMonth(debt, asOf) : debt.apr;
+  const a = aprStyle(displayApr);
+  const promoNote = introPromoListNote(debt);
   const emoji = debtEmoji(debt.debtType);
   const showsPlanPay =
     plannedMonthPayment != null &&
@@ -205,11 +237,16 @@ function DebtCard({
                   ? `${fmt(plannedMonthPayment)}/mo plan (${fmt(debt.minimumPayment)} min)`
                   : `${fmt(debt.minimumPayment)}/mo min`}
               </Text>
+              {promoNote ? (
+                <Text style={s.cardIntroNote} numberOfLines={2}>
+                  {promoNote}
+                </Text>
+              ) : null}
             </View>
             <View style={s.cardRight}>
               <Text style={s.cardBalance}>{fmt(debt.balance)}</Text>
               <View style={[s.aprBadge, { backgroundColor: a.bg }]}>
-                <Text style={[s.aprText, { color: a.color }]}>{debt.apr}% APR</Text>
+                <Text style={[s.aprText, { color: a.color }]}>{displayApr}% APR</Text>
               </View>
             </View>
           </View>
@@ -454,6 +491,25 @@ export default function DebtsScreen() {
               </View>
             </LinearGradient>
 
+            {debts.length > 0 && (
+              <View style={s.minPaySummary} accessibilityRole="summary">
+                <Text style={s.minPaySummaryIntro}>
+                  You are currently paying{" "}
+                  <Text style={s.minPaySummaryAmount}>{fmt(totalMinPmt)}</Text>
+                  {" "}in minimum payments on these debts:
+                </Text>
+                {sortedDebts.map((d) => (
+                  <Text key={d.id} style={s.minPaySummaryLine} numberOfLines={2}>
+                    • {d.name}
+                    <Text style={s.minPaySummaryMeta}>
+                      {" "}
+                      ({fmt(d.minimumPayment)}/mo min)
+                    </Text>
+                  </Text>
+                ))}
+              </View>
+            )}
+
             {/* ── Section header ── */}
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>
@@ -566,6 +622,42 @@ const s = StyleSheet.create({
     color: "#FFF5E4", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 1,
   },
 
+  minPaySummary: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    padding: 16,
+    marginBottom: 14,
+  },
+  minPaySummaryIntro: {
+    fontSize: 15,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    color: DARK,
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  minPaySummaryAmount: {
+    fontFamily: Fonts.extraBold,
+    fontWeight: "800",
+    color: BLUE,
+  },
+  minPaySummaryLine: {
+    fontSize: 14,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    color: DARK,
+    lineHeight: 21,
+    marginBottom: 4,
+    paddingLeft: 2,
+  },
+  minPaySummaryMeta: {
+    fontFamily: Fonts.regular,
+    fontWeight: "400",
+    color: MUTED,
+  },
+
   // Section header
   sectionHeader: {
     flexDirection: "row", justifyContent: "space-between",
@@ -604,6 +696,14 @@ const s = StyleSheet.create({
   cardSub: {
     fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600",
     color: MUTED, marginTop: 1,
+  },
+  cardIntroNote: {
+    fontSize: 11,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    color: BLUE,
+    marginTop: 4,
+    lineHeight: 15,
   },
   cardRight: { alignItems: "flex-end", flexShrink: 0 },
   cardBalance: { fontSize: 18, fontFamily: Fonts.black, fontWeight: "900", color: DARK },

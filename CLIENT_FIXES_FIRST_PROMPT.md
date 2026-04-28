@@ -4,6 +4,16 @@ Use this as the **single master brief** when continuing work or handing off.
 
 ---
 
+## Work priority (client direction)
+
+Ship and verify in this order:
+
+1. **Calculations** — First. Payoff math, strategy comparisons, plan/amortization, and tax handling must be **correct and defensible**; people make real decisions from these numbers.
+2. **Stability & data** — Second. Fix navigation issues, **going back** and losing context, **things vanishing**, failed saves, and anything that makes the app feel unreliable.
+3. **Aesthetics** — Third. Small visual and copy polish **after** calculations and stability are solid.
+
+---
+
 ## Where to recheck (screen + location)
 
 | What changed | Screen / route | Where to look |

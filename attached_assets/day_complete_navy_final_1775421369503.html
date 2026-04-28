@@ -1,0 +1,294 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/dm-serif-display@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@8/index.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mascotIn{0%{opacity:0;transform:scale(0.7) translateY(12px)}70%{transform:scale(1.03) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes confetti-up{0%{opacity:0;transform:translateY(0) rotate(0)}25%{opacity:1}100%{opacity:0;transform:translateY(-30px) rotate(50deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}45%{transform:translateY(-8px)}}
+.f-bounce{animation:bounce 1.5s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+.cd{animation:confetti-up 1.6s ease-out infinite}
+.cd:nth-child(2){animation-delay:.35s}
+.cd:nth-child(3){animation-delay:.7s}
+.cd:nth-child(4){animation-delay:1.05s}
+.cd:nth-child(5){animation-delay:1.4s}
+.f-pulse{animation:pulse 2s ease-in-out infinite}
+
+.wrap{display:flex;justify-content:center;padding:32px}
+
+.phone{
+  width:345px;
+  /* Dark navy — exactly onboarding screens 2 & 4 */
+  background:#1B1850;
+  border-radius:46px;
+  border:7px solid #0A0820;
+  box-shadow:0 32px 80px rgba(0,0,0,0.5),0 8px 20px rgba(0,0,0,0.25);
+  overflow:hidden;
+  position:relative;
+  display:flex;flex-direction:column;
+}
+.phone::before{content:'';position:absolute;top:16px;left:50%;transform:translateX(-50%);width:82px;height:5px;background:rgba(255,255,255,0.12);border-radius:3px;z-index:10}
+
+/* Radial glow */
+.bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(100,80,230,0.4) 0%,transparent 65%);pointer-events:none}
+
+/* Scrollable content */
+.scroll{
+  overflow-y:auto;
+  max-height:700px;
+  padding:60px 22px 28px;
+  scrollbar-width:none;
+  position:relative;z-index:2;
+}
+.scroll::-webkit-scrollbar{display:none}
+
+/* Top row */
+.top-row{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:20px;
+  animation:fadeUp 0.4s ease both 0.05s;
+}
+.top-left .sup{font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);margin-bottom:3px}
+.top-left .title{font-family:'DM Serif Display',serif;font-size:26px;color:#fff;line-height:1.1}
+.streak-badge{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,0.1);
+  border:1.5px solid rgba(255,200,80,0.4);
+  border-radius:100px;padding:8px 14px;flex-shrink:0;margin-top:4px;
+}
+.streak-badge span{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:800;color:#FFD080}
+
+/* Dex — celebration state from file */
+.dex-wrap{
+  display:flex;justify-content:center;
+  margin-bottom:4px;
+  padding-top:20px;
+  overflow:visible;
+  animation:mascotIn 1s cubic-bezier(0.34,1.56,0.64,1) both 0.15s;
+}
+
+/* Motivational message */
+.message-card{
+  background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(255,255,255,0.1);
+  border-radius:18px;
+  padding:18px 20px;
+  margin-bottom:14px;
+  animation:cardIn 0.5s ease both 0.55s;
+}
+.message-card p{
+  font-family:'DM Serif Display',serif;
+  font-size:17px;color:#fff;
+  text-align:center;line-height:1.6;
+}
+.message-card p em{font-style:italic;color:#C0A8FF}
+
+/* Stats grid — 2x2 */
+.stats-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:10px;margin-bottom:14px;
+  animation:cardIn 0.5s ease both 0.65s;
+}
+.stat{
+  background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(255,255,255,0.1);
+  border-radius:18px;padding:16px 14px;
+}
+.stat-icon{font-size:18px;margin-bottom:6px;display:block}
+.stat-val{font-family:'DM Serif Display',serif;font-size:26px;color:#fff;line-height:1;margin-bottom:4px}
+.stat-label{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)}
+.stat-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:600;color:#80EEC0;margin-top:4px}
+
+/* Green accent stat */
+.stat.green{border-color:rgba(80,220,130,0.25);background:rgba(80,220,130,0.08)}
+.stat.green .stat-val{color:#80EEC0}
+.stat.green .stat-label{color:rgba(128,238,192,0.6)}
+
+/* Gold accent stat */
+.stat.gold{border-color:rgba(245,200,66,0.25);background:rgba(245,200,66,0.08)}
+.stat.gold .stat-val{color:#F5C842}
+.stat.gold .stat-label{color:rgba(245,200,66,0.6)}
+
+/* Dream goal */
+.dream-card{
+  background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(192,168,255,0.25);
+  border-radius:18px;
+  padding:16px 18px;
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:14px;
+  animation:cardIn 0.5s ease both 0.75s;
+}
+.dream-icon{
+  width:46px;height:46px;border-radius:14px;
+  background:rgba(192,168,255,0.15);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;
+}
+.dream-label{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:rgba(192,168,255,0.6);margin-bottom:3px}
+.dream-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;color:#fff;margin-bottom:3px}
+.dream-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;color:rgba(255,255,255,0.5);line-height:1.5}
+
+/* Quote */
+.quote-card{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:16px;
+  padding:16px 20px;
+  margin-bottom:8px;
+  animation:cardIn 0.5s ease both 0.85s;
+  position:relative;
+}
+.quote-card::before{
+  content:'"';
+  font-family:'DM Serif Display',serif;
+  font-size:60px;color:rgba(192,168,255,0.2);
+  position:absolute;top:-8px;left:14px;line-height:1;
+}
+.quote-card p{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13.5px;font-weight:500;
+  color:rgba(255,255,255,0.6);
+  text-align:center;line-height:1.7;
+  padding:0 4px;
+}
+
+/* Tab bar */
+.tab-bar{
+  background:rgba(10,8,32,0.9);
+  border-top:1px solid rgba(255,255,255,0.08);
+  padding:12px 10px 18px;
+  display:flex;align-items:center;justify-content:space-around;
+  position:sticky;bottom:0;z-index:5;
+}
+.tab{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;cursor:pointer}
+.tab-icon{font-size:20px}
+.tab-lbl{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:600;color:rgba(255,255,255,0.35)}
+.tab.active .tab-lbl{color:#C0A8FF;font-weight:800}
+.tab-active-pill{background:rgba(192,168,255,0.12);border:1.5px solid rgba(192,168,255,0.25);border-radius:14px;padding:7px 16px 4px;display:flex;flex-direction:column;align-items:center;gap:4px}
+</style>
+
+<div class="wrap">
+  <div class="phone">
+    <div class="bg-glow"></div>
+
+    <div class="scroll">
+
+      <!-- TOP ROW -->
+      <div class="top-row">
+        <div class="top-left">
+          <p class="sup">Great work, keep it up!</p>
+          <p class="title">Champion 🎉</p>
+        </div>
+        <div class="streak-badge"><span>🔥 1d</span></div>
+      </div>
+
+      <!-- CELEBRATION DEX — "Congratulating" state from dex file -->
+      <div class="dex-wrap">
+        <svg viewBox="-14 0 148 145" width="165" height="182" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="b12" cx="38%" cy="32%" r="65%"><stop offset="0%" stop-color="#F2C040"/><stop offset="55%" stop-color="#D08A10"/><stop offset="100%" stop-color="#A06008"/></radialGradient>
+            <radialGradient id="e12" cx="40%" cy="38%" r="60%"><stop offset="0%" stop-color="#C07010"/><stop offset="100%" stop-color="#7A4800"/></radialGradient>
+            <radialGradient id="c12" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#FFDF60"/><stop offset="100%" stop-color="#C89010"/></radialGradient>
+          </defs>
+          <g class="f-pulse">
+            <ellipse cx="60" cy="135" rx="26" ry="5" fill="rgba(0,0,0,0.12)"/>
+            <circle cx="26" cy="36" r="13" fill="url(#e12)"/><circle cx="94" cy="36" r="13" fill="url(#e12)"/>
+            <circle cx="26" cy="36" r="7" fill="#5A3400" opacity=".5"/><circle cx="94" cy="36" r="7" fill="#5A3400" opacity=".5"/>
+            <circle cx="60" cy="72" r="47" fill="#8A5800" opacity=".2"/>
+            <circle cx="60" cy="70" r="47" fill="url(#b12)"/>
+            <!-- flexed arms (bicep curl shape) -->
+            <path d="M15 68 Q4 56 10 42 Q14 34 22 36" stroke="#9A6200" stroke-width="11" stroke-linecap="round" fill="none"/>
+            <!-- bicep bump -->
+            <circle cx="12" cy="42" r="10" fill="url(#b12)" stroke="#9A6200" stroke-width="1.5"/>
+            <path d="M105 68 Q116 56 110 42 Q106 34 98 36" stroke="#9A6200" stroke-width="11" stroke-linecap="round" fill="none"/>
+            <circle cx="108" cy="42" r="10" fill="url(#b12)" stroke="#9A6200" stroke-width="1.5"/>
+            <ellipse cx="40" cy="64" rx="19" ry="20" fill="white"/>
+            <ellipse cx="80" cy="64" rx="19" ry="20" fill="white"/>
+            <circle cx="40" cy="66" r="13" fill="#1A1A2E"/>
+            <circle cx="80" cy="66" r="13" fill="#1A1A2E"/>
+            <circle cx="46" cy="60" r="5" fill="white" opacity=".9"/>
+            <circle cx="86" cy="60" r="5" fill="white" opacity=".9"/>
+            <!-- determined brows -->
+            <path d="M24 46 L42 50" stroke="#6A3800" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M78 50 L96 46" stroke="#6A3800" stroke-width="3.5" stroke-linecap="round"/>
+            <ellipse cx="26" cy="76" rx="8" ry="5" fill="#E87070" opacity=".22"/>
+            <ellipse cx="94" cy="76" rx="8" ry="5" fill="#E87070" opacity=".22"/>
+            <!-- confident smirk -->
+            <path d="M44 88 Q64 100 80 88" fill="none" stroke="#7A4800" stroke-width="3.5" stroke-linecap="round"/>
+            <rect x="29" y="113" width="22" height="12" rx="6" fill="#C4A878"/>
+            <rect x="69" y="113" width="22" height="12" rx="6" fill="#C4A878"/>
+            <circle cx="14" cy="88" r="13" fill="url(#c12)" stroke="#A07010" stroke-width="1.8"/>
+            <text x="14" y="93" text-anchor="middle" font-family="DM Sans,sans-serif" font-weight="600" font-size="13" fill="#7A5000">$</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- MOTIVATIONAL MESSAGE -->
+      <div class="message-card">
+        <p>You showed up today.<br><em>That's how debt disappears.</em></p>
+      </div>
+
+      <!-- STATS GRID -->
+      <div class="stats-grid">
+        <div class="stat green">
+          <span class="stat-icon">💸</span>
+          <div class="stat-val">$3,240</div>
+          <div class="stat-label">Paid toward debt</div>
+        </div>
+        <div class="stat green">
+          <span class="stat-icon">📉</span>
+          <div class="stat-val">$173</div>
+          <div class="stat-label">Interest saved</div>
+          <div class="stat-sub">vs. min. payment</div>
+        </div>
+        <div class="stat gold">
+          <span class="stat-icon">⚡</span>
+          <div class="stat-val">75</div>
+          <div class="stat-label">Total XP</div>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">🔥</span>
+          <div class="stat-val">1d</div>
+          <div class="stat-label">Day Streak</div>
+        </div>
+      </div>
+
+      <!-- DREAM GOAL -->
+      <div class="dream-card">
+        <div class="dream-icon">🚗</div>
+        <div>
+          <p class="dream-label">Your Dream Goal</p>
+          <p class="dream-title">New Car</p>
+          <p class="dream-sub">Stay on track — debt-free first, then New Car is next.</p>
+        </div>
+      </div>
+
+      <!-- QUOTE -->
+      <div class="quote-card">
+        <p>Every time you open this app, you cast a vote for the person you are becoming.</p>
+      </div>
+
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <div class="tab active">
+        <div class="tab-active-pill">
+          <span class="tab-icon">🏠</span>
+          <span class="tab-lbl">Home</span>
+        </div>
+      </div>
+      <div class="tab"><span class="tab-icon">💳</span><span class="tab-lbl">Debts</span></div>
+      <div class="tab"><span class="tab-icon">📊</span><span class="tab-lbl">Methods</span></div>
+      <div class="tab"><span class="tab-icon">📅</span><span class="tab-lbl">Plan</span></div>
+      <div class="tab"><span class="tab-icon">⚙️</span><span class="tab-lbl">Settings</span></div>
+    </div>
+
+  </div>
+</div>

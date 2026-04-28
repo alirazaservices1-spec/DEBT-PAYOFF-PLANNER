@@ -32,7 +32,7 @@ export const ONBOARDING_MINI_CELEBRATIONS: Record<OnboardingMiniId, OnboardingMi
   debts_entered: {
     tier: 1,
     anim: "coin",
-    pillText: "Debts captured — huge step",
+    pillText: "+50 XP",
     sound: "payment_logged",
     durationMs: 2000,
   },

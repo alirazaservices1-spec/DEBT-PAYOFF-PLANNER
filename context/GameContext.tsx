@@ -22,6 +22,7 @@ export const XP_REWARDS = {
   COMPLETE_ONBOARDING: 100,
   HIT_MILESTONE: 200,
   DAILY_STREAK: 25,
+  STREAK_FREEZE: 75,
   DAILY_SAVING: 20,
   NO_SPEND: 15,
   SOCIAL_SHARE: 10,
@@ -179,6 +180,16 @@ export interface CelebrationState {
   bonusXp?: number;
 }
 
+export interface MiniCelebration {
+  id: string;
+  tier: 1 | 2;
+  icon: string;
+  xp: number;
+  label: string;
+  slam?: string;
+  sub?: string;
+}
+
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
 function toDateStr(date: Date): string {
@@ -263,6 +274,10 @@ interface GameContextValue {
   flamePulseSeq: number;
   triggerFlamePulse: () => void;
   buyStreakShield: () => void;
+
+  miniCelebration: MiniCelebration | null;
+  triggerMiniCelebration: (c: Omit<MiniCelebration, "id">) => void;
+  dismissMiniCelebration: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -303,6 +318,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const [lastXpGain, setLastXpGain] = useState<{ amount: number; seq: number }>({ amount: 0, seq: 0 });
   const [flamePulseSeq, setFlamePulseSeq] = useState(0);
+  const [miniCelebration, setMiniCelebration] = useState<MiniCelebration | null>(null);
+  const miniCelebrationIdRef = useRef(0);
 
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dexTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -340,14 +357,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               setGracePeriodActive(true);
               void soundManager.play("streak_at_risk");
             } else if (s.streakShield) {
-              s = { ...s, streakShield: false };
+              s = { ...s, streakShield: false, totalXp: s.totalXp + XP_REWARDS.STREAK_FREEZE };
               sendShieldUsedNotification();
             } else {
               s = { ...s, prevStreakCount: s.streakCount, streakCount: 0 };
             }
           } else {
             if (s.streakShield) {
-              s = { ...s, streakShield: false };
+              s = { ...s, streakShield: false, totalXp: s.totalXp + XP_REWARDS.STREAK_FREEZE };
               sendShieldUsedNotification();
             } else {
               s = { ...s, prevStreakCount: s.streakCount, streakCount: 0 };
@@ -371,7 +388,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     (state: CelebrationState, timeoutMs = 3000) => {
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
       setCelebration(state);
-      celebrationTimerRef.current = setTimeout(() => setCelebration({ type: null }), timeoutMs);
+      if (timeoutMs > 0) {
+        celebrationTimerRef.current = setTimeout(() => setCelebration({ type: null }), timeoutMs);
+      } else {
+        celebrationTimerRef.current = null;
+      }
     },
     []
   );
@@ -379,6 +400,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const dismissCelebration = useCallback(() => {
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     setCelebration({ type: null });
+  }, []);
+
+  // ── Mini celebration ──────────────────────────────────────────────────────
+  const triggerMiniCelebration = useCallback((c: Omit<MiniCelebration, "id">) => {
+    miniCelebrationIdRef.current += 1;
+    setMiniCelebration({ ...c, id: String(miniCelebrationIdRef.current) });
+  }, []);
+
+  const dismissMiniCelebration = useCallback(() => {
+    setMiniCelebration(null);
   }, []);
 
   // ── Dex override message ──────────────────────────────────────────────────
@@ -469,7 +500,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       setLastXpGain((prev) => ({ amount: totalAmount, seq: prev.seq + 1 }));
 
       if (event === "PAY_OFF_DEBT") {
-        triggerCelebration({ type: "debt_cleared", debtName: meta?.debtName });
+        // Keep debt-cleared overlay open until user taps Continue.
+        triggerCelebration({ type: "debt_cleared", debtName: meta?.debtName }, 0);
         triggerDex("celebrating");
         soundManager.play("debt_paid_off");
       } else if (newLevel > oldLevel) {
@@ -630,6 +662,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       flamePulseSeq,
       triggerFlamePulse,
       buyStreakShield,
+      miniCelebration,
+      triggerMiniCelebration,
+      dismissMiniCelebration,
     }),
     [
       gameState,
@@ -652,6 +687,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       flamePulseSeq,
       triggerFlamePulse,
       buyStreakShield,
+      miniCelebration,
+      triggerMiniCelebration,
+      dismissMiniCelebration,
     ]
   );
 

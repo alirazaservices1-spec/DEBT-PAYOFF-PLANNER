@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Animated as RNAnimated,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -67,7 +68,7 @@ const { width: SCREEN_W } = Dimensions.get("window");
 // Chart fits inside card: scroll 32 + card 32 + Y label ~48 + gap 4 = 116
 const CHART_W = Math.max(180, SCREEN_W - 116);
 const CHART_H = 180;
-const INTEREST_LINE_COLOR = "#F59E0B";
+const INTEREST_LINE_COLOR = "#9A5800";
 
 const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   creditCard: "#3498DB",
@@ -76,7 +77,11 @@ const DEBT_TYPE_COLORS: Record<DebtType, string> = {
   medical: "#E74C3C",
   auto: "#C07820",
   taxDebt: "#F39C12",
+  collectionAccount: "#8E44AD",
+  repossessedVehicle: "#7F8C8D",
   businessDebt: "#34495E",
+  businessCreditCard: "#2980B9",
+  securedBusinessDebt: "#16A085",
   other: "#95A5A6",
 };
 
@@ -236,9 +241,9 @@ export default function DebtDetailScreen() {
   const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
-  const { debts, payments, updateDebt, deleteDebt, logPayment } = useDebts();
+  const { debts, payments, extraPayment, updateDebt, deleteDebt, logPayment } = useDebts();
   const { fmt, fmtFull } = useCurrency();
-  const { awardXp, recordPaymentForStreak, triggerDex, triggerFlamePulse, grantBonusXp } = useGame();
+  const { awardXp, recordPaymentForStreak, triggerDex, triggerFlamePulse, grantBonusXp, triggerMiniCelebration } = useGame();
   const {
     btnState, btnScale, xpFloatActive, xpAmount, xpY, xpOpacity, xpScale, bonusActive, runPayment,
   } = usePaymentEffects();
@@ -265,6 +270,7 @@ export default function DebtDetailScreen() {
   const [markPaidAmount, setMarkPaidAmount] = useState("");
   const [whatIfExtra, setWhatIfExtra] = useState(0);
   const [whatIfInput, setWhatIfInput] = useState("");
+  const whatIfPrefillDebtIdRef = useRef<string | null>(null);
 
   const typeColor = debt ? (DEBT_TYPE_COLORS[debt.debtType] ?? Colors.primary) : Colors.primary;
 
@@ -297,6 +303,16 @@ export default function DebtDetailScreen() {
         : null,
     [debt, whatIfExtra]
   );
+
+  // Prefill What-If extra with the user's committed global extra payment once per debt detail view.
+  useEffect(() => {
+    if (!debt) return;
+    if (whatIfPrefillDebtIdRef.current === debt.id) return;
+    whatIfPrefillDebtIdRef.current = debt.id;
+    const pref = Number.isFinite(extraPayment) ? Math.max(0, Math.round(extraPayment)) : 0;
+    setWhatIfExtra(pref);
+    setWhatIfInput(pref > 0 ? String(pref) : "");
+  }, [debt, extraPayment]);
 
   const upcomingPayments = useMemo(() => {
     if (!debt) return [];
@@ -397,12 +413,42 @@ export default function DebtDetailScreen() {
     );
   };
 
+  // ─── Mini-celebration milestone data ────────────────────────────────────────
+  type PctMilestoneInfo = { tier: 1 | 2; icon: string; xp: number; label: string; slam?: string; sub?: string };
+  const PCT_MILESTONE_DATA: Record<number, PctMilestoneInfo> = {
+    1:  { tier: 1, icon: "🌱", xp: 50,  label: "First 1% paid off!" },
+    5:  { tier: 1, icon: "⚡", xp: 50,  label: "5% debt cleared!" },
+    10: { tier: 2, icon: "🔟", xp: 100, label: "10% paid off",   slam: "TEN PERCENT.", sub: "Real momentum building!" },
+    25: { tier: 2, icon: "💪", xp: 150, label: "Quarter done!",  slam: "ONE QUARTER.",  sub: "You're doing it!" },
+    35: { tier: 2, icon: "🏃", xp: 150, label: "35% paid off",   slam: "OVER A THIRD.", sub: "Keep the pressure on!" },
+    50: { tier: 2, icon: "🎯", xp: 200, label: "Halfway there!", slam: "HALFWAY.",       sub: "The finish line is in sight!" },
+    75: { tier: 2, icon: "🔥", xp: 250, label: "75% done!",      slam: "THREE QUARTERS.", sub: "Final stretch — push through!" },
+    85: { tier: 2, icon: "🚀", xp: 250, label: "85% paid off!",  slam: "ALMOST THERE.", sub: "You can see the end!" },
+    90: { tier: 2, icon: "⭐", xp: 250, label: "90% cleared!",   slam: "FINAL PUSH.",   sub: "Victory is within reach!" },
+  };
+  const PCT_THRESHOLDS = [1, 5, 10, 25, 35, 50, 75, 85, 90];
+
   const handleMarkPaid = async () => {
     const amount = parseFloat(markPaidAmount) || debt.minimumPayment;
     const isPayingOff = amount >= debt.balance;
     const debtName = debt.name;
     const paymentDate = new Date();
     const paymentIso = paymentDate.toISOString();
+
+    // Compute milestone checks before the payment modifies state
+    const debtPmts = payments.filter(p => p.debtId === debt.id && !p.isMissed);
+    const totalPaid = debtPmts.reduce((s, p) => s + p.amount, 0);
+    const origBalance = debt.balance + totalPaid;
+    const prevPct = origBalance > 0 ? (totalPaid / origBalance) * 100 : 0;
+    const newPct  = origBalance > 0 ? Math.min(100, ((totalPaid + amount) / origBalance) * 100) : 0;
+    const crossedPct = !isPayingOff
+      ? PCT_THRESHOLDS.find(m => prevPct < m && newPct >= m) ?? null
+      : null;
+
+    const allPaidCount = payments.filter(p => !p.isMissed).length + 1;
+    const crossedCount =
+      !isPayingOff && (allPaidCount === 10 || allPaidCount === 25) ? allPaidCount : null;
+
     // Notification reminders are keyed by the due-month (current month if due hasn't happened yet; otherwise next month).
     let dueDateForReminder = new Date(paymentDate.getFullYear(), paymentDate.getMonth(), debt.dueDate);
     if (dueDateForReminder < paymentDate) {
@@ -448,12 +494,28 @@ export default function DebtDetailScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           soundManager.play("payment_logged");
           if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
+
+          // Mini celebration toast for % milestones and payment-count milestones
+          // Delay slightly so it appears after the XpFloat settles and before any route change
+          const miniDelay = 600;
+          if (crossedPct != null && PCT_MILESTONE_DATA[crossedPct]) {
+            setTimeout(() => triggerMiniCelebration(PCT_MILESTONE_DATA[crossedPct]), miniDelay);
+          } else if (crossedCount === 10) {
+            setTimeout(() => triggerMiniCelebration({
+              tier: 1, icon: "🏅", xp: 75, label: "10th payment milestone!",
+            }), miniDelay);
+          } else if (crossedCount === 25) {
+            setTimeout(() => triggerMiniCelebration({
+              tier: 2, icon: "🏆", xp: 100, label: "25 payments made!", slam: "SILVER CLUB.", sub: "Consistency is your superpower!",
+            }), miniDelay);
+          }
+
           // Immediately show the celebration moment for "today is complete"
           const paidToday =
             paymentIso.split("T")[0] === new Date().toISOString().split("T")[0];
           if (paidToday && await shouldOfferAutoRouteToDayComplete()) {
             await markDayCompleteAutoRoutedToday();
-            router.replace(`/day-complete?closeTo=debt&debtId=${debt.id}` as any);
+            router.replace(`/(tabs)/day-complete?closeTo=debt&debtId=${debt.id}` as any);
           }
         },
       }
@@ -559,6 +621,7 @@ export default function DebtDetailScreen() {
             effectiveApr={effectiveApr}
             taxAdjustedResult={taxAdjustedResult}
             interestSavingFromTax={interestSavingFromTax}
+            paymentHistory={debtPayments}
           />
         )}
 
@@ -697,6 +760,7 @@ function ProgressTab({
   whatIfExtra, setWhatIfExtra, whatIfInput, setWhatIfInput,
   whatIfResult, singleResult,
   effectiveApr, taxAdjustedResult, interestSavingFromTax,
+  paymentHistory,
 }: any) {
   const { fmt } = useCurrency();
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -709,6 +773,15 @@ function ProgressTab({
 
   const displayDate = whatIfResult && whatIfExtra > 0 ? whatIfResult.payoffDate : payoffDate;
   const displayMonths = whatIfResult && whatIfExtra > 0 ? whatIfResult.totalMonths : totalMonths;
+  const whatIfSliderMax = Math.max(500, Math.ceil((debt.minimumPayment * 6) / 50) * 50);
+  const recentPayments = useMemo(
+    () =>
+      [...(paymentHistory ?? [])]
+        .filter((p: any) => !p.isMissed)
+        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 8),
+    [paymentHistory]
+  );
 
   const dateOpacity = useSharedValue(1);
   const dateAnimStyle = useAnimatedStyle(() => ({ opacity: dateOpacity.value }));
@@ -872,6 +945,35 @@ function ProgressTab({
               )}
             </View>
           </View>
+          <View style={[styles.progressTimelineWrap, { borderTopColor: C.border }]}>
+            <Text style={[styles.progressTimelineTitle, { color: C.text }]}>Payment History</Text>
+            {recentPayments.length === 0 ? (
+              <Text style={[styles.progressTimelineEmpty, { color: C.textSecondary }]}>
+                No payments logged yet.
+              </Text>
+            ) : (
+              recentPayments.map((p: any, i: number) => (
+                <View key={p.id ?? `${p.date}-${i}`} style={styles.progressTimelineItem}>
+                  <View style={styles.progressTimelineRail}>
+                    <View style={[styles.progressTimelineDot, { backgroundColor: Colors.progressGreen, borderColor: Colors.progressGreen }]} />
+                    {i < recentPayments.length - 1 && (
+                      <View style={[styles.progressTimelineLine, { backgroundColor: Colors.progressGreen + "44" }]} />
+                    )}
+                  </View>
+                  <View style={[styles.progressTimelineCard, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
+                    <View style={styles.timelineRow}>
+                      <Text style={[styles.timelineDate, { color: C.text }]}>
+                        {new Date(p.date).toLocaleDateString()}
+                      </Text>
+                      <Text style={[styles.timelineAmount, { color: Colors.progressGreen }]}>
+                        {fmt(p.amount)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
         </View>
       )}
 
@@ -897,6 +999,28 @@ function ProgressTab({
             keyboardType="number-pad"
           />
           <Text style={[styles.whatIfSuffix, { color: C.textSecondary }]}>/month</Text>
+        </View>
+        <View style={styles.whatIfSliderRow}>
+          <Text style={[styles.whatIfSliderEdge, { color: C.textSecondary }]}>$0</Text>
+          <Slider
+            style={styles.whatIfSlider}
+            minimumValue={0}
+            maximumValue={whatIfSliderMax}
+            step={25}
+            minimumTrackTintColor={typeColor}
+            maximumTrackTintColor={C.border}
+            thumbTintColor={typeColor}
+            value={whatIfExtra}
+            onValueChange={(v) => {
+              const next = Math.round(v);
+              setWhatIfExtra(next);
+              setWhatIfInput(next === 0 ? "" : String(next));
+            }}
+            onSlidingComplete={() => {
+              Haptics.selectionAsync();
+            }}
+          />
+          <Text style={[styles.whatIfSliderEdge, { color: C.textSecondary }]}>{`$${whatIfSliderMax}`}</Text>
         </View>
         <View style={styles.whatIfQuickRow}>
           {[50, 100, 200, 500].map((v) => (
@@ -1457,6 +1581,51 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold, fontWeight: "600",
     fontStyle: "italic",
   },
+  progressTimelineWrap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 8,
+    paddingTop: 10,
+    gap: 8,
+  },
+  progressTimelineTitle: {
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontFamily: Fonts.semiBold, fontWeight: "600",
+  },
+  progressTimelineEmpty: {
+    fontSize: 13,
+    fontFamily: Fonts.semiBold, fontWeight: "600",
+  },
+  progressTimelineItem: {
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 42,
+  },
+  progressTimelineRail: {
+    width: 12,
+    alignItems: "center",
+    paddingTop: 2,
+  },
+  progressTimelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+  },
+  progressTimelineLine: {
+    marginTop: 3,
+    width: 2,
+    flex: 1,
+    borderRadius: 2,
+  },
+  progressTimelineCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
   whatIfSub: { fontSize: 13, marginTop: -4 },
   whatIfInputRow: {
     flexDirection: "row",
@@ -1477,6 +1646,22 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold, fontWeight: "700",
   },
   whatIfSuffix: { fontSize: 13 },
+  whatIfSliderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: -2,
+  },
+  whatIfSlider: {
+    flex: 1,
+    height: 32,
+  },
+  whatIfSliderEdge: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold, fontWeight: "600",
+    width: 34,
+    textAlign: "center",
+  },
   whatIfQuickRow: {
     flexDirection: "row",
     gap: 8,

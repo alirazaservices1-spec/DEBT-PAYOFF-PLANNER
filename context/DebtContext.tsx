@@ -17,6 +17,7 @@ import {
   runStrategy,
 } from "@/lib/calculations";
 import { secureGetItem, secureSetItem, secureRemoveItem } from "@/lib/secure-storage";
+import { clearDevHomePreview } from "@/lib/devHomePreview";
 
 const DEBTS_KEY = "@debtfree_debts_v2";
 const PAYMENTS_KEY = "@debtfree_payments_v2";
@@ -27,6 +28,11 @@ const LEAD_SUBMITTED_KEY = "@debtfree_lead_submitted";
 const ONBOARDING_KEY = "@debtfree_onboarding_done";
 /** User chose "Skip to home" on splash — show CTA to run full welcome flow */
 const WELCOME_SKIPPED_KEY = "@debtpath_welcome_skipped_explore";
+const ONBOARDING_GOAL_KEY = "@debtpath_onboarding_goal";
+const ONBOARDING_DEBT_RANGE_KEY = "@debtpath_onboarding_debt_range";
+const ONBOARDING_MOTIVATION_KEY = "@debtpath_onboarding_motivation";
+const ONBOARDING_STREAK_GOAL_KEY = "@debtpath_streak_goal_days";
+const ONBOARDING_STARTED_KEY = "@debtpath_onboarding_started";
 
 export interface PaymentLog {
   id: string;
@@ -57,6 +63,9 @@ interface DebtContextValue {
   totalUnsecuredBalance: number;
   totalMinimums: number;
   hasHighAprDebt: boolean;
+  /** True when total tax debt balance exceeds $10,000 (referral qualification threshold). */
+  qualifiesForTaxReferral: boolean;
+  /** True when any tax debt exists regardless of amount. */
   hasTaxDebt: boolean;
   hasBusinessDebt: boolean;
   creditCardCount: number;
@@ -103,19 +112,24 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         ]);
         let d = dRaw;
         let p = pRaw;
-        if (!d) {
-          const legacy = await AsyncStorage.getItem(DEBTS_KEY);
-          if (legacy) {
-            d = legacy;
-            await secureSetItem(DEBTS_KEY, legacy);
-          }
+        const [legacyDebts, legacyPayments] = await Promise.all([
+          AsyncStorage.getItem(DEBTS_KEY),
+          AsyncStorage.getItem(PAYMENTS_KEY),
+        ]);
+        if (!d && legacyDebts) {
+          d = legacyDebts;
+          await secureSetItem(DEBTS_KEY, legacyDebts);
         }
-        if (!p) {
-          const legacy = await AsyncStorage.getItem(PAYMENTS_KEY);
-          if (legacy) {
-            p = legacy;
-            await secureSetItem(PAYMENTS_KEY, legacy);
-          }
+        if (!p && legacyPayments) {
+          p = legacyPayments;
+          await secureSetItem(PAYMENTS_KEY, legacyPayments);
+        }
+        // Legacy AsyncStorage copies may contain financial data; remove once secure values are loaded/migrated.
+        if ((d || legacyDebts) && legacyDebts) {
+          await AsyncStorage.removeItem(DEBTS_KEY);
+        }
+        if ((p || legacyPayments) && legacyPayments) {
+          await AsyncStorage.removeItem(PAYMENTS_KEY);
         }
         const [e, s, co, ls] = await Promise.all([
           AsyncStorage.getItem(EXTRA_PAYMENT_KEY),
@@ -192,7 +206,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
     [debts]
   );
 
-  const hasTaxDebt = useMemo(() => {
+  const hasTaxDebt = useMemo(
+    () => debts.some((d) => d.debtType === "taxDebt" && d.balance > 0),
+    [debts]
+  );
+
+  const qualifiesForTaxReferral = useMemo(() => {
     const taxTotal = debts
       .filter((d) => d.debtType === "taxDebt")
       .reduce((s, d) => s + d.balance, 0);
@@ -263,6 +282,11 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       await secureSetItem(PAYMENTS_KEY, JSON.stringify(updated));
 
       if (!log.isMissed && log.amount > 0) {
+        // NOTE: Subtracts the full payment from balance. In reality, part of each
+        // payment covers accrued interest and only the remainder reduces principal.
+        // This is a known simplification — users are expected to periodically update
+        // balances from their statements to re-sync. A future improvement could
+        // estimate the interest portion using calculateMonthlyInterestForDebt().
         await updateDebt(log.debtId, {
           balance: Math.max(
             0,
@@ -288,17 +312,20 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
         dateAdded: new Date().toISOString(),
         isSecured: debt.isSecured ?? isSecuredByType(debt.debtType),
       };
-      let nextList: Debt[] = [];
-      let wasEmpty = false;
-      setDebts((prev) => {
-        wasEmpty = prev.length === 0;
-        nextList = [...prev, newDebt];
-        return nextList;
+      const { list, wasEmpty } = await new Promise<{
+        list: Debt[];
+        wasEmpty: boolean;
+      }>((resolve) => {
+        setDebts((prev) => {
+          const next = [...prev, newDebt];
+          resolve({ list: next, wasEmpty: prev.length === 0 });
+          return next;
+        });
       });
       if (wasEmpty) {
         await setWelcomeSkipped(false);
       }
-      await secureSetItem(DEBTS_KEY, JSON.stringify(nextList));
+      await secureSetItem(DEBTS_KEY, JSON.stringify(list));
     },
     [setWelcomeSkipped]
   );
@@ -332,6 +359,12 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.removeItem(LEAD_SUBMITTED_KEY),
       AsyncStorage.removeItem(ONBOARDING_KEY),
       AsyncStorage.removeItem(WELCOME_SKIPPED_KEY),
+      AsyncStorage.removeItem(ONBOARDING_GOAL_KEY),
+      AsyncStorage.removeItem(ONBOARDING_DEBT_RANGE_KEY),
+      AsyncStorage.removeItem(ONBOARDING_MOTIVATION_KEY),
+      AsyncStorage.removeItem(ONBOARDING_STREAK_GOAL_KEY),
+      AsyncStorage.removeItem(ONBOARDING_STARTED_KEY),
+      clearDevHomePreview(),
     ]);
   }, []);
 
@@ -353,6 +386,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       totalUnsecuredBalance,
       totalMinimums,
       hasHighAprDebt,
+      qualifiesForTaxReferral,
       hasTaxDebt,
       hasBusinessDebt,
       creditCardCount,
@@ -386,6 +420,7 @@ export function DebtProvider({ children }: { children: React.ReactNode }) {
       totalUnsecuredBalance,
       totalMinimums,
       hasHighAprDebt,
+      qualifiesForTaxReferral,
       hasTaxDebt,
       hasBusinessDebt,
       creditCardCount,

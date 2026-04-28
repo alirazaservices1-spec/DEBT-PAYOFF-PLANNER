@@ -7,7 +7,7 @@ export interface LevelDef {
 }
 
 export const LEVELS_DATA: LevelDef[] = [
-  { level: 1, name: "Seedling",          icon: "🌱", minXp: 0,    maxXp: 199  },
+  { level: 1, name: "Path Starter",      icon: "🌱", minXp: 0,    maxXp: 199  },
   { level: 2, name: "Bronze Starter",    icon: "🥉", minXp: 200,  maxXp: 499  },
   { level: 3, name: "Momentum Builder",  icon: "⚡", minXp: 500,  maxXp: 999  },
   { level: 4, name: "Gold Saver",        icon: "🪙", minXp: 1000, maxXp: 1999 },

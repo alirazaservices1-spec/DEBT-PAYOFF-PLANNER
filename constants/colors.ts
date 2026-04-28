@@ -90,15 +90,15 @@ export const D = {
  */
 export const WarmContrast = {
   // Section labels / eyebrows on warm cream (dark enough for WCAG on beige/yellow)
-  brandAccent: "#3D2E26",
+  brandAccent: "#000000",
   // Secondary body / hints on cream — warm brown
-  textMuted: "#3D2E26",
+  textMuted: "#000000",
   // Placeholder text on cream inputs
   textPlaceholder: "#45403C",
   // Body text on butter yellow
-  textOnYellow: "#1A1612",
+  textOnYellow: "#000000",
   // Small badges / caps on butter yellow
-  textOnYellowBold: "#2A2014",
+  textOnYellowBold: "#000000",
 } as const;
 
 // ─── Theme objects — used by screens: const C = isDark ? Colors.dark : Colors.light
@@ -120,9 +120,9 @@ const dark = {
 
 const light = {
   /** Warm brown-black on cream — consistent with onboarding / debt flow */
-  text:             "#1A0F08",
-  textSecondary:    "#3D2E26",
-  textTertiary:     "#5C4A38",
+  text:             "#000000",
+  textSecondary:    "#000000",
+  textTertiary:     "#000000",
   background:       "#FAFAF8",
   surface:          "#FFFFFF",
   /** Lighter than old #F2EFE8 so brown text isn’t needed on panels */
@@ -158,5 +158,6 @@ export default {
   // Theme objects
   WarmContrast,
   dark,
+  
   light,
 };

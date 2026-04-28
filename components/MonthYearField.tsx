@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E0D8CE",
   },
-  sheetTitle: { fontSize: 16, fontWeight: "700", color: "#1A0F08" },
+  sheetTitle: { fontSize: 16, fontWeight: "700", color: "#000000" },
   sheetLink: { fontSize: 17, color: "#1A6FC4" },
   sheetDone: { fontWeight: "700" },
 });

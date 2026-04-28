@@ -387,11 +387,6 @@ export default function StrategyScreen() {
     return runStrategy(comparisonDebts, 0, "avalanche");
   }, [debts.length, comparisonDebts, avalancheResult]);
 
-  const baselineSnowballResult = useMemo(() => {
-    if (debts.length === 0) return snowballResult;
-    return runStrategy(comparisonDebts, 0, "snowball");
-  }, [debts.length, comparisonDebts, snowballResult]);
-
   const baselineCustomResult = useMemo(() => {
     if (debts.length === 0) return customResult;
     return runStrategy(comparisonDebts, 0, "custom", customOrder);
@@ -399,7 +394,8 @@ export default function StrategyScreen() {
 
   const interestSavedByKey: Record<"avalanche" | "snowball" | "custom", number> = {
     avalanche: Math.max(0, Math.round(baselineAvalancheResult.totalInterestPaid - avalancheResult.totalInterestPaid)),
-    snowball: Math.max(0, Math.round(baselineSnowballResult.totalInterestPaid - snowballResult.totalInterestPaid)),
+    // Use one shared minimum-only baseline so strategy cards remain directly comparable.
+    snowball: Math.max(0, Math.round(baselineAvalancheResult.totalInterestPaid - snowballResult.totalInterestPaid)),
     custom: Math.max(0, Math.round(baselineCustomResult.totalInterestPaid - customResult.totalInterestPaid)),
   };
 
@@ -653,7 +649,8 @@ export default function StrategyScreen() {
                   onPress={() => {
                     setSliderValue(v);
                     setExtraPayment(v);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setCustomExtraInput(v === 0 ? "" : String(v));
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                   }}
                   style={[
                     styles.htmlPill,

@@ -1,4 +1,8 @@
 import { dateToMonthYear } from "./monthYear";
+import { getIrsUnderpaymentRateSummary } from "./irsUnderpaymentRate";
+
+/** Simulation horizon (60 years). Anything longer is treated as stuck / impossible in UI. */
+export const MAX_SIM_MONTHS = 720;
 
 export type DebtType =
   | "creditCard"
@@ -129,9 +133,14 @@ function calculateMonthlyInterestForDebt(debt: Debt, balance: number, asOfDate: 
  * - Any non-tax debt with $0 minimum would stall the sim — exclude.
  */
 /**
- * For “interest saved vs minimum payments,” cap revolving minimums to a typical ~2% of balance
- * (floor $25). Users sometimes enter a pay-down amount as “minimum,” which makes the baseline
- * payoff too fast and understates savings vs true card-style minimums.
+ * For “interest saved vs minimum payments,” normalize revolving minimums to a
+ * typical card-style baseline (~2% of current balance at setup, floor $25).
+ * This avoids two distortions:
+ * - extremely high entered minimums understating savings, and
+ * - very low entered minimums causing non-amortizing baselines and absurd savings.
+ *
+ * We also enforce an amortization floor against the debt's stated APR so
+ * the baseline remains realistic and does not run away from compounding.
  */
 export function debtsForMinimumPaymentComparison(debts: Debt[]): Debt[] {
   return debts.map((d) => {
@@ -144,8 +153,10 @@ export function debtsForMinimumPaymentComparison(debts: Debt[]): Debt[] {
       d.debtType === "collectionAccount";
     if (!revolving) return d;
     const typical = Math.max(25, Math.round(d.balance * 0.02));
-    if (d.minimumPayment <= typical) return d;
-    return { ...d, minimumPayment: typical };
+    const monthlyInterestAtStatedApr = d.balance * (Math.max(0, d.apr) / 100 / 12);
+    const amortizingFloor = Math.ceil(monthlyInterestAtStatedApr + Math.max(10, d.balance * 0.005));
+    const normalizedMinimum = Math.max(typical, amortizingFloor);
+    return { ...d, minimumPayment: normalizedMinimum };
   });
 }
 
@@ -213,8 +224,8 @@ export function runStrategy(
   customOrder?: string[],
   options?: RunStrategyOptions
 ): StrategyResult {
-  debts = debtsEligibleForStrategy(debts);
-  if (debts.length === 0) {
+  const eligibleDebts = debtsEligibleForStrategy(debts);
+  if (eligibleDebts.length === 0) {
     return {
       snapshots: [],
       totalInterestPaid: 0,
@@ -227,25 +238,23 @@ export function runStrategy(
   let sortedDebts: Debt[];
   if (strategy === "snowball") {
     // Snowball: smallest BALANCE first (roll momentum)
-    sortedDebts = [...debts].sort((a, b) => {
+    sortedDebts = [...eligibleDebts].sort((a, b) => {
       if (a.balance !== b.balance) return a.balance - b.balance;
-      return b.apr - a.apr; // tie-break: higher APR first
+      // Tie-break uses stated APR (not effective intro APR): prioritizes higher post-promo cost.
+      return b.apr - a.apr;
     });
   } else if (strategy === "avalanche") {
-    // Avalanche: highest APR first (minimize total interest)
-    sortedDebts = [...debts].sort((a, b) => {
-      if (b.apr !== a.apr) return b.apr - a.apr;
-      return a.balance - b.balance; // tie-break: smaller balance first
-    });
+    // Stated-APR sort removed: effective APR (incl. 0% intro) is applied inside the loop each month.
+    sortedDebts = [...eligibleDebts];
   } else {
     if (customOrder && customOrder.length > 0) {
       sortedDebts = customOrder
-        .map((id) => debts.find((d) => d.id === id))
+        .map((id) => eligibleDebts.find((d) => d.id === id))
         .filter(Boolean) as Debt[];
-      const remaining = debts.filter((d) => !customOrder.includes(d.id));
+      const remaining = eligibleDebts.filter((d) => !customOrder.includes(d.id));
       sortedDebts = [...sortedDebts, ...remaining];
     } else {
-      sortedDebts = [...debts];
+      sortedDebts = [...eligibleDebts];
     }
   }
 
@@ -262,10 +271,9 @@ export function runStrategy(
   let totalInterestPaid = 0;
   let totalPrincipalPaid = 0;
   let month = 0;
-  const MAX_MONTHS = 600;
   const startDate = options?.simulationStartDate ? new Date(options.simulationStartDate) : new Date();
 
-  while (month < MAX_MONTHS) {
+  while (month < MAX_SIM_MONTHS) {
     const allPaid = [...balances.values()].every((b) => b <= 0);
     if (allPaid) break;
 
@@ -279,9 +287,20 @@ export function runStrategy(
     const paidOffThisMonth: string[] = [];
 
     // Active debts in strategy order (zero-balance debts are already paid off)
-    const activeDebts = sortedDebts.filter((d) => (balances.get(d.id) ?? 0) > 0);
+    let activeDebts = sortedDebts.filter((d) => (balances.get(d.id) ?? 0) > 0);
 
     if (activeDebts.length === 0) break;
+
+    // Avalanche: re-rank every month by effective APR (0% intro, then stated APR after promo ends).
+    // A one-time sort by `debt.apr` would always target high-stated-APR cards even while they charge 0%.
+    if (strategy === "avalanche") {
+      activeDebts = [...activeDebts].sort((a, b) => {
+        const aprA = effectiveAprForDebtMonth(a, date);
+        const aprB = effectiveAprForDebtMonth(b, date);
+        if (aprB !== aprA) return aprB - aprA;
+        return (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0);
+      });
+    }
 
     // Step 1: compute this month's interest and minimum payment for each debt.
     // Tax debts use daily compounding; all others use standard monthly compounding.
@@ -301,15 +320,14 @@ export function runStrategy(
       minTotalThisMonth += minPay;
     }
 
-    // Step 2: compute this month's available budget.
-    // If minimums exceed budget (edge case: very high interest), still pay minimums.
-    const available = Math.max(monthlyBudget, minTotalThisMonth);
-    // Extra pool = everything above required minimums.
-    // This naturally includes freed minimums from paid-off debts.
-    const extraPool = Math.max(0, available - minTotalThisMonth);
+    // Step 2: this month's extra pool.
+    // minTotalThisMonth <= baseMinimums <= monthlyBudget by construction, so extraPool is nonnegative.
+    // Freed minimums from paid-off debts flow in automatically.
+    const extraPool = monthlyBudget - minTotalThisMonth;
+    let remainingExtra = extraPool;
 
     // Step 3: apply payments in strategy order.
-    // The FIRST active debt gets all extra; remaining debts get their minimums.
+    // Cascade extra across debts so surplus from paying off one target is not lost.
     for (let i = 0; i < activeDebts.length; i++) {
       const debt = activeDebts[i];
       const id = debt.id;
@@ -319,19 +337,24 @@ export function runStrategy(
       const interest = monthInterestByDebt.get(id) ?? 0;
       let payment = monthMinByDebt.get(id) ?? 0;
 
-      // Target debt (first in strategy order) absorbs all extra.
-      if (i === 0 && extraPool > 0) {
+      // Strategy-ordered debts absorb extra one-by-one.
+      // If a debt is fully paid and still leaves surplus, remainder flows to the next debt.
+      if (remainingExtra > 0) {
         const maxExtra = Math.max(0, balance + interest - payment);
-        payment += Math.min(extraPool, maxExtra);
+        const appliedExtra = Math.min(remainingExtra, maxExtra);
+        payment += appliedExtra;
+        remainingExtra -= appliedExtra;
       }
 
       const cappedPayment = Math.min(payment, balance + interest);
-      const principal = Math.max(0, cappedPayment - interest);
+      // Balance accounting: interest accrues, then payment applies. When payment < interest,
+      // the shortfall capitalizes and balance grows (was previously silently zeroed out).
+      const newBalance = Math.max(0, balance + interest - cappedPayment);
+      const principal = Math.max(0, cappedPayment - interest); // cash that reduced balance (display)
 
       monthInterest += interest;
       monthPrincipal += principal;
 
-      const newBalance = Math.max(0, balance - principal);
       balances.set(id, newBalance);
 
       breakdown.push({
@@ -370,26 +393,47 @@ export function runStrategy(
     totalInterestPaid,
     totalMonths: month,
     payoffDate,
-    totalPaid: totalInterestPaid + debts.reduce((s, d) => s + d.balance, 0),
+    totalPaid: totalInterestPaid + eligibleDebts.reduce((s, d) => s + d.balance, 0),
   };
 }
 
-/** Interest avoided: pay-only-minimums baseline (typical revolving mins) vs your plan’s total interest. */
+/**
+ * Minimum-payment baseline with each debt simulated in isolation: only that debt’s minimum is paid,
+ * no shared monthly budget and no rollover of freed minimums. Matches “true” min-only interest per card summed.
+ */
+export function runMinOnlyBaseline(debts: Debt[], options?: RunStrategyOptions): number {
+  const eligible = debtsEligibleForStrategy(debts);
+  const startDate = options?.simulationStartDate ? new Date(options.simulationStartDate) : new Date();
+  startDate.setHours(12, 0, 0, 0);
+  let totalInterest = 0;
+  for (const debt of eligible) {
+    let bal = debt.balance;
+    let month = 0;
+    while (bal > 0.005 && month < MAX_SIM_MONTHS) {
+      month++;
+      const d = new Date(startDate);
+      d.setMonth(startDate.getMonth() + month - 1);
+      const interest = calculateMonthlyInterestForDebt(debt, bal, d);
+      const pay = Math.min(debt.minimumPayment, bal + interest);
+      bal = Math.max(0, bal + interest - pay);
+      totalInterest += interest;
+    }
+  }
+  return totalInterest;
+}
+
+/** Interest avoided: isolated min-only baseline (typical revolving mins) vs your plan’s total interest. */
 export function projectedInterestSavedVsMinimumPayments(
   debts: Debt[],
   activeTotalInterestPaid: number,
-  selectedStrategy: Strategy,
-  customOrder?: string[]
+  _selectedStrategy: Strategy,
+  _customOrder?: string[],
+  options?: RunStrategyOptions
 ): number {
   if (debtsEligibleForStrategy(debts).length === 0) return 0;
   const adjusted = debtsForMinimumPaymentComparison(debts);
-  const minOnly = runStrategy(
-    adjusted,
-    0,
-    selectedStrategy === "custom" ? "custom" : selectedStrategy,
-    selectedStrategy === "custom" ? customOrder : undefined
-  );
-  return Math.max(0, Math.round(minOnly.totalInterestPaid - activeTotalInterestPaid));
+  const minOnlyInterest = runMinOnlyBaseline(adjusted, options);
+  return Math.max(0, Math.round(minOnlyInterest - activeTotalInterestPaid));
 }
 
 /**
@@ -397,6 +441,8 @@ export function projectedInterestSavedVsMinimumPayments(
  * Run manually to verify correct strategy separation.
  */
 export function testStrategyCalcs(): void {
+  if (typeof __DEV__ !== "undefined" && !__DEV__) return;
+
   const testDebts: Debt[] = [
     {
       id: "chase",
@@ -434,12 +480,15 @@ export function testStrategyCalcs(): void {
   console.log("Snowball payoff order: Personal first, then Chase");
   console.log("Avalanche payoff order: Chase first (25% APR), then Personal (15% APR)");
 
-  // IRS tax debt daily compounding example
+  const irsPublishedApr = getIrsUnderpaymentRateSummary().annualPercent;
+  const irsApr = Number.isFinite(irsPublishedApr) ? irsPublishedApr : 6;
+
+  // IRS tax debt daily compounding example (APR from published underpayment table)
   const irsDebt: Debt = {
     id: "irs",
     name: "IRS",
     balance: 25000,
-    apr: 7, // IRS current rate ~7%
+    apr: irsApr,
     minimumPayment: 300,
     debtType: "taxDebt",
     isSecured: false,
@@ -450,7 +499,7 @@ export function testStrategyCalcs(): void {
   const monthlyStandard = calculateMonthlyInterest(irsDebt.balance, irsDebt.apr);
   const dailyRate = irsDebt.apr / 100 / 365;
   const monthlyDaily = irsDebt.balance * (Math.pow(1 + dailyRate, 365 / 12) - 1);
-  console.log("=== IRS Daily vs Monthly Compounding ($25k at 7%) ===");
+  console.log(`=== IRS Daily vs Monthly Compounding ($25k at ${irsApr}%) ===`);
   console.log("Monthly compounding: $" + monthlyStandard.toFixed(2) + "/mo");
   console.log("Daily compounding:   $" + monthlyDaily.toFixed(2) + "/mo");
 }
@@ -545,12 +594,10 @@ export function runConsolidationScenario(
   let totalInterest = 0;
   let months = 0;
 
-  while (balance > 0 && months < 600) {
+  while (balance > 0 && months < MAX_SIM_MONTHS) {
     const interest = balance * monthlyRate;
     const payment = Math.min(monthlyPayment, balance + interest);
-    const principal = payment - interest;
-    if (principal <= 0) { months = 600; break; }
-    balance -= principal;
+    balance = Math.max(0, balance + interest - payment);
     totalInterest += interest;
     months++;
   }
@@ -566,32 +613,37 @@ export function runConsolidationScenario(
   };
 }
 
-export function estimatePayoffDate(debt: Debt): Date {
-  const date = new Date();
-  if (debt.minimumPayment <= 0 || debt.balance <= 0) return date;
+/**
+ * Rough per-card payoff date using only that debt’s minimum (not the full plan budget).
+ * @param startDate First simulated payment month anchor (default: today).
+ */
+export function estimatePayoffDate(debt: Debt, startDate: Date = new Date()): Date {
+  const anchor = new Date(startDate);
+  anchor.setHours(12, 0, 0, 0);
+  if (debt.minimumPayment <= 0 || debt.balance <= 0) return new Date(anchor);
 
   let balance = debt.balance;
   let months = 0;
-  const monthlyRate = debt.apr / 100 / 12;
 
-  while (balance > 0 && months < 600) {
-    const interest = balance * monthlyRate;
-    const principalRaw = Math.max(0, debt.minimumPayment - interest);
-    if (principalRaw <= 0) {
-      months = 600;
-      break;
-    }
-    const principal = Math.min(principalRaw, balance);
-    balance -= principal;
+  while (balance > 0 && months < MAX_SIM_MONTHS) {
+    const currentDate = new Date(anchor);
+    currentDate.setMonth(anchor.getMonth() + months);
+
+    // Single source of truth: daily for tax debt, monthly + intro APR for everything else.
+    const interest = calculateMonthlyInterestForDebt(debt, balance, currentDate);
+    const pay = Math.min(debt.minimumPayment, balance + interest);
+    balance = Math.max(0, balance + interest - pay);
     months++;
   }
 
-  date.setMonth(date.getMonth() + months);
-  return date;
+  const payoff = new Date(anchor);
+  payoff.setMonth(anchor.getMonth() + months);
+  return payoff;
 }
 
 export function approximateDebtRange(totalUnsecured: number): string {
-  const low = Math.round(totalUnsecured * 0.4 / 1000) * 1000;
-  const high = Math.round(totalUnsecured * 0.6 / 1000) * 1000;
+  const t = Math.max(0, totalUnsecured);
+  const low = Math.round(t * 0.4 / 1000) * 1000;
+  const high = Math.round(t * 0.6 / 1000) * 1000;
   return `$${low.toLocaleString()} - $${high.toLocaleString()}`;
 }

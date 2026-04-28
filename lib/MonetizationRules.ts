@@ -45,7 +45,7 @@ function isUnsecured(d: RecommendationDebt): boolean {
 }
 
 const LINK_TEXT = "Check if you qualify.";
-const MEANS_TEST_LINK_TEXT = "Check the means test →";
+const MEANS_TEST_LINK_TEXT = "Get a free bankruptcy assessment →";
 
 /** Minimum balance for that debt category before we show a recommendation (per product rules). */
 export const RECOMMENDATION_MIN_BALANCE = 10000;
@@ -87,7 +87,7 @@ export function getRecommendations(
       id: "tax",
       icon: "🏛️",
       header: "Tax debt relief",
-      body: `About ${fmtDollars(taxTotal)} across ${taxAcct} in your list (IRS / tax only—not credit cards). You may benefit from tax debt relief.`,
+      body: `About ${fmtDollars(taxTotal)} across ${taxAcct} in your list (IRS / tax only - not credit cards). Get a free tax debt relief consultation.`,
       linkText: LINK_TEXT,
       affiliateKey: "TAX_RELIEF",
     });
@@ -101,7 +101,7 @@ export function getRecommendations(
       id: "relief",
       icon: "✨",
       header: "Debt relief",
-      body: `About ${fmtDollars(unsecuredTotal)} across ${acct} (cards & similar—tax and secured loans are separate). You may benefit from debt relief.`,
+      body: `About ${fmtDollars(unsecuredTotal)} across ${acct} (cards & similar - tax and secured loans are separate). Get a free debt relief consultation.`,
       linkText: LINK_TEXT,
       affiliateKey: "DEBT_RELIEF",
     });
@@ -113,7 +113,7 @@ export function getRecommendations(
       id: "business",
       icon: "🏢",
       header: "Business debt relief",
-      body: `About ${fmtDollars(businessTotal)} in business-related debts in your list. You may benefit from business debt relief.`,
+      body: `About ${fmtDollars(businessTotal)} in business-related debts in your list. Get a free business debt relief consultation.`,
       linkText: LINK_TEXT,
       affiliateKey: "BUSINESS_RELIEF",
     });
@@ -131,14 +131,14 @@ export function getRecommendations(
     });
   }
 
-  // 5. Means test (everything in the list, including tax)
+  // 5. Bankruptcy assessment (everything in the list, including tax)
   if (totalDebt > RECOMMENDATION_MIN_BALANCE) {
     const acct = debts.length === 1 ? "1 account" : `${debts.length} accounts`;
     out.push({
       id: "means_test",
       icon: "⚖️",
-      header: "Bankruptcy means test",
-      body: `About ${fmtDollars(totalDebt)} total across ${acct} in your debt list (all types). You may want to check the means test.`,
+      header: "Free bankruptcy assessment",
+      body: `About ${fmtDollars(totalDebt)} total across ${acct} in your debt list (all types). Get a free bankruptcy assessment.`,
       linkText: MEANS_TEST_LINK_TEXT,
       affiliateKey: "MEANS_TEST",
     });

@@ -42,7 +42,7 @@ import { markFeedbackShown, FeedbackTrigger } from "@/lib/satisfactionFeedbackGa
 /** Dark blue-gray (body / labels)—not pure black. */
 const NAVY = "#1C1F2E";
 /** Warm near-black brown for emphasis—reads softer than #000 on cream. */
-const INK = "#2A1F18";
+const INK = "#000000";
 const PLACEHOLDER = "rgba(17,17,17,0.38)";
 const AMBER = "#D08A10";
 const AMBER_L = "#F2C040";
@@ -57,7 +57,7 @@ type Props = { visible: boolean; onClosed: () => void; trigger?: FeedbackTrigger
 // ─── SVG mascots ─────────────────────────────────────────────────────────────
 
 /** Screen 1 & 3: happy/warm → nod ±3° */
-function usNodAnim() {
+function useNodAnim() {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -90,7 +90,7 @@ function useFloatAnim() {
 }
 
 function DexHappy() {
-  const rot = usNodAnim();
+  const rot = useNodAnim();
   return (
     <Animated.View style={{ transform: [{ rotate: rot }] }}>
       <Svg width={88} height={106} viewBox="0 0 120 145" style={{ overflow: "visible" }}>
@@ -170,7 +170,7 @@ function DexWorried() {
 }
 
 function DexWarm() {
-  const rot = usNodAnim();
+  const rot = useNodAnim();
   return (
     <Animated.View style={{ transform: [{ rotate: rot }] }}>
       <Svg width={88} height={106} viewBox="0 0 120 145" style={{ overflow: "visible" }}>
@@ -637,7 +637,7 @@ const s = StyleSheet.create({
   popBody: {
     fontFamily: Fonts.regular,
     fontSize: 16,
-    color: "#2A1F18",
+    color: "#000000",
     textAlign: "center",
     lineHeight: 24,
   },
@@ -686,12 +686,12 @@ const s = StyleSheet.create({
   hint: {
     fontFamily: Fonts.regular,
     fontSize: 14,
-    color: "#2A1F18",
+    color: "#000000",
     textAlign: "center",
     lineHeight: 20,
   },
   notNow: { paddingVertical: 8, paddingHorizontal: 12 },
-  notNowTxt: { fontFamily: Fonts.semiBold, fontSize: 17, color: "#2A1F18" },
+  notNowTxt: { fontFamily: Fonts.semiBold, fontSize: 17, color: "#000000" },
 
   backRow: {
     flexDirection: "row",

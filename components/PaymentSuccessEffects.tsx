@@ -382,14 +382,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: Fonts.black,
     fontWeight: "900",
-    color: "#1A0F08",
+    color: "#000000",
     letterSpacing: 1.2,
   },
   bonusSub: {
     fontSize: 12,
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
-    color: "rgba(26,15,8,0.72)",
+    color: "rgba(0,0,0,0.72)",
     marginTop: 2,
   },
 });

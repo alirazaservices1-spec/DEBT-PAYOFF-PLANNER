@@ -43,9 +43,9 @@ function openURL(url: string) {
 }
 
 // ── Color constants matching reference ────────────────────────────────────────
-const DARK = "#1A0A00";
+const DARK = "#000000";
 /** Near-black on white/cream — `#1A0A00` reads brown on butter-yellow cards; client asked for black text. */
-const INK = "#1A0F08";
+const INK = "#000000";
 const MID  = "#2E1408";
 const GOLD = "#F5C030";
 // Primary text on dark brown / black plan surfaces.
@@ -69,7 +69,7 @@ const DEX_MSGS = [
   "You will save real money vs. minimums only. That is real money! 💰",
 ];
 
-function fmt2(n: number): string { return `${MONTH_NAMES[n.getMonth()]} ${n.getFullYear()}`; }
+function fmt2(d: Date): string { return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`; }
 function fmtFull2(n: Date): string { return `${FULL_MONTH_NAMES[n.getMonth()]} ${n.getFullYear()}`; }
 
 
@@ -174,8 +174,10 @@ function MonthRow({
                         { opacity: pressed ? 0.85 : 1 },
                       ]}
                       hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel="Log payment"
                     >
-                      <Text style={styles.logBtnText}>Log</Text>
+                      <Text style={styles.logBtnText}>Log payment</Text>
                     </Pressable>
                   )}
                 </View>
@@ -770,7 +772,7 @@ export default function PlanScreen() {
 
                           if (isToday && await shouldOfferAutoRouteToDayComplete()) {
                             await markDayCompleteAutoRoutedToday();
-                            router.replace("/day-complete");
+                            router.replace("/(tabs)/day-complete");
                           }
                         },
                       }
@@ -866,7 +868,7 @@ export default function PlanScreen() {
                     if (milestoneHit !== null) setTimeout(() => soundManager.play("milestone"), 200);
                     if (isToday && await shouldOfferAutoRouteToDayComplete()) {
                       await markDayCompleteAutoRoutedToday();
-                      router.replace("/day-complete");
+                      router.replace("/(tabs)/day-complete");
                     }
                   },
                 }

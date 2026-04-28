@@ -117,10 +117,10 @@ export function InterestSavingsBar({ interestSaved, onMilestone }: Props) {
 
       {/* Milestone labels */}
       <View style={styles.labelsRow}>
-        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#2A1F18" }]}>
+        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#000000" }]}>
           {formatMilestone(prevMilestone === 0 ? 50 : prevMilestone)}
         </Text>
-        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#2A1F18" }]}>
+        <Text style={[styles.milestoneLabel, { color: isDark ? "rgba(240,232,208,0.40)" : "#000000" }]}>
           {formatMilestone(maxMilestone)}
         </Text>
       </View>

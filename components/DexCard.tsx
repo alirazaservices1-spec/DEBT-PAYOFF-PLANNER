@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontWeight: "400",
     lineHeight: 20,
-    color: "#1A0F08",
+    color: "#000000",
   },
   cursor: {
     fontSize: 14,

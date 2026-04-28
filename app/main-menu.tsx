@@ -10,20 +10,10 @@ import {
   Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Reanimated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedProps,
-  withRepeat,
-  withSequence,
-  withTiming,
-  Easing as REasing,
-} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle, Ellipse, Path, Text as SvgText, G, Defs, RadialGradient, Stop } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useGame } from "@/context/GameContext";
 import { useGoal } from "@/context/GoalContext";
@@ -31,14 +21,10 @@ import { useDebts } from "@/context/DebtContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Fonts } from "@/constants/fonts";
-import {
-  LEVELS_DATA,
-  getLevelDef,
-} from "@/constants/levelsData";
-import { getHomeDexMessages } from "@/constants/dexPhrases";
+import { getLevelDef, LEVELS_DATA } from "@/constants/levelsData";
+import { getDailyQuote } from "@/constants/dailyQuotes";
 import { WelcomeSetupBanner } from "@/components/WelcomeSetupBanner";
-import { DexCoin } from "@/components/DexCoin";
-import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
+import { DexDayComplete } from "@/components/DexDayComplete";
 import {
   hasCompletedDayFlowToday,
   consumeHomeWrappedFeedback,
@@ -51,28 +37,47 @@ import {
   isDevHomePreviewAvailable,
 } from "@/lib/devHomePreview";
 import { getRecommendations, RECOMMENDATION_MIN_BALANCE } from "@/lib/MonetizationRules";
-import { projectedInterestSavedVsMinimumPayments } from "@/lib/calculations";
+import {
+  MAX_SIM_MONTHS,
+  debtsEligibleForStrategy,
+  debtsForMinimumPaymentComparison,
+  projectedInterestSavedVsMinimumPayments,
+  runStrategy,
+} from "@/lib/calculations";
 import { AFFILIATE_URLS } from "@/lib/affiliateUrls";
 import { withAppUtmParams } from "@/lib/utm";
 import * as Haptics from "expo-haptics";
 import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
 import { hasTriggerFired } from "@/lib/satisfactionFeedbackGate";
 
-const BG    = "#EDE8DC";
-const DARK  = "#1C0F00";
-const DARK2 = "#3D2200";
-const GOLD  = "#D9A045";
-const GOLD2 = "#C8882A";
-const AMBER = "#3D2200";
-const MUTED = "#3D2200";
+// ─── Colors ───────────────────────────────────────────────────────────────────
+const BG        = "#1B1850";
+const WHITE     = "#FFFFFF";
+const PURPLE_LT = "#C0A8FF";
+const AMBER     = "#F5C842";
+const GREEN_XP  = "#80EEC0";
+const CARD_BG   = "rgba(255,255,255,0.07)";
+const CARD_BD   = "rgba(255,255,255,0.10)";
+/** High-contrast body / label text on dark purple (accessibility). */
+const BODY_WHITE = "rgba(255,255,255,0.96)";
+const LABEL_WHITE = "rgba(255,255,255,0.92)";
+const MUTED55   = BODY_WHITE;
+const MUTED45   = LABEL_WHITE;
+
 const ONBOARDING_DREAM_GOAL_NAME_KEY = "@debtpath_dream_goal_name";
 const ONBOARDING_DREAM_GOAL_COST_KEY = "@debtpath_dream_goal_cost";
 
-/** Deterministic daily pick so Dex / banner lines stay stable for the calendar day. */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getDayOfYear(): number {
+  const now = new Date();
+  return Math.floor(
+    (Date.now() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+}
+
+/** Deterministic daily pick so content stays stable for the calendar day. */
 function stableDayPick<T>(arr: T[], seed: string): T {
-  if (arr.length === 0) {
-    throw new Error("stableDayPick: empty array");
-  }
+  if (arr.length === 0) throw new Error("stableDayPick: empty array");
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
@@ -81,461 +86,180 @@ function stableDayPick<T>(arr: T[], seed: string): T {
   return arr[Math.abs(h) % arr.length];
 }
 
-type DexExpression = "default" | "happy" | "excited" | "celebrating";
+// ─── Daily home messages ──────────────────────────────────────────────────────
+interface HomeMsg { plain: string; em: string }
+const HOME_MSGS: HomeMsg[] = [
+  { plain: "You showed up today.",       em: "That's how debt disappears."  },
+  { plain: "Every payment is a vote",    em: "for your future self."        },
+  { plain: "Consistency beats",          em: "intensity every time."        },
+  { plain: "Small steps taken daily",    em: "become giant leaps."          },
+  { plain: "You came back today.",       em: "That's real progress."        },
+  { plain: "Progress is happening,",     em: "even when it's invisible."    },
+  { plain: "Every dollar paid is",       em: "freedom purchased."           },
+];
 
 function recHomePalette(id: string): { bg: string; border: string; btn: string } {
   switch (id) {
-    case "tax":
-      return { bg: "#E8EEF8", border: "#0A3580", btn: "#0A3580" };
-    case "relief":
-      return { bg: "#FFE0DC", border: "#991C1C", btn: "#991C1C" };
-    case "business":
-      return { bg: "#E6F5EC", border: "#135228", btn: "#135228" };
-    case "rate":
-      return { bg: "#D4E3FF", border: "#0A3580", btn: "#0A3580" };
-    case "means_test":
-      return { bg: "#F3E8FF", border: "#5B2C91", btn: "#5B2C91" };
-    default:
-      return { bg: "#FFFFFF", border: "#A8967A", btn: "#C07200" };
+    case "tax":     return { bg: "#E8EEF8", border: "#0A3580", btn: "#0A3580" };
+    case "relief":  return { bg: "#FFE0DC", border: "#991C1C", btn: "#991C1C" };
+    case "business":return { bg: "#E6F5EC", border: "#135228", btn: "#135228" };
+    case "rate":    return { bg: "#D4E3FF", border: "#0A3580", btn: "#0A3580" };
+    case "means_test": return { bg: "#F3E8FF", border: "#5B2C91", btn: "#5B2C91" };
+    default:        return { bg: "#FFFFFF", border: "#A8967A", btn: "#C07200" };
   }
 }
 
-function HtmlDexCoin({ mode, size = 170 }: { mode: "well" | "back"; size?: number }) {
-  const motion = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    motion.setValue(0);
-    const anim =
-      mode === "well"
-        ? Animated.loop(
-            Animated.sequence([
-              Animated.timing(motion, { toValue: 1, duration: 560, useNativeDriver: true }),
-              Animated.timing(motion, { toValue: 0, duration: 560, useNativeDriver: true }),
-            ])
-          )
-        : Animated.loop(
-            Animated.sequence([
-              Animated.timing(motion, { toValue: 1, duration: 540, useNativeDriver: true }),
-              Animated.timing(motion, { toValue: -1, duration: 540, useNativeDriver: true }),
-              Animated.timing(motion, { toValue: 0, duration: 540, useNativeDriver: true }),
-            ])
-          );
-    anim.start();
-    return () => anim.stop();
-  }, [mode, motion]);
-
-  const translateY =
-    mode === "well"
-      ? motion.interpolate({ inputRange: [0, 1], outputRange: [0, -14] })
-      : motion.interpolate({ inputRange: [-1, 0, 1], outputRange: [2, 0, -2] });
-  const rotate =
-    mode === "well"
-      ? motion.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "-3deg"] })
-      : motion.interpolate({ inputRange: [-1, 0, 1], outputRange: ["2deg", "0deg", "-2deg"] });
-
-  const browL = mode === "well" ? "M 48 74 Q 65 64 82 74" : "M 48 76 Q 65 86 82 76";
-  const browR = mode === "well" ? "M 88 74 Q 105 64 122 74" : "M 88 76 Q 105 86 122 76";
-  const mouth = mode === "well" ? "M 64 130 Q 85 150 106 130" : "M 64 140 Q 85 130 106 140";
-  const blush = mode === "well" ? "rgba(230,140,60,.20)" : "rgba(230,140,60,.07)";
-  const starsOpacity = mode === "well" ? 1 : 0;
-
-  return (
-    <Animated.View style={{ width: size, height: size * 1.06, transform: [{ translateY }, { rotate }] }}>
-      <Svg viewBox="0 0 170 180" width={size} height={size * 1.06}>
-        <SvgText x={10} y={44} fontSize={16} fill="#FFD700" opacity={starsOpacity}>★</SvgText>
-        <SvgText x={136} y={38} fontSize={14} fill="#FFD700" opacity={starsOpacity}>★</SvgText>
-        <SvgText x={72} y={14} fontSize={12} fill="#FF6B35" opacity={starsOpacity}>✦</SvgText>
-
-        <Circle cx={85} cy={100} r={78} fill="rgba(232,152,10,.08)" />
-        <Circle cx={85} cy={100} r={72} fill="url(#coinGrad)" />
-        <Circle cx={85} cy={100} r={72} fill="none" stroke="#9A6800" strokeWidth={3.5} />
-        <Circle cx={85} cy={100} r={63} fill="none" stroke="#9A6800" strokeWidth={1.4} opacity={0.35} />
-        <Ellipse cx={66} cy={72} rx={24} ry={13} fill="rgba(255,255,255,.28)" rotation={-20} originX={66} originY={72} />
-        <Ellipse cx={64} cy={95} rx={16} ry={14} fill="rgba(80,40,0,.08)" />
-        <Ellipse cx={106} cy={95} rx={16} ry={14} fill="rgba(80,40,0,.08)" />
-
-        <Ellipse cx={64} cy={93} rx={14} ry={14} fill="white" />
-        <Ellipse cx={106} cy={93} rx={14} ry={14} fill="white" />
-        <Ellipse cx={65} cy={93} rx={9} ry={9.5} fill="#160800" />
-        <Ellipse cx={107} cy={93} rx={9} ry={9.5} fill="#160800" />
-        <Circle cx={70} cy={88} r={3.8} fill="white" />
-        <Circle cx={112} cy={88} r={3.8} fill="white" />
-        <Circle cx={60} cy={97} r={1.6} fill="rgba(255,255,255,.55)" />
-        <Circle cx={102} cy={97} r={1.6} fill="rgba(255,255,255,.55)" />
-
-        <Path d={browL} stroke="#7A4800" strokeWidth={4} fill="none" strokeLinecap="round" />
-        <Path d={browR} stroke="#7A4800" strokeWidth={4} fill="none" strokeLinecap="round" />
-
-        <Ellipse cx={85} cy={116} rx={19} ry={13} fill="#C88000" />
-        <Ellipse cx={85} cy={115} rx={14} ry={9.5} fill="#9A5C00" />
-        <Ellipse cx={82} cy={112} rx={4.5} ry={2.8} fill="rgba(255,255,255,.34)" />
-        <Path d="M85 106 L85 110" stroke="#7A4800" strokeWidth={2.4} strokeLinecap="round" />
-
-        <Path d={mouth} stroke="#7A4800" strokeWidth={3.5} fill="none" strokeLinecap="round" />
-        {mode === "well" && (
-          <>
-            <Path d="M 66 130 Q 85 148 104 130" fill="white" />
-            <Path d="M85 130 L85 147" stroke="#7A4800" strokeWidth={2} />
-          </>
-        )}
-
-        <Ellipse cx={48} cy={113} rx={11} ry={6.5} fill={blush} />
-        <Ellipse cx={122} cy={113} rx={11} ry={6.5} fill={blush} />
-
-        <SvgText x={85} y={65} textAnchor="middle" fontSize={14} fontWeight="900" fill="rgba(110,55,0,.26)">$</SvgText>
-        <Defs>
-          <RadialGradient id="coinGrad" cx="37%" cy="28%" r="67%">
-            <Stop offset="0%" stopColor="#FFEC90" />
-            <Stop offset="50%" stopColor="#FFB820" />
-            <Stop offset="100%" stopColor="#B57800" />
-          </RadialGradient>
-        </Defs>
-      </Svg>
-    </Animated.View>
-  );
-}
-
-// ── Expressive Dex SVG ────────────────────────────────────────────────────────
-function DexSvg({ expression = "default" }: { expression?: DexExpression }) {
-  // Eyes vary by expression
-  const renderEyes = () => {
-    if (expression === "celebrating") {
-      // Star eyes
-      return (
-        <>
-          <Circle cx="41" cy="52" r="10" fill="#1C0F00" />
-          <Circle cx="69" cy="52" r="10" fill="#1C0F00" />
-          <SvgText x="32" y="57" fontSize="12">⭐</SvgText>
-          <SvgText x="60" y="57" fontSize="12">⭐</SvgText>
-        </>
-      );
-    }
-    if (expression === "excited") {
-      // Wide open bright eyes
-      return (
-        <>
-          <Circle cx="41" cy="50" r="11" fill="#1C0F00" />
-          <Circle cx="69" cy="50" r="11" fill="#1C0F00" />
-          <Circle cx="44" cy="46" r="5" fill="white" />
-          <Circle cx="72" cy="46" r="5" fill="white" />
-          <Circle cx="46" cy="48" r="2" fill="white" opacity={0.7} />
-          <Circle cx="74" cy="48" r="2" fill="white" opacity={0.7} />
-        </>
-      );
-    }
-    if (expression === "happy") {
-      // Slightly squinted happy eyes
-      return (
-        <>
-          <Ellipse cx="41" cy="53" rx="10" ry="8" fill="#1C0F00" />
-          <Ellipse cx="69" cy="53" rx="10" ry="8" fill="#1C0F00" />
-          <Circle cx="44" cy="49" r="4" fill="white" />
-          <Circle cx="72" cy="49" r="4" fill="white" />
-          <Circle cx="46" cy="51" r="1.5" fill="white" opacity={0.6} />
-          <Circle cx="74" cy="51" r="1.5" fill="white" opacity={0.6} />
-        </>
-      );
-    }
-    // default
-    return (
-      <>
-        <Circle cx="41" cy="52" r="10" fill="#1C0F00" />
-        <Circle cx="69" cy="52" r="10" fill="#1C0F00" />
-        <Circle cx="44" cy="48" r="4" fill="white" />
-        <Circle cx="72" cy="48" r="4" fill="white" />
-        <Circle cx="46" cy="50" r="1.5" fill="white" opacity={0.6} />
-        <Circle cx="74" cy="50" r="1.5" fill="white" opacity={0.6} />
-      </>
-    );
-  };
-
-  // Mouth varies by expression
-  const renderMouth = () => {
-    if (expression === "celebrating" || expression === "excited") {
-      // Big open happy mouth
-      return (
-        <>
-          <Path
-            d="M38,72 Q55,90 72,72"
-            stroke="#8B5E20" strokeWidth="3.5"
-            strokeLinecap="round" fill="none" opacity={0.9}
-          />
-          <Ellipse cx="55" cy="75" rx="6" ry="4" fill="#8B5E20" opacity={0.7} />
-        </>
-      );
-    }
-    if (expression === "happy") {
-      // Nice wide smile
-      return (
-        <>
-          <Path
-            d="M40,73 Q55,86 70,73"
-            stroke="#8B5E20" strokeWidth="3.2"
-            strokeLinecap="round" fill="none" opacity={0.9}
-          />
-          <Ellipse cx="55" cy="68" rx="5" ry="3.5" fill="#8B5E20" opacity={0.7} />
-        </>
-      );
-    }
-    // default
-    return (
-      <>
-        <Path
-          d="M42,73 Q55,83 68,73"
-          stroke="#8B5E20" strokeWidth="3"
-          strokeLinecap="round" fill="none" opacity={0.85}
-        />
-        <Ellipse cx="55" cy="67" rx="4.5" ry="3" fill="#8B5E20" opacity={0.75} />
-      </>
-    );
-  };
-
-  // Cheek blush — stronger for happy/celebrating
-  const cheekOpacity = expression === "celebrating" ? 0.55
-    : expression === "excited" ? 0.5
-    : expression === "happy" ? 0.42
-    : 0.35;
-
-  // Sparkle decoration — only for celebrating/excited
-  const showSparkles = expression === "celebrating" || expression === "excited";
-
-  return (
-    <Svg width={96} height={100} viewBox="0 0 110 115" fill="none">
-      {/* Ears */}
-      <Circle cx="22" cy="32" r="17" fill="#C8882A" />
-      <Circle cx="88" cy="32" r="17" fill="#C8882A" />
-      <Circle cx="22" cy="32" r="10" fill="#D9A045" opacity="0.7" />
-      <Circle cx="88" cy="32" r="10" fill="#D9A045" opacity="0.7" />
-
-      {/* Head */}
-      <Circle cx="55" cy="57" r="36" fill="#D9A045" />
-      <Ellipse cx="43" cy="42" rx="10" ry="7" fill="white" opacity="0.18"
-        rotation="-25" originX="43" originY="42" />
-      <Ellipse cx="55" cy="71" rx="16" ry="11" fill="#C8882A" opacity="0.5" />
-
-      {/* Eyes */}
-      {renderEyes()}
-
-      {/* Cheeks */}
-      <Ellipse cx="30" cy="63" rx="8" ry="5" fill="#E8955A" opacity={cheekOpacity} />
-      <Ellipse cx="80" cy="63" rx="8" ry="5" fill="#E8955A" opacity={cheekOpacity} />
-
-      {/* Mouth */}
-      {renderMouth()}
-
-      {/* Sparkles */}
-      {showSparkles ? (
-        <>
-          <SvgText x="0"  y="26" fontSize="14">✨</SvgText>
-          <SvgText x="85" y="20" fontSize="12">🌟</SvgText>
-          <SvgText x="88" y="50" fontSize="10">✨</SvgText>
-        </>
-      ) : (
-        <>
-          <SvgText x="4"  y="26" fontSize="13">✨</SvgText>
-          <SvgText x="88" y="22" fontSize="11">⭐</SvgText>
-        </>
-      )}
-
-      {/* Body */}
-      <Ellipse cx="55" cy="103" rx="22" ry="14" fill="#C8882A" />
-      <Circle cx="55" cy="100" r="7" fill="#D9A045" opacity="0.5" />
-      <SvgText x="55" y="103.5" textAnchor="middle"
-        fontSize="8" fill="#8B5E20" fontWeight="bold" opacity="0.9">
-        $
-      </SvgText>
-    </Svg>
-  );
-}
-
-const AnimatedG = Reanimated.createAnimatedComponent(G);
-
-function DexCheering({ size = 112, cheerLevel = 1 }: { size?: number; cheerLevel?: number }) {
-  // Matches the client HTML/CSS behavior:
-  // - dex-float  : 2.8s ease-in-out, translateY(0 -> -8px -> 0)
-  // - dex-wave   : 1.1s ease-in-out, rotate(0 -> 24deg -> -6deg -> 0) around (82,68)
-  // Also, treat `size` as displayed height to make it visually taller (like the old Dex).
-  const floatY = useSharedValue(0); // pixels
-  const armRot = useSharedValue(0); // degrees
-  const cheer = useSharedValue(cheerLevel);
-
-  useEffect(() => {
-    cheer.value = cheerLevel;
-  }, [cheerLevel, cheer]);
-
-  useEffect(() => {
-    const floatEasing = REasing.inOut(REasing.cubic);
-    const waveEasing = REasing.inOut(REasing.cubic);
-
-    // 2.8s total: 0% -> 50% (1.4s), 50% -> 100% (1.4s)
-    floatY.value = withRepeat(
-      withSequence(
-        withTiming(-8, { duration: 1400, easing: floatEasing }),
-        withTiming(0, { duration: 1400, easing: floatEasing }),
-      ),
-      -1,
-      true
-    );
-
-    // 1.1s total keyframes (client CSS-like):
-    // 0%   rotate(-30deg)
-    // 25%  rotate( 20deg)
-    // 50%  rotate(-25deg)
-    // 75%  rotate( 15deg)
-    // 100% rotate(-30deg)
-    armRot.value = withRepeat(
-      withSequence(
-        withTiming(-30, { duration: 200, easing: waveEasing }),  // arm up
-        withTiming(20, { duration: 300, easing: waveEasing }),   // swing down
-        withTiming(-25, { duration: 280, easing: waveEasing }),  // back up
-        withTiming(15, { duration: 280, easing: waveEasing }),   // down again
-        withTiming(-30, { duration: 240, easing: waveEasing }),  // rest up
-      ),
-      -1,
-      false
-    );
-  }, [floatY, armRot]);
-
-  const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: floatY.value * cheer.value }],
-  }));
-
-  const armAnimProps = useAnimatedProps(() => ({
-    transform: `rotate(${armRot.value * cheer.value} 82 68)`,
-  }));
-
-  const height = size;
-  const width = (size * 120) / 108;
-
-  return (
-    <Reanimated.View style={floatStyle}>
-      <Svg width={width} height={height} viewBox="0 0 120 108" fill="none">
-        {/* waving arm group */}
-        <AnimatedG animatedProps={armAnimProps}>
-          <Path d="M82,68 C90,56 98,44 96,30" stroke="#C8882A" strokeWidth={10} strokeLinecap="round" fill="none" />
-          <Circle cx={95} cy={26} r={9} fill="#E8A835" />
-          <Circle cx={89} cy={19} r={4} fill="#E8A835" />
-          <Circle cx={96} cy={17} r={4} fill="#E8A835" />
-          <Circle cx={103} cy={19} r={4} fill="#E8A835" />
-        </AnimatedG>
-
-        {/* ears */}
-        <Circle cx={30} cy={34} r={16} fill="#C8882A" />
-        <Circle cx={78} cy={34} r={16} fill="#C8882A" />
-        <Circle cx={30} cy={34} r={10} fill="#E8A835" />
-        <Circle cx={78} cy={34} r={10} fill="#E8A835" />
-
-        {/* head */}
-        <Circle cx={54} cy={62} r={38} fill="#E8A835" />
-        <Circle cx={54} cy={64} r={30} fill="#F0BC50" opacity={0.45} />
-
-        {/* cheeks */}
-        <Ellipse cx={32} cy={72} rx={9} ry={6} fill="#D4822A" opacity={0.5} />
-        <Ellipse cx={76} cy={72} rx={9} ry={6} fill="#D4822A" opacity={0.5} />
-
-        {/* eyes */}
-        <Circle cx={42} cy={58} r={12} fill="#1C0E00" />
-        <Circle cx={66} cy={58} r={12} fill="#1C0E00" />
-        <Circle cx={45} cy={53} r={5.5} fill="white" />
-        <Circle cx={69} cy={53} r={5.5} fill="white" />
-        <Circle cx={47} cy={55} r={2} fill="white" opacity={0.55} />
-        <Circle cx={71} cy={55} r={2} fill="white" opacity={0.55} />
-
-        {/* nose */}
-        <Ellipse cx={54} cy={70} rx={5} ry={3.5} fill="#B06820" opacity={0.7} />
-
-        {/* smile */}
-        <Path
-          d="M41,77 Q54,90 67,77"
-          stroke="#9B5A18"
-          strokeWidth={3}
-          strokeLinecap="round"
-          fill="#C8882A"
-          opacity={0.6}
-        />
-
-        {/* brows raised */}
-        <Path d="M33,46 Q42,40 49,45" stroke="#9B5A18" strokeWidth={2.5} strokeLinecap="round" fill="none" />
-        <Path d="M59,45 Q66,40 75,46" stroke="#9B5A18" strokeWidth={2.5} strokeLinecap="round" fill="none" />
-      </Svg>
-    </Reanimated.View>
-  );
-}
-
-// ── Main Screen ───────────────────────────────────────────────────────────────
-export default function MainMenuScreen({ showClose = true }: { showClose?: boolean }) {
-  const insets = useSafeAreaInsets();
-  const { streakCount, longestStreak, totalXp, level, currentLevelXp, nextLevelXp, progress, prevLastOpenedAt } = useGame();
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function MainMenuScreen({
+  showClose = true,
+  showWelcomeBackBanner = false,
+  onContinueFromWelcomeBack,
+}: {
+  showClose?: boolean;
+  showWelcomeBackBanner?: boolean;
+  onContinueFromWelcomeBack?: () => void;
+}) {
+  const insets   = useSafeAreaInsets();
+  const {
+    streakCount,
+    totalXp,
+    level,
+    currentLevelXp,
+    nextLevelXp,
+    longestStreak,
+    recordPaymentForStreak,
+  } = useGame();
+  const welcomeBackStreakRecordedRef = useRef(false);
   const { goalName, hasGoal, daysToGoal } = useGoal();
-  const { activeResult, extraPayment, welcomeSkipped, debts, selectedStrategy, customOrder } = useDebts();
+  const { activeResult, extraPayment, welcomeSkipped, debts, selectedStrategy, customOrder, payments } = useDebts();
   const { fmt } = useCurrency();
   const { setDebts } = useNotifications();
+
   const [onboardingDreamName, setOnboardingDreamName] = useState("");
   const [onboardingDreamCost, setOnboardingDreamCost] = useState(0);
-  const [dayDoneBanner, setDayDoneBanner] = useState(false);
-  /** After first read of “wrapped up today?” so we don’t flash “Complete day” before AsyncStorage resolves. */
-  const [dayGateReady, setDayGateReady] = useState(false);
+  const [dayDoneBanner, setDayDoneBanner]     = useState(false);
+  const [dayGateReady, setDayGateReady]       = useState(false);
   const [satisfactionVisible, setSatisfactionVisible] = useState(false);
   const [devPreviewActivityDay, setDevPreviewActivityDay] = useState<number | null>(null);
-  /** `null` = use real streak; `number` includes 0 for dev preview pill. */
   const [devPreviewStreakOverride, setDevPreviewStreakOverride] = useState<number | null>(null);
   const [dayWrappedFeedback, setDayWrappedFeedback] = useState<"success" | "error" | null>(null);
 
   const currentLevelDef = getLevelDef(level);
-  const nextLevelDef = level < LEVELS_DATA.length ? getLevelDef(level + 1) : null;
-  const xpToNext = nextLevelXp - currentLevelXp;
-  const xpIntoLevel = totalXp - currentLevelDef.minXp;
-  const levelSpan = (currentLevelDef.maxXp ?? (currentLevelDef.minXp + 9999)) - currentLevelDef.minXp;
-  const barPct = Math.min(100, Math.max(0, (xpIntoLevel / levelSpan) * 100));
-
-  const barAnim   = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const nextLevelDef    = level < LEVELS_DATA.length ? getLevelDef(level + 1) : null;
+  const xpToNext        = nextLevelXp - currentLevelXp;
+  const xpIntoLevel     = totalXp - currentLevelDef.minXp;
+  const levelSpan       = (currentLevelDef.maxXp ?? (currentLevelDef.minXp + 9999)) - currentLevelDef.minXp;
 
   const effectiveGoalName = (hasGoal ? goalName : onboardingDreamName).trim();
-  const debtMonths = Math.max(0, Math.round(activeResult?.totalMonths ?? 0));
+  const debtMonths        = Math.max(0, Math.round(activeResult?.totalMonths ?? 0));
   const dreamMonthsFromGoal = hasGoal && daysToGoal > 0 ? Math.ceil(daysToGoal / 30) : 0;
   const dreamMonthsFromOnboarding =
     !hasGoal && onboardingDreamCost > 0 && extraPayment > 0
       ? Math.ceil(onboardingDreamCost / Math.max(1, extraPayment))
       : 0;
   const dreamMonths = dreamMonthsFromGoal || dreamMonthsFromOnboarding;
-  const daysSinceLastOpen = (() => {
-    if (!prevLastOpenedAt) return null;
-    const prev = new Date(prevLastOpenedAt);
-    const now = new Date();
-    if (Number.isNaN(prev.getTime()) || Number.isNaN(now.getTime())) return null;
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const utcPrev = Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth(), prev.getUTCDate());
-    const utcNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const days = Math.round((utcNow - utcPrev) / msPerDay);
-    return days >= 0 ? days : null;
-  })();
 
   const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
+
   const dreamIcon = (() => {
     const v = effectiveGoalName.toLowerCase();
-    if (v.includes("car")) return "🚗";
+    if (v.includes("car"))   return "🚗";
     if (v.includes("home") || v.includes("house")) return "🏠";
     if (v.includes("trip") || v.includes("travel") || v.includes("vacation")) return "✈️";
     if (v.includes("wedding")) return "💍";
     return "🌟";
   })();
+
   const displayStreakCount =
     typeof devPreviewStreakOverride === "number" ? devPreviewStreakOverride : streakCount;
 
-  const messages = getHomeDexMessages({
-    goalName: effectiveGoalName,
-    streakCount: displayStreakCount,
-    xpToNext,
-    nextLevelName: nextLevelDef?.name ?? "",
-    daysSinceLastOpen,
-  });
-  const congratsMessages = [
-    `${displayStreakCount} day${displayStreakCount === 1 ? "" : "s"} streak! You're building momentum!`,
-    `${xpIntoLevel.toLocaleString()}/${levelSpan.toLocaleString()} XP on this level — gamified progress, not your payoff timeline. Nice work!`,
-    `${totalXp.toLocaleString()} XP total. Every task adds up.`,
-  ];
+  // ── Daily picks ──
+  const calendarDay = new Date().toISOString().slice(0, 10);
+  const homeMsg  = stableDayPick(HOME_MSGS, `${calendarDay}-home-msg`);
+  const dayOfYear = getDayOfYear();
+  const dailyQuote = getDailyQuote(dayOfYear).text;
 
+  // ── Financial stats ──
+  const totalPaidTowardDebt = useMemo(
+    () => payments.filter((p) => !p.isMissed).reduce((sum, p) => sum + p.amount, 0),
+    [payments]
+  );
+  const interestSavedVsMinimums = useMemo(
+    () =>
+      projectedInterestSavedVsMinimumPayments(
+        debts,
+        activeResult.totalInterestPaid,
+        selectedStrategy,
+        customOrder
+      ),
+    [debts, activeResult.totalInterestPaid, selectedStrategy, customOrder]
+  );
+  const minimumsComparison = useMemo(() => {
+    if (!activeResult || !Number.isFinite(activeResult.totalMonths)) {
+      return {
+        monthsSaved: 0,
+        minimumsLikelyNotEnough: false,
+      };
+    }
+    const eligible = debtsForMinimumPaymentComparison(debts);
+    if (!eligible.length) {
+      return {
+        monthsSaved: 0,
+        minimumsLikelyNotEnough: false,
+      };
+    }
+    const neutralOrder = debtsEligibleForStrategy(eligible).map((d) => d.id);
+    const minOnly = runStrategy(eligible, 0, "custom", neutralOrder);
+    const stillHasBalance = (minOnly.snapshots[minOnly.snapshots.length - 1]?.totalBalance ?? 0) > 0.01;
+    return {
+      monthsSaved: Math.max(0, Math.round(minOnly.totalMonths - activeResult.totalMonths)),
+      minimumsLikelyNotEnough: minOnly.totalMonths >= MAX_SIM_MONTHS && stillHasBalance,
+    };
+  }, [debts, activeResult]);
+  const monthsSavedVsMinimums = minimumsComparison.monthsSaved;
+  const minimumsLikelyNotEnough = minimumsComparison.minimumsLikelyNotEnough;
+  const displayInterestSavedVsMinimums = minimumsLikelyNotEnough
+    ? "Payoff path unlocked"
+    : interestSavedVsMinimums >= 10_000_000
+      ? "Huge interest avoided"
+      : fmt(interestSavedVsMinimums);
+  const weeklySummary = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const paidThisWeek = payments.filter((p) => {
+      if (p.isMissed) return false;
+      const when = new Date(p.date);
+      return Number.isFinite(when.getTime()) && when >= weekAgo;
+    });
+
+    const totalPaid = paidThisWeek.reduce((sum, p) => sum + p.amount, 0);
+    return {
+      paymentCount: paidThisWeek.length,
+      totalPaid,
+    };
+  }, [payments]);
+
+  const homeRecommendations = useMemo(() => {
+    const recDebts = (debts || []).map((d) => ({
+      id: d.id, name: d.name, balance: d.balance, apr: d.apr,
+      category: d.debtType, debtType: d.debtType, isSecured: d.isSecured,
+    }));
+    return getRecommendations(recDebts, "dashboard");
+  }, [debts]);
+
+  const resolvedActivityDayForCta =
+    devPreviewActivityDay ?? (displayStreakCount >= 1 ? displayStreakCount + 1 : null);
+  const completeTodayCtaLabel =
+    resolvedActivityDayForCta != null && resolvedActivityDayForCta >= 2
+      ? `Complete Day ${resolvedActivityDayForCta} activities`
+      : resolvedActivityDayForCta === 1
+        ? "Complete Day 1 activities"
+        : "Complete today's activities";
+
+  // ── Effects ──
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem(ONBOARDING_DREAM_GOAL_NAME_KEY),
@@ -554,18 +278,14 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
     return () => clearTimeout(t);
   }, [dayWrappedFeedback]);
 
-  const homeRecommendations = useMemo(() => {
-    const recDebts = (debts || []).map((d) => ({
-      id: d.id,
-      name: d.name,
-      balance: d.balance,
-      apr: d.apr,
-      category: d.debtType,
-      debtType: d.debtType,
-      isSecured: d.isSecured,
-    }));
-    return getRecommendations(recDebts, "dashboard");
-  }, [debts]);
+  useEffect(() => {
+    setDebts(
+      (debts || []).map((d) => ({
+        id: d.id, name: d.name,
+        minimumPayment: d.minimumPayment, dueDate: d.dueDate,
+      }))
+    );
+  }, [debts, setDebts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -574,91 +294,35 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
         const wrappedFb = await consumeHomeWrappedFeedback();
         if (!alive) return;
         if (wrappedFb) setDayWrappedFeedback(wrappedFb);
-        // If we showed "wrap-up saved", treat today as acknowledged (heals rare storage / date-key races).
         if (wrappedFb === "success") {
           await markDayCompleteAcknowledgedToday();
         }
         if (!alive) return;
 
         const doneToday = await hasCompletedDayFlowToday();
-        let previewDay: number | null = null;
-        let previewStreak: number | null = null;
         if (isDevHomePreviewAvailable()) {
           const [d, st, previewState] = await Promise.all([
             getDevPreviewActivityDay(),
             getDevPreviewStreakDays(),
             getDevPreviewHomeState(),
           ]);
-          previewDay = d;
-          previewStreak = st;
           if (!alive) return;
-          setDevPreviewActivityDay(previewDay);
-          setDevPreviewStreakOverride(previewStreak);
-          if (previewState === "completed_today") {
-            setDayDoneBanner(true);
-            setDayGateReady(true);
-            return;
-          }
-          if (previewState === "skipped_wrap") {
-            setDayDoneBanner(false);
-            setDayGateReady(true);
-            return;
-          }
-          if (previewState === "needs_wrap") {
-            setDayDoneBanner(false);
-            setDayGateReady(true);
-            return;
-          }
+          setDevPreviewActivityDay(d);
+          setDevPreviewStreakOverride(st);
+          if (previewState === "completed_today") { setDayDoneBanner(true); setDayGateReady(true); return; }
+          if (previewState === "skipped_wrap")    { setDayDoneBanner(false); setDayGateReady(true); return; }
+          if (previewState === "needs_wrap")      { setDayDoneBanner(false); setDayGateReady(true); return; }
         } else if (alive) {
           setDevPreviewActivityDay(null);
           setDevPreviewStreakOverride(null);
         }
         if (!alive) return;
-        // If today is acknowledged or we just consumed a success toast, hide wrap-up CTA + show “well done”.
-        const wrappedUpToday = doneToday || wrappedFb === "success";
-        // Keep generic "Complete Day …" CTA hidden after success toast even before storage re-read settles.
         setDayDoneBanner(doneToday || wrappedFb === "success");
         setDayGateReady(true);
       })();
-      return () => {
-        alive = false;
-      };
+      return () => { alive = false; };
     }, [streakCount]),
   );
-
-  useEffect(() => {
-    setDebts(
-      (debts || []).map((d) => ({
-        id: d.id,
-        name: d.name,
-        minimumPayment: d.minimumPayment,
-        dueDate: d.dueDate,
-      }))
-    );
-  }, [debts, setDebts]);
-
-  // Animate XP bar
-  useEffect(() => {
-    Animated.timing(barAnim, {
-      toValue: barPct,
-      duration: 1200,
-      delay: 400,
-      useNativeDriver: false,
-    }).start();
-  }, [barPct]);
-
-  // Shimmer sweep across progress fill (HTML-like effect).
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 2200,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [shimmerAnim]);
 
   useEffect(() => {
     let cancelled = false;
@@ -667,49 +331,32 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
       if (displayStreakCount !== 1) return;
       const done = await hasTriggerFired("day1_complete");
       if (cancelled || done) return;
-      timer = setTimeout(() => {
-        if (!cancelled) setSatisfactionVisible(true);
-      }, 900);
+      timer = setTimeout(() => { if (!cancelled) setSatisfactionVisible(true); }, 900);
     })();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [displayStreakCount]);
 
-  const calendarDay = new Date().toISOString().slice(0, 10);
-  const msg = stableDayPick(messages, `${calendarDay}-dex`);
-  const congratsMsg = stableDayPick(congratsMessages, `${calendarDay}-banner`);
-  /** Total interest avoided vs. typical revolving minimums + your strategy (aligned with Plan tab). */
-  const interestSavedVsMinimums = useMemo(
-    () =>
-      projectedInterestSavedVsMinimumPayments(
-        debts,
-        activeResult.totalInterestPaid,
-        selectedStrategy,
-        customOrder
-      ),
-    [debts, activeResult.totalInterestPaid, selectedStrategy, customOrder]
-  );
-  const barWidth = barAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] });
-  const shimmerX = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-120, 220] });
-
-  const resolvedActivityDayForCta =
-    devPreviewActivityDay ?? (displayStreakCount >= 1 ? displayStreakCount + 1 : null);
-  const completeTodayCtaLabel =
-    resolvedActivityDayForCta != null && resolvedActivityDayForCta >= 2
-      ? `Complete Day ${resolvedActivityDayForCta} activities`
-      : resolvedActivityDayForCta === 1
-        ? "Complete Day 1 activities"
-        : "Complete today's activities";
-
-  // Extra space above the floating / native tab bar so the last cards can scroll fully into view.
   const bottomPad = Math.max(insets.bottom, Platform.OS === "web" ? 34 : 12) + 96;
 
+  const handleWelcomeBackContinue = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!welcomeBackStreakRecordedRef.current) {
+      recordPaymentForStreak();
+      welcomeBackStreakRecordedRef.current = true;
+    }
+    onContinueFromWelcomeBack?.();
+  }, [recordPaymentForStreak, onContinueFromWelcomeBack]);
+
   return (
-    <View style={[styles.screen, { paddingTop: Platform.OS !== "web" ? insets.top : 52 }]}>
-      <View pointerEvents="none" style={styles.blobTR} />
-      <View pointerEvents="none" style={styles.blobBL} />
+    <View style={[styles.screen, { paddingTop: Platform.OS !== "web" ? insets.top : 0 }]}>
+      {/* Radial glow — matches HTML: radial-gradient(ellipse at 50% 30%, rgba(100,80,230,0.40) 0%, transparent 65%) */}
+      <LinearGradient
+        colors={["rgba(100,80,230,0.40)", "rgba(100,80,230,0.10)", "transparent"]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+        style={styles.bgGlow}
+      />
 
       <RNScrollView
         style={{ flex: 1 }}
@@ -718,53 +365,104 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
         keyboardShouldPersistTaps="handled"
         bounces
         overScrollMode="always"
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
       >
-        {/* ── Header ── */}
-        <View style={styles.topBar}>
-          <View>
-            <Text style={styles.greetingText}>Great work, keep it up!</Text>
-            <Text style={styles.userNameText}>Champion 🎉</Text>
+        {/* ── Top row ── */}
+        <View style={styles.topRow}>
+          <View style={styles.topLeft}>
+            <Text style={styles.greetingSup}>Great work, keep it up!</Text>
+            <Text style={styles.greetingTitle}>
+              {currentLevelDef.name}
+            </Text>
           </View>
-          <View style={styles.topBarRight}>
-            <View style={styles.streakPill}>
-              <Text style={styles.streakText}>🔥 {displayStreakCount}d</Text>
-            </View>
+          <View style={styles.topRight}>
+            {displayStreakCount > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakText}>🔥 {displayStreakCount}d</Text>
+              </View>
+            )}
             {showClose && (
               <Pressable
-                // Home tab is "(tabs)/dashboard" — first tab, welcome banner + Dex live here
                 onPress={() => router.replace("/(tabs)/dashboard")}
                 style={({ pressed }) => [styles.closeBtn, { opacity: pressed ? 0.85 : 1 }]}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Home"
               >
-                <Ionicons name="chevron-back" size={20} color={DARK} />
+                <Ionicons name="chevron-back" size={20} color={WHITE} />
               </Pressable>
             )}
           </View>
         </View>
 
+        {showWelcomeBackBanner && (
+          <>
+            <View
+              style={styles.welcomeBackBanner}
+              accessibilityRole="summary"
+              accessibilityLabel="Welcome back"
+            >
+              <Text style={styles.welcomeBackTitle}>Welcome back — glad you{"'"}re here</Text>
+              <Text style={styles.welcomeBackSub}>
+                Showing up again is what winners do. There{"'"}s nothing to catch up on this screen —
+                when you{"'"}re ready, your usual today flow is right below.
+              </Text>
+              <Pressable
+                onPress={handleWelcomeBackContinue}
+                style={({ pressed }) => [
+                  styles.welcomeBackBtn,
+                  { opacity: pressed ? 0.92 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Let's get back on track"
+              >
+                <Text style={styles.welcomeBackBtnText}>Let{"'"}s get back on track</Text>
+              </Pressable>
+            </View>
+            <View style={styles.weeklySummaryCard} accessibilityRole="summary" accessibilityLabel="Weekly summary">
+              <Text style={styles.weeklySummaryEyebrow}>Weekly Summary</Text>
+              <Text style={styles.weeklySummaryTitle}>Your last 7 days</Text>
+              <View style={styles.weeklySummaryStatsRow}>
+                <View style={[styles.weeklySummaryStatPill, styles.weeklySummaryStatPillGold]}>
+                  <Text style={styles.weeklySummaryStatValue}>{weeklySummary.paymentCount}</Text>
+                  <Text style={styles.weeklySummaryStatLabel}>Payments</Text>
+                </View>
+                <View style={[styles.weeklySummaryStatPill, styles.weeklySummaryStatPillGreen]}>
+                  <Text style={styles.weeklySummaryStatValue}>{fmt(weeklySummary.totalPaid)}</Text>
+                  <Text style={styles.weeklySummaryStatLabel}>Paid</Text>
+                </View>
+              </View>
+              <Text style={styles.weeklySummarySub}>
+                Keep this streak alive - showing up each day keeps momentum on your side.
+              </Text>
+            </View>
+          </>
+        )}
+
         {welcomeSkipped && debts.length === 0 && <WelcomeSetupBanner />}
 
+        {/* ── Feedback banners ── */}
         {dayWrappedFeedback === "success" && (
           <View style={styles.feedbackBannerOk} accessibilityRole="alert">
             <Text style={styles.feedbackBannerOkText}>
-              You’re all set for today — your wrap-up was saved.
+              You're all set for today - your wrap-up was saved.
             </Text>
           </View>
         )}
         {dayWrappedFeedback === "error" && (
           <View style={styles.feedbackBannerErr} accessibilityRole="alert">
             <Text style={styles.feedbackBannerErrText}>
-              We couldn’t save today’s wrap-up. Tap today’s wrap-up on Home to try again.
+              We couldn't save today's wrap-up. Tap today's wrap-up on Home to try again.
             </Text>
           </View>
         )}
 
+        {/* ── Day done banner ── */}
         {dayGateReady && dayDoneBanner && !dayWrappedFeedback && (
           <View style={styles.dayDoneBanner} accessibilityRole="summary">
             <Text style={styles.dayDoneBannerEmoji}>🎉</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.dayDoneBannerTitle}>Well done - you completed today’s activities</Text>
+              <Text style={styles.dayDoneBannerTitle}>Well done - you completed today's activities</Text>
               <Text style={styles.dayDoneBannerSub}>
                 You wrapped up what matters for today. Come back tomorrow to keep your streak going.
               </Text>
@@ -772,130 +470,101 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
           </View>
         )}
 
+        {/* ── Complete today CTA ── */}
         {dayGateReady && !dayDoneBanner && (
           <Pressable
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push("/day-complete");
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              // Open an actionable daily task (log a payment) instead of the wrap-up screen.
+              router.push("/(tabs)/dashboard?openLog=1");
             }}
-            style={({ pressed }) => [styles.completeTodayCta, pressed && { opacity: 0.92 }]}
+            style={({ pressed }) => [
+              styles.completeTodayCta,
+              pressed && { opacity: 0.92 },
+            ]}
             accessibilityRole="button"
-            accessibilityHint="Opens today’s wrap-up and streak check-in"
+            accessibilityLabel={completeTodayCtaLabel}
+            accessibilityHint="Opens today's payment task flow"
           >
             <Text style={styles.completeTodayCtaText}>{completeTodayCtaLabel}</Text>
             <Text style={styles.completeTodayCtaChev}>→</Text>
           </Pressable>
         )}
 
-        {/* ── Dex + speech bubble ── */}
-        <View style={styles.dexSection}>
-          <View style={[styles.congratsBanner, styles.congratsBannerWell]}>
-            <Text style={styles.congratsIcon}>🏅</Text>
-            <Text style={[styles.congratsText, styles.congratsTextWell]}>{congratsMsg}</Text>
-          </View>
-          <View style={styles.speechBubble}>
-            <Text style={styles.bubbleText}>{msg}</Text>
-          </View>
-          <View style={styles.dexWrap}>
-            <View style={styles.dexShadow} />
-            <DexCoin
-              size={170}
-              mood={DEX_SCREEN_MAP.homeOnTrack.mood}
-              motion={DEX_SCREEN_MAP.homeOnTrack.motion}
-            />
-          </View>
-        </View>
-
-        {/* ── XP card (HTML-style) ── */}
-        <View style={styles.xpCard}>
-          <View style={styles.xpTop}>
-            <View style={styles.lvlBadge}>
-              <Text style={styles.lvlLbl}>LV</Text>
-              <Text style={styles.lvlNum}>{level}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.xpTier}>{currentLevelDef.name}</Text>
-              <Text style={styles.xpNext}>
-                <Text style={{ color: "#7A4E00", fontFamily: Fonts.black }}>{Math.max(0, xpToNext).toLocaleString()} XP</Text>
-                {" "}to next level
-              </Text>
-            </View>
-          </View>
-          <View style={styles.barWrap}>
-            <Animated.View style={[styles.barFill, { width: barWidth }]}>
-              <Animated.View
-                pointerEvents="none"
-                style={[styles.barShimmer, { transform: [{ translateX: shimmerX }] }]}
-              >
-                <LinearGradient
-                  colors={["transparent", "rgba(255,255,255,0.50)", "transparent"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            </Animated.View>
-          </View>
-          <View style={styles.barLabels}>
-            <Text style={styles.barLabelText}>{currentLevelDef.minXp.toLocaleString()} XP</Text>
-            <Text style={styles.barLabelMid}>
-              This level · {xpIntoLevel.toLocaleString()}/{levelSpan.toLocaleString()} XP
-            </Text>
-            <Text style={styles.barLabelText}>
-              {currentLevelDef.maxXp != null ? `${currentLevelDef.maxXp.toLocaleString()} XP` : "MAX"}
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Stats (2x2) ── */}
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, styles.statFire]}>
-            <Text style={styles.statIcon}>🔥</Text>
-            <Text style={styles.statVal}>{displayStreakCount}d</Text>
-            <Text style={[styles.statLbl, { color: "#991C1C" }]}>Current Streak</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statIcon}>🏆</Text>
-            <Text style={styles.statVal}>{longestStreak}d</Text>
-            <Text style={styles.statLbl}>Best Streak</Text>
-          </View>
-          <View style={[styles.statCard, styles.statGold]}>
-            <Text style={styles.statIcon}>⚡</Text>
-            <Text style={styles.statVal}>{totalXp.toLocaleString()}</Text>
-            <Text style={[styles.statLbl, { color: "#7A4E00" }]}>Total XP</Text>
-          </View>
-          <View style={[styles.statCard, styles.statGreen]}>
-            <Text style={styles.statIcon}>💸</Text>
-            <Text style={styles.statVal}>{fmt(interestSavedVsMinimums)}</Text>
-            <Text style={[styles.statLbl, { color: "#135228" }]}>Projected interest saved</Text>
-            <Text style={styles.statSub}>vs. minimum payments</Text>
-          </View>
-        </View>
-
-        {/* ── Dream goal ── */}
+        {/* ── Dream goal (above Dex so title/subtext never sit under the mascot) ── */}
         <View style={styles.dreamCard}>
-          <View style={styles.dreamIcon}>
-            <Text style={{ fontSize: 24 }}>{dreamIcon}</Text>
+          <View style={styles.dreamIconBox}>
+            <Text style={{ fontSize: 26 }}>{dreamIcon}</Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={styles.dreamTextCol}>
             <Text style={styles.dreamEyebrow}>Your Dream Goal</Text>
-            <Text style={styles.dreamTitle} numberOfLines={2}>
-              {effectiveGoalName || "Debt-free momentum"}
+            <Text style={styles.dreamTitle} numberOfLines={3}>
+              {effectiveGoalName || "Debt-Free Life"}
             </Text>
             <Text style={styles.dreamSub}>
               {effectiveGoalName
                 ? dreamMonths > 0
-                  ? `Keep saving to be debt-free in ${monthsText(debtMonths)} and ${effectiveGoalName} in ${monthsText(dreamMonths)}.`
+                  ? `Stay on track - debt-free first, then ${effectiveGoalName} is next.`
                   : debtMonths > 0
-                    ? `Keep saving to be debt-free in ${monthsText(debtMonths)} - then ${effectiveGoalName} is next.`
-                    : `Keep saving and stay consistent - ${effectiveGoalName} is getting closer.`
+                    ? `Stay on track - ${effectiveGoalName} is waiting after debt-free.`
+                    : `Stay consistent - ${effectiveGoalName} is getting closer.`
                 : debtMonths > 0
-                  ? `Keep saving to get rid of debt in ${monthsText(debtMonths)}.`
-                  : "Keep going - each payment brings your goals closer."}
+                  ? `Stay on track - you'll be debt-free in ${monthsText(debtMonths)}.`
+                  : "Each payment brings your goals closer."}
             </Text>
           </View>
         </View>
 
+        {/* ── Dex mascot (decorative only — must not intercept taps above/beside it) ── */}
+        <View style={styles.dexWrap} pointerEvents="none">
+          <DexDayComplete state="congratulating" />
+        </View>
+
+        {/* ── Interest vs minimums (second wide card) ── */}
+        <View style={[styles.statCard, styles.statGreen, styles.statCardFull]}>
+          <Text style={styles.statIcon}>📉</Text>
+          <Text style={[styles.statVal, { color: GREEN_XP }]}>{displayInterestSavedVsMinimums}</Text>
+          <Text style={styles.interestSavedCaption}>
+            {minimumsLikelyNotEnough
+              ? `Minimum payments alone may never fully pay these balances down. Your current plan puts you on a payoff path in ${Math.max(0, Math.round(activeResult.totalMonths))} month${Math.max(0, Math.round(activeResult.totalMonths)) === 1 ? "" : "s"}.`
+              : `On track to save ${fmt(interestSavedVsMinimums)} in interest and ${monthsSavedVsMinimums} month${monthsSavedVsMinimums === 1 ? "" : "s"} versus minimum payments.`}
+          </Text>
+        </View>
+
+        {/* ── Motivational message ── */}
+        <View style={styles.msgCard}>
+          <Text style={styles.msgText}>
+            {homeMsg.plain}
+            {"\n"}
+            <Text style={styles.msgEm}>{homeMsg.em}</Text>
+          </Text>
+        </View>
+
+        {/* ── XP and streak (streak only if active) ── */}
+        <View style={styles.statsGrid}>
+          {displayStreakCount > 0 ? (
+            <>
+              <View style={[styles.statCard, styles.statGold]}>
+                <Text style={styles.statIcon}>⚡</Text>
+                <Text style={[styles.statVal, { color: AMBER }]}>{totalXp.toLocaleString()}</Text>
+                <Text style={styles.statLbl}>Total XP</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statIcon}>🔥</Text>
+                <Text style={[styles.statVal, { color: AMBER }]}>{displayStreakCount}d</Text>
+                <Text style={styles.statLbl}>Day streak</Text>
+              </View>
+            </>
+          ) : (
+            <View style={[styles.statCard, styles.statGold, styles.statCardFull]}>
+              <Text style={styles.statIcon}>⚡</Text>
+              <Text style={[styles.statVal, { color: AMBER }]}>{totalXp.toLocaleString()}</Text>
+              <Text style={styles.statLbl}>Total XP</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── Recommendations ── */}
         {homeRecommendations.length > 0 && (
           <>
             <Text style={styles.sectionLabel}>Explore your options</Text>
@@ -907,7 +576,6 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
               horizontal
               nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.consultScroll}
             >
@@ -940,6 +608,12 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
             </RNScrollView>
           </>
         )}
+
+        {/* ── Daily quote card ── */}
+        <View style={styles.quoteCard}>
+          <Text style={styles.quoteOpenQuote}>{"\u201C"}</Text>
+          <Text style={styles.quoteText}>{dailyQuote}</Text>
+        </View>
       </RNScrollView>
 
       <SatisfactionFeedbackModal
@@ -951,460 +625,361 @@ export default function MainMenuScreen({ showClose = true }: { showClose?: boole
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BG },
 
-  blobTR: {
-    position: "absolute", top: -40, right: -40,
-    width: 170, height: 170, borderRadius: 85,
-    backgroundColor: "#D4C9A8", opacity: 0.45,
-  },
-  blobBL: {
-    position: "absolute", bottom: 80, left: -50,
-    width: 150, height: 150, borderRadius: 75,
-    backgroundColor: "#D4C9A8", opacity: 0.35,
+  bgGlow: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: "65%",
+    zIndex: 0,
   },
 
   scrollContent: {
     paddingHorizontal: 22,
+    paddingTop: 24,
     alignItems: "center",
   },
 
-  topBar: {
+  // ── Top row ──
+  topRow: {
     width: "100%", flexDirection: "row",
-    justifyContent: "space-between", alignItems: "center",
-    marginBottom: 18, zIndex: 1,
+    justifyContent: "space-between", alignItems: "flex-start",
+    marginBottom: 20,
   },
-  topBarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  topLeft: { flexDirection: "column" },
+  topRight: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+  greetingSup: {
+    fontSize: 16, fontFamily: Fonts.semiBold,
+    color: BODY_WHITE, marginBottom: 3,
   },
-  appLabel: {
-    fontSize: 12, fontFamily: Fonts.extraBold,
-    fontWeight: "700", letterSpacing: 2.5,
-    color: AMBER, textTransform: "uppercase",
+  greetingTitle: {
+    fontSize: 28, fontFamily: Fonts.serif,
+    color: WHITE, lineHeight: 34,
   },
-  greetingText: { fontSize: 15, fontFamily: Fonts.bold, color: MUTED },
-  userNameText: { fontSize: 27, fontFamily: Fonts.black, color: DARK, lineHeight: 30 },
-  streakPill: {
-    backgroundColor: "#FFF3D0",
-    borderColor: "#CC8000",
-    borderWidth: 2,
-    borderRadius: 50,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(0,0,0,0.06)",
-    alignItems: "center",
-    justifyContent: "center",
+  streakBadge: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderWidth: 1.5, borderColor: "rgba(255,200,80,0.40)",
+    borderRadius: 100, paddingVertical: 9, paddingHorizontal: 16,
   },
   streakText: {
-    fontSize: 13, fontFamily: Fonts.bold, fontWeight: "700", color: "#7A4E00",
+    fontSize: 15, fontFamily: Fonts.bold,
+    fontWeight: "800", color: "#FFD080",
   },
-  dexSection: { alignItems: "center", marginBottom: 18, zIndex: 1 },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
+
+  // ── Dex ──
   dexWrap: {
-    position: "relative",
-    width: 170,
-    height: 182,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 165, height: 182,
+    alignItems: "center", justifyContent: "center",
+    marginTop: 8, marginBottom: 8,
   },
-  dexShadow: {
-    position: "absolute",
-    bottom: 6,
-    width: 110,
-    height: 20,
-    borderRadius: 20,
-    backgroundColor: "rgba(170,100,0,.18)",
-  },
-  congratsBanner: {
+
+  // ── Message card ──
+  msgCard: {
     width: "100%",
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    backgroundColor: CARD_BG,
+    borderWidth: 1.5, borderColor: CARD_BD,
+    borderRadius: 18, padding: 18, paddingHorizontal: 20,
+    marginBottom: 14, alignItems: "center",
   },
-  /** White on deep brown for contrast (replaces gold-on-cream). */
-  congratsBannerWell: {
-    backgroundColor: "#5C3D24",
-    borderColor: "#3D2718",
+  msgText: {
+    fontFamily: Fonts.serif, fontSize: 21,
+    color: WHITE, textAlign: "center", lineHeight: 32,
   },
-  congratsIcon: { fontSize: 22 },
-  congratsText: { flex: 1, fontSize: 13, fontFamily: Fonts.extraBold, lineHeight: 18 },
-  congratsTextWell: { color: "#FFFFFF" },
-  speechBubble: {
-    backgroundColor: "#fff", borderRadius: 18,
-    borderBottomLeftRadius: 4, paddingHorizontal: 16,
-    paddingVertical: 13, maxWidth: 286, marginBottom: 12,
-    shadowColor: "#643C0A", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1, shadowRadius: 14, elevation: 4,
-  },
-  bubbleText: {
-    fontSize: 15, fontFamily: Fonts.semiBold,
-    fontWeight: "600", color: "#2A1F18",
-    lineHeight: 22, textAlign: "center",
-  },
+  msgEm: { fontStyle: "italic", color: "rgba(232,220,255,0.98)" },
 
-  heroCard: {
-    width: "100%", backgroundColor: DARK2, borderRadius: 24,
-    padding: 20, paddingBottom: 18, marginBottom: 16,
-    flexDirection: "row", alignItems: "center", gap: 16,
-    overflow: "hidden", shadowColor: "#281400",
-    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2,
-    shadowRadius: 28, elevation: 10, zIndex: 1,
-  },
-  heroCardGlow: {
-    position: "absolute", top: -40, right: -40,
-    width: 130, height: 130, borderRadius: 65,
-    backgroundColor: "rgba(217,160,69,0.12)",
-  },
-  levelBadge: {
-    width: 66, height: 66, borderRadius: 18,
-    backgroundColor: "rgba(217,160,69,0.18)",
-    borderWidth: 1.5, borderColor: "rgba(217,160,69,0.4)",
-    alignItems: "center", justifyContent: "center", flexShrink: 0,
-  },
-  lvIcon: { fontSize: 26, lineHeight: 30 },
-  lvTag: {
-    fontSize: 9, fontFamily: Fonts.extraBold, fontWeight: "700",
-    letterSpacing: 1, color: "rgba(217,160,69,0.9)",
-    textTransform: "uppercase", marginTop: 3,
-  },
-  heroLevelName: {
-    fontFamily: Fonts.serif ?? Fonts.bold, fontSize: 22,
-    fontWeight: "800", color: "#F5EFE0",
-    lineHeight: 25, marginBottom: 2,
-  },
-  heroXpLabel: {
-    fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "600",
-    color: "rgba(255,255,255,0.88)", marginBottom: 9,
-  },
-  progressTrack: {
-    backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 50,
-    height: 8, width: "100%", overflow: "hidden",
-  },
-  progressFill: { height: "100%", backgroundColor: GOLD, borderRadius: 50 },
-  progressMeta: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-  metaText: {
-    fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "600",
-    color: "rgba(255,255,255,0.84)",
-  },
-
-  dreamCard: {
-    width: "100%", backgroundColor: "#fff", borderRadius: 18,
-    padding: 15, paddingHorizontal: 16, marginTop: 12, marginBottom: 16,
-    flexDirection: "row", alignItems: "center", gap: 13,
-    shadowColor: "#643C0A", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 10, elevation: 3,
-    borderLeftWidth: 4, borderLeftColor: "#B87320", zIndex: 1,
-  },
-  dreamIcon: {
-    width: 44, height: 44, borderRadius: 13, backgroundColor: "#F5F0E6",
-    alignItems: "center", justifyContent: "center", flexShrink: 0,
-    borderWidth: 1.5, borderColor: "rgba(180,140,80,0.2)",
-  },
-  dreamEyebrow: {
-    fontSize: 11, fontFamily: Fonts.extraBold, fontWeight: "700",
-    letterSpacing: 1.5, textTransform: "uppercase", color: AMBER, marginBottom: 2,
-  },
-  dreamTitle: {
-    fontSize: 16, fontFamily: Fonts.bold, fontWeight: "700",
-    color: DARK, lineHeight: 21,
-  },
-  dreamSub: { fontSize: 13, fontFamily: Fonts.semiBold, color: MUTED, marginTop: 2, lineHeight: 18 },
-
-  xpCard: {
-    width: "100%",
-    marginTop: 14,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2.5,
-    borderColor: "#A8967A",
-    borderRadius: 22,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.13,
-    shadowRadius: 22,
-    elevation: 5,
-  },
-  xpTop: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
-  lvlBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 16,
-    borderWidth: 2.5,
-    borderColor: "#CC8000",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFB820",
-  },
-  lvlLbl: { fontSize: 9, fontFamily: Fonts.extraBold, color: "#4A2800", letterSpacing: 1 },
-  lvlNum: { fontSize: 28, fontFamily: Fonts.black, color: "#200E00", lineHeight: 30 },
-  xpTier: { fontSize: 21, fontFamily: Fonts.black, color: "#1A0F08" },
-  xpNext: { fontSize: 15, fontFamily: Fonts.bold, color: "#5C4620", marginTop: 1 },
-  barWrap: {
-    backgroundColor: "#EDE6D6",
-    borderWidth: 2,
-    borderColor: "#C8BBAA",
-    borderRadius: 12,
-    height: 16,
-    overflow: "hidden",
-    marginBottom: 9,
-  },
-  barFill: { height: "100%", backgroundColor: "#C07200", borderRadius: 12, overflow: "hidden" },
-  barShimmer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: "42%",
-  },
-  barLabels: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 6 },
-  barLabelText: { fontSize: 13, fontFamily: Fonts.bold, color: "#5C4620" },
-  barLabelMid: {
-    flex: 1,
-    fontSize: 11,
-    fontFamily: Fonts.extraBold,
-    color: "#1A6FC4",
-    textAlign: "center",
-    lineHeight: 14,
-  },
-
+  // ── Stats grid ──
   statsGrid: {
-    width: "100%",
-    marginTop: 12,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+    width: "100%", flexDirection: "row",
+    flexWrap: "wrap", gap: 10, marginBottom: 14,
   },
   statCard: {
     width: "48.5%",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2.5,
-    borderColor: "#C8BBAA",
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    backgroundColor: CARD_BG,
+    borderWidth: 1.5, borderColor: CARD_BD,
+    borderRadius: 18, padding: 16, paddingHorizontal: 14,
   },
-  statFire: { borderColor: "#991C1C", backgroundColor: "#FFE0DC" },
-  statGold: { borderColor: "#CC8000", backgroundColor: "#FFF3D0" },
-  statGreen: { borderColor: "#135228", backgroundColor: "#CCF0DA" },
-  statIcon: { fontSize: 20, marginBottom: 3 },
-  statVal: { fontSize: 27, fontFamily: Fonts.black, color: "#1A0F08", lineHeight: 30 },
-  statLbl: { fontSize: 12, fontFamily: Fonts.extraBold, color: "#382808", marginTop: 4, textTransform: "uppercase" },
-  statSub: {
-    fontSize: 13,
-    fontFamily: Fonts.extraBold,
-    color: "#0A3D24",
-    marginTop: 6,
-    textAlign: "center",
-    letterSpacing: 0.2,
-  },
-
-  consultScroll: { paddingBottom: 8, gap: 12, paddingRight: 8 },
-  consultCard: {
-    width: 218,
-    borderRadius: 20,
-    borderWidth: 2.5,
-    padding: 16,
-    backgroundColor: "#FFFFFF",
-  },
-  consultIcon: { fontSize: 30, marginBottom: 8 },
-  consultQ: { fontSize: 16, fontFamily: Fonts.black, color: "#1A0F08", lineHeight: 22, marginBottom: 6 },
-  consultD: { fontSize: 13, fontFamily: Fonts.semiBold, color: "#382808", lineHeight: 18, marginBottom: 12 },
-  consultBtn: { borderRadius: 12, paddingVertical: 10, alignItems: "center" },
-  consultBtnText: { color: "#FFFFFF", fontSize: 14, fontFamily: Fonts.extraBold },
-
-  // ── Progress card ────────────────────────────────────────────────
-  progressCard: {
+  statCardFull: {
     width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: "rgba(180,140,80,0.20)",
-    shadowColor: "#643C0A",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 2,
   },
-  progressGridRow: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginBottom: 10 },
-  progressStat: { flex: 1, alignItems: "flex-start" },
-  progressStatVal: { fontSize: 16, fontFamily: Fonts.black, fontWeight: "900", color: DARK },
-  progressStatLbl: { fontSize: 12, fontFamily: Fonts.semiBold, fontWeight: "700", color: MUTED, marginTop: 2 },
+  statGreen: {
+    borderColor: "rgba(80,220,130,0.25)",
+    backgroundColor: "rgba(80,220,130,0.08)",
+    marginBottom: 14,
+  },
+  statGold: {
+    borderColor: "rgba(245,200,66,0.25)",
+    backgroundColor: "rgba(245,200,66,0.08)",
+  },
+  statIcon: { fontSize: 22, marginBottom: 8 },
+  statVal: {
+    fontFamily: Fonts.serif, fontSize: 30,
+    color: WHITE, lineHeight: 32, marginBottom: 4,
+  },
+  statLbl: {
+    fontFamily: Fonts.bold, fontSize: 14,
+    fontWeight: "700", letterSpacing: 1.5,
+    textTransform: "uppercase", color: LABEL_WHITE,
+  },
+  interestSavedCaption: {
+    fontFamily: Fonts.semiBold, fontSize: 15,
+    fontWeight: "600", color: BODY_WHITE, marginTop: 6, lineHeight: 22,
+  },
 
+  // ── Dream goal card ──
+  dreamCard: {
+    width: "100%",
+    backgroundColor: CARD_BG,
+    borderWidth: 1.5, borderColor: "rgba(192,168,255,0.25)",
+    borderRadius: 18, padding: 18, paddingHorizontal: 18,
+    flexDirection: "row", alignItems: "flex-start", gap: 14,
+    marginTop: 4,
+    marginBottom: 14,
+    zIndex: 2,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+  },
+  dreamIconBox: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: "rgba(192,168,255,0.15)",
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+    alignSelf: "flex-start",
+    marginTop: 2,
+  },
+  dreamTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dreamEyebrow: {
+    fontFamily: Fonts.bold, fontSize: 14, fontWeight: "700",
+    letterSpacing: 1.5, textTransform: "uppercase",
+    color: "rgba(220,200,255,0.95)", marginBottom: 3,
+  },
+  dreamTitle: {
+    fontFamily: Fonts.bold, fontSize: 20, fontWeight: "800",
+    color: WHITE, marginBottom: 6,
+    lineHeight: 26,
+  },
+  dreamSub: {
+    fontFamily: Fonts.semiBold, fontSize: 15,
+    color: BODY_WHITE, lineHeight: 23,
+  },
+
+  // ── Quote card ──
+  quoteCard: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 16, padding: 16, paddingHorizontal: 20,
+    marginBottom: 8, position: "relative", overflow: "hidden",
+  },
+  quoteOpenQuote: {
+    position: "absolute", top: -8, left: 14,
+    fontFamily: Fonts.serif, fontSize: 60,
+    color: "rgba(192,168,255,0.20)", lineHeight: 68,
+  },
+  quoteText: {
+    fontFamily: Fonts.semiBold, fontSize: 17, fontWeight: "500",
+    color: BODY_WHITE, textAlign: "center", lineHeight: 27,
+    paddingHorizontal: 4, marginTop: 10,
+  },
+
+  // ── Feedback banners ──
   feedbackBannerOk: {
-    width: "100%",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    borderRadius: 14,
-    backgroundColor: "rgba(26,111,196,0.12)",
-    borderWidth: 1.5,
-    borderColor: "rgba(26,111,196,0.35)",
+    width: "100%", paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 12, borderRadius: 14,
+    backgroundColor: "rgba(80,220,130,0.12)",
+    borderWidth: 1.5, borderColor: "rgba(80,220,130,0.30)",
   },
   feedbackBannerOkText: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: "#0D3A66",
-    lineHeight: 20,
-    textAlign: "center",
+    fontSize: 16, fontFamily: Fonts.semiBold,
+    color: GREEN_XP, lineHeight: 22, textAlign: "center",
   },
   feedbackBannerErr: {
-    width: "100%",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    borderRadius: 14,
-    backgroundColor: "rgba(180,40,40,0.10)",
-    borderWidth: 1.5,
-    borderColor: "rgba(180,40,40,0.35)",
+    width: "100%", paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 12, borderRadius: 14,
+    backgroundColor: "rgba(180,40,40,0.12)",
+    borderWidth: 1.5, borderColor: "rgba(180,40,40,0.30)",
   },
   feedbackBannerErrText: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: "#6B1C1C",
-    lineHeight: 20,
-    textAlign: "center",
+    fontSize: 16, fontFamily: Fonts.semiBold,
+    color: "#FF9999", lineHeight: 22, textAlign: "center",
   },
 
-  dayDoneBanner: {
+  welcomeBackBanner: {
     width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 14,
     borderRadius: 18,
-    backgroundColor: "#135228",
-    borderWidth: 2,
-    borderColor: "#0D3D1C",
-    shadowColor: "#135228",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5,
+    backgroundColor: "rgba(245, 200, 66, 0.14)",
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 200, 66, 0.38)",
   },
-  dayDoneBannerEmoji: { fontSize: 28 },
-  dayDoneBannerTitle: {
+  welcomeBackTitle: {
     fontSize: 17,
-    fontFamily: Fonts.black,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    marginBottom: 4,
+    fontFamily: Fonts.bold,
+    fontWeight: "800",
+    color: WHITE,
+    marginBottom: 6,
+    lineHeight: 22,
   },
-  dayDoneBannerSub: {
-    fontSize: 13,
+  welcomeBackSub: {
+    fontSize: 15,
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.92)",
-    lineHeight: 19,
+    color: BODY_WHITE,
+    lineHeight: 22,
+    marginBottom: 14,
   },
-
-  completeTodayCta: {
-    width: "100%",
-    minHeight: 54,
-    flexDirection: "row",
+  welcomeBackBtn: {
+    backgroundColor: AMBER,
+    borderRadius: 14,
+    paddingVertical: 12,
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 22,
+  },
+  welcomeBackBtnText: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    fontWeight: "800",
+    color: BG,
+  },
+  weeklySummaryCard: {
+    width: "100%",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 14,
     borderRadius: 18,
-    backgroundColor: "#2C7A43",
-    borderWidth: 2,
-    borderColor: "#1F5A30",
-    shadowColor: "#135228",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 6,
+    backgroundColor: "rgba(192, 168, 255, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(192, 168, 255, 0.34)",
   },
-  completeTodayCtaText: {
+  weeklySummaryEyebrow: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: LABEL_WHITE,
+    marginBottom: 4,
+  },
+  weeklySummaryTitle: {
     fontSize: 18,
-    fontFamily: Fonts.black,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    textAlign: "center",
-    flexShrink: 1,
+    fontFamily: Fonts.bold,
+    fontWeight: "800",
+    color: WHITE,
+    marginBottom: 10,
   },
-  completeTodayCtaChev: {
+  weeklySummaryStatsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  weeklySummaryStatPill: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  weeklySummaryStatPillGold: {
+    backgroundColor: "rgba(245,200,66,0.10)",
+    borderColor: "rgba(245,200,66,0.34)",
+  },
+  weeklySummaryStatPillGreen: {
+    backgroundColor: "rgba(80,220,130,0.10)",
+    borderColor: "rgba(80,220,130,0.34)",
+  },
+  weeklySummaryStatValue: {
     fontSize: 20,
-    fontFamily: Fonts.black,
-    color: "#FFFFFF",
+    fontFamily: Fonts.bold,
+    fontWeight: "800",
+    color: WHITE,
+    marginBottom: 2,
   },
-
-  sectionLabel: {
-    width: "100%", fontSize: 12, fontFamily: Fonts.extraBold,
-    fontWeight: "700", letterSpacing: 2, textTransform: "uppercase",
-    color: AMBER, marginBottom: 6, zIndex: 1,
+  weeklySummaryStatLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: LABEL_WHITE,
   },
-  sectionSub: {
-    width: "100%",
-    fontSize: 13,
+  weeklySummarySub: {
+    fontSize: 14,
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
-    color: "#382808",
-    lineHeight: 19,
-    marginBottom: 10,
-    zIndex: 1,
-  },
-  levelsList: { width: "100%", gap: 9, marginBottom: 24, zIndex: 1 },
-  levelRow: {
-    backgroundColor: "#fff", borderRadius: 15, padding: 12,
-    paddingHorizontal: 14, flexDirection: "row", alignItems: "center",
-    gap: 13, shadowColor: "#643C0A", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2, position: "relative",
-  },
-  levelRowCurrent: {
-    borderWidth: 2, borderColor: GOLD,
-    shadowColor: "#B47820", shadowOpacity: 0.14, shadowRadius: 16, elevation: 6,
-  },
-  levelRowLocked: { opacity: 0.5 },
-
-  currentTag: {
-    position: "absolute", top: -9, left: 14,
-    backgroundColor: DARK2, borderRadius: 50,
-    paddingHorizontal: 10, paddingVertical: 3,
-  },
-  currentTagText: {
-    fontSize: 9, fontFamily: Fonts.extraBold, fontWeight: "700",
-    letterSpacing: 1.5, textTransform: "uppercase", color: "#F5EFE0",
-  },
-  lvIconWrap: {
-    width: 44, height: 44, borderRadius: 13, backgroundColor: "#F5F0E6",
-    alignItems: "center", justifyContent: "center", flexShrink: 0,
-    borderWidth: 1.5, borderColor: "rgba(180,140,80,0.15)",
-  },
-  lvIconWrapCurrent: { backgroundColor: GOLD2, borderWidth: 0 },
-  lvName: {
-    fontSize: 15, fontFamily: Fonts.bold, fontWeight: "700",
-    color: DARK, lineHeight: 19,
-  },
-  lvRange: {
-    fontSize: 13, fontFamily: Fonts.semiBold, fontWeight: "500",
-    color: MUTED, marginTop: 1,
-  },
-  lvRight: { flexShrink: 0, alignItems: "flex-end" },
-  badgeCurrent: { backgroundColor: GOLD, borderRadius: 50, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeCurrentText: {
-    fontSize: 10, fontFamily: Fonts.extraBold, fontWeight: "700",
-    letterSpacing: 1, textTransform: "uppercase", color: "#fff",
+    color: BODY_WHITE,
+    lineHeight: 20,
   },
 
+  // ── Day done banner ──
+  dayDoneBanner: {
+    width: "100%", flexDirection: "row", alignItems: "center",
+    gap: 12, paddingVertical: 14, paddingHorizontal: 16,
+    marginBottom: 14, borderRadius: 18,
+    backgroundColor: "rgba(80,220,130,0.14)",
+    borderWidth: 1.5, borderColor: "rgba(80,220,130,0.30)",
+  },
+  dayDoneBannerEmoji: { fontSize: 26 },
+  dayDoneBannerTitle: {
+    fontSize: 16, fontFamily: Fonts.bold, fontWeight: "800",
+    color: WHITE, marginBottom: 3,
+  },
+  dayDoneBannerSub: {
+    fontSize: 15, fontFamily: Fonts.semiBold, fontWeight: "600",
+    color: BODY_WHITE, lineHeight: 22,
+  },
+
+  // ── Complete today CTA ──
+  completeTodayCta: {
+    width: "100%", minHeight: 56,
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "center", gap: 10,
+    paddingVertical: 16, paddingHorizontal: 22,
+    marginBottom: 14, borderRadius: 18,
+    zIndex: 2,
+    elevation: 4,
+    backgroundColor: "rgba(192,168,255,0.28)",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.45)",
+  },
+  completeTodayCtaText: {
+    fontSize: 18, fontFamily: Fonts.bold, fontWeight: "800",
+    color: WHITE, textAlign: "center", flexShrink: 1,
+  },
+  completeTodayCtaChev: {
+    fontSize: 20, fontFamily: Fonts.bold, color: WHITE,
+  },
+
+  // ── Recommendations ──
+  sectionLabel: {
+    width: "100%", fontSize: 13, fontFamily: Fonts.bold,
+    fontWeight: "700", letterSpacing: 2, textTransform: "uppercase",
+    color: LABEL_WHITE, marginBottom: 5, marginTop: 6,
+  },
+  sectionSub: {
+    width: "100%", fontSize: 15, fontFamily: Fonts.semiBold,
+    color: BODY_WHITE, lineHeight: 22, marginBottom: 10,
+  },
+  consultScroll: { paddingBottom: 8, gap: 12, paddingRight: 8 },
+  consultCard: {
+    width: 218, borderRadius: 20, borderWidth: 2.5,
+    padding: 16, backgroundColor: "#FFFFFF",
+  },
+  consultIcon: { fontSize: 28, marginBottom: 8 },
+  consultQ: { fontSize: 16, fontFamily: Fonts.bold, color: "#000000", lineHeight: 22, marginBottom: 6 },
+  consultD: { fontSize: 13, fontFamily: Fonts.semiBold, color: "#382808", lineHeight: 18, marginBottom: 12 },
+  consultBtn: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, alignItems: "flex-start" },
+  consultBtnText: { color: "#FFFFFF", fontSize: 14, fontFamily: Fonts.bold },
 });
-

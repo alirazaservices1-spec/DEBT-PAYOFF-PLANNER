@@ -26,8 +26,8 @@ type Props = {
 const { width: SW } = Dimensions.get("window");
 
 /**
- * Lightweight Tier 1 (Micro) / Tier 2 (Small) moment — mirrors HTML prototype:
- * icon pop + floating pill; tier 2 adds flash + banner + slam line.
+ * Lightweight Tier 1 (Micro) / Tier 2 (Small) moment:
+ * icon pop + quick floating badge; tier 2 adds flash + banner + slam line.
  */
 export function MiniCelebrationOverlay({ visible, config, onComplete }: Props) {
   const iconScale = useRef(new Animated.Value(0)).current;
@@ -156,7 +156,6 @@ export function MiniCelebrationOverlay({ visible, config, onComplete }: Props) {
             </View>
           </Animated.View>
 
-          <Text style={styles.tapHint}>Tap anywhere to continue</Text>
         </View>
       </Pressable>
     </Modal>
@@ -166,7 +165,7 @@ export function MiniCelebrationOverlay({ visible, config, onComplete }: Props) {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(28, 31, 46, 0.55)",
+    backgroundColor: "rgba(28, 31, 46, 0.35)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -219,28 +218,17 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   pill: {
-    backgroundColor: "#4A2BA0",
+    backgroundColor: "rgba(40, 200, 100, 0.14)",
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 14,
-    shadowColor: "#4A2BA0",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: "rgba(40, 200, 100, 0.35)",
   },
   pillText: {
     fontFamily: Fonts.extraBold,
     fontSize: 12,
-    color: "#FFFFFF",
+    color: "#40E090",
     textAlign: "center",
-  },
-  tapHint: {
-    marginTop: 22,
-    fontFamily: Fonts.bold,
-    fontSize: 11,
-    color: "rgba(255,255,255,0.45)",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
   },
 });

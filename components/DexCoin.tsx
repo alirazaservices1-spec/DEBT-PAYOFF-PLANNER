@@ -985,12 +985,6 @@ export function DexCoin({
         <Ellipse cx={85} cy={115} rx={14} ry={9.5} fill="#9A5C00" />
         <Path d="M85 106 L85 110" stroke="#2A1808" strokeWidth={2.4} strokeLinecap="round" />
         <Path d={mouth} stroke="#2A1808" strokeWidth={3.5} fill="none" strokeLinecap="round" />
-        {mood === "proud" && (
-          <>
-            <Circle cx={85} cy={78} r={8.5} fill="#FFD030" stroke="#C89010" strokeWidth={1.2} opacity={0.85} />
-            <SvgText x={85} y={81} textAnchor="middle" fontSize={9} fill="#9A6000">★</SvgText>
-          </>
-        )}
         {mood === "celebrating" && (
           <>
             <Path d="M 66 130 Q 85 148 104 130" fill="white" />

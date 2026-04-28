@@ -92,7 +92,7 @@ export function ConsultationCarousel() {
         title: `Could you pay less than ${fmt(totalUnsecuredBalance)}?`,
         desc: "Your cards average high APR. A debt specialist may identify options to reduce what you owe. Free to explore.",
         cta: "Free debt relief consultation",
-        url: "https://www.curadebt.com/debtpps",
+        url: "https://lp.curadebt.com/spinwheel-verify",
         gradient: ["#C07820", "#F5C030"],
       });
     }
@@ -105,7 +105,7 @@ export function ConsultationCarousel() {
         title: "Could a lower-rate loan help?",
         desc: "Consolidating at a lower rate could reduce your monthly interest. Worth a free check.",
         cta: "Explore consolidation options",
-        url: "https://www.curadebt.com/debtpps",
+        url: "https://lp.curadebt.com/spinwheel-verify",
         gradient: ["#1A6FC4", "#0D5BAE"],
       });
     }
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.extraBold,
     fontWeight: "900",
-    color: "#1A0F08",
+    color: "#000000",
     lineHeight: 19,
   },
   desc: {

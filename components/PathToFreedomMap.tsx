@@ -19,9 +19,9 @@ export function PathToFreedomMap({ streak, isDark }: Props) {
   const AMBER = isDark ? "#E8A030" : "#C07820";
   const C = isDark 
     ? { surface: "#2C2014", border: "rgba(232,160,48,0.22)", text: "#F0E8D0", path: "#4A3828", fill: AMBER }
-    : { surface: "#FFFFFF", border: "rgba(192,120,32,0.22)", text: "#1A0F08", path: "#E8D8B8", fill: AMBER };
+    : { surface: "#FFFFFF", border: "rgba(192,120,32,0.22)", text: "#000000", path: "#E8D8B8", fill: AMBER };
   const shieldTextColor = hasStreakShield
-    ? "#1A0F08"
+    ? "#000000"
     : isDark
       ? C.text
       : Colors.WarmContrast.textMuted;

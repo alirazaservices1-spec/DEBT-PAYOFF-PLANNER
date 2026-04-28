@@ -33,6 +33,7 @@ import { DreamGoalScreen } from "@/app/onboarding";
 import { DexCoin } from "@/components/DexCoin";
 import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
 import { DevHomePreviewSettings } from "@/components/DevHomePreviewSettings";
+import { DevRewardsPreviewSettings } from "@/components/DevRewardsPreviewSettings";
 import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
 
 const APP_VERSION = "1.0.0";
@@ -46,7 +47,7 @@ export default function SettingsScreen() {
   const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
   const { clearAllData, addDebt, debts } = useDebts();
-  const { currency, setCurrency } = useCurrency();
+  const { currency, setCurrency, fmt } = useCurrency();
   const { streakCount, longestStreak, level, totalXp, resetGame } = useGame();
   const { goalName, goalAmount, hasGoal, remindersEnabled, setRemindersEnabled, resetGoal, saveGoal } = useGoal();
   const { streakReminderEnabled, setStreakReminderEnabled } = useStreakReminder();
@@ -61,6 +62,7 @@ export default function SettingsScreen() {
   const [dreamAmount, setDreamAmount] = useState("");
   const [savedDreamName, setSavedDreamName] = useState("");
   const [savedDreamAmount, setSavedDreamAmount] = useState("");
+  const showDevTools = __DEV__;
 
   // Email notification preferences
   const [emailAddress, setEmailAddress] = useState("");
@@ -164,9 +166,12 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDeleting(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            await Promise.all([clearAllData(), resetGame(), resetGoal()]);
-            setDeleting(false);
-            router.replace("/onboarding");
+            try {
+              await Promise.allSettled([clearAllData(), resetGame(), resetGoal()]);
+            } finally {
+              setDeleting(false);
+              router.replace("/onboarding");
+            }
           },
         },
       ]
@@ -661,7 +666,8 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        <DevHomePreviewSettings C={C} />
+        {showDevTools ? <DevHomePreviewSettings C={C} /> : null}
+        {showDevTools ? <DevRewardsPreviewSettings C={C} /> : null}
 
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Pressable
@@ -679,25 +685,26 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        {/* ── Test: Feedback Modal ── */}
-        <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setTestFeedbackVisible(true);
-            }}
-            style={[styles.row, styles.rowLast]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: "#D08A1018" }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={20} color="#D08A10" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: C.text, flex: 0 }]}>Test Feedback Screen</Text>
-              <Text style={[styles.rowSub, { color: C.textSecondary }]}>Preview all 3 screens of the in-app feedback flow</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
-          </Pressable>
-        </View>
+        {showDevTools ? (
+          <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setTestFeedbackVisible(true);
+              }}
+              style={[styles.row, styles.rowLast]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: "#D08A1018" }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#D08A10" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowLabel, { color: C.text, flex: 0 }]}>Test Feedback Screen</Text>
+                <Text style={[styles.rowSub, { color: C.textSecondary }]}>Preview all 3 screens of the in-app feedback flow</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.border }]}>
           <Pressable

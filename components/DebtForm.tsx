@@ -23,7 +23,7 @@ import { useDebts } from "@/context/DebtContext";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { MonthYearField } from "@/components/MonthYearField";
 import { formatMonthYear, parseMonthYearString, validateIntroPromoMonthYear } from "@/lib/monthYear";
-import { getIrsUnderpaymentRateSentence } from "@/lib/irsUnderpaymentRate";
+import { getIrsAprUpdateNotice, getIrsUnderpaymentRateSentence } from "@/lib/irsUnderpaymentRate";
 
 const PERSONAL_DEBT_TYPES: { key: DebtType; icon: string; color: string }[] = [
   { key: "creditCard", icon: "card", color: "#3498DB" },
@@ -60,10 +60,18 @@ function formatCurrencyInput(value: string): string {
   return digits;
 }
 
+/** Parses APR / intro rate percent from field text; allows 0% (common promotional rate). */
+function parseAprPercentField(raw: string): number {
+  const s = String(raw ?? "").trim();
+  if (s === "" || s === ".") return NaN;
+  const n = Number.parseFloat(s);
+  return n;
+}
+
 export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Props) {
   const isDark = useIsDark();
   const C = isDark ? Colors.dark : Colors.light;
-  const formTextColor = isDark ? C.text : "#1A0F08";
+  const formTextColor = isDark ? C.text : "#000000";
   const formMutedColor = isDark ? C.textSecondary : "#2F2F2F";
   const formPlaceholderColor = isDark ? C.textSecondary + "99" : "#4A4A4A";
   const insets = useSafeAreaInsets();
@@ -93,9 +101,11 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
   const [hasIntroRate, setHasIntroRate] = useState(
     initial?.introApr != null && initial?.introEndsMonth != null && initial?.introEndsYear != null
   );
-  const [introApr, setIntroApr] = useState(
-    initial?.introApr != null && !Number.isNaN(initial.introApr) ? String(initial.introApr) : ""
-  );
+  const [introApr, setIntroApr] = useState(() => {
+    const v = initial?.introApr;
+    if (v == null || !Number.isFinite(v)) return "";
+    return String(v);
+  });
   const [introEnds, setIntroEnds] = useState(
     initial?.introEndsMonth != null && initial?.introEndsYear != null
       ? formatMonthYear(initial.introEndsMonth, initial.introEndsYear)
@@ -140,6 +150,8 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
 
   const isTaxDebt = debtType === "taxDebt";
   const showAprMinDue = !isTaxDebt || taxPaymentPlan;
+  const enteredTaxApr = apr.trim() === "" ? null : parseFloat(apr);
+  const taxAprNudge = isTaxDebt && taxPaymentPlan ? getIrsAprUpdateNotice(enteredTaxApr) : null;
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -158,9 +170,9 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
       if (isNaN(dd) || dd < 1 || dd > 31) errs.dueDate = "Due date must be between 1 and 31";
     }
     if (!isTaxDebt && hasIntroRate) {
-      const intro = parseFloat(introApr);
-      if (isNaN(intro) || intro < 0 || intro > 100) {
-        errs.introApr = "Intro APR must be between 0% and 100%.";
+      const intro = parseAprPercentField(introApr);
+      if (!Number.isFinite(intro) || intro < 0 || intro > 100) {
+        errs.introApr = "Intro APR must be between 0% and 100% (0% intro / promo is OK).";
       }
       const parsed = parseMonthYearString(introEnds.trim());
       if (!parsed) {
@@ -195,7 +207,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
         taxPaymentPlan: isTaxDebt ? taxPaymentPlan : undefined,
         ...(!isTaxDebt && hasIntroRate && introParsed
           ? {
-              introApr: parseFloat(introApr),
+              introApr: parseAprPercentField(introApr),
               introEndsMonth: introParsed.month,
               introEndsYear: introParsed.year,
             }
@@ -288,7 +300,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 { marginBottom: 12, backgroundColor: isDark ? "rgba(226,75,74,0.12)" : "#FFEBEE", borderColor: Colors.danger + "33" },
               ]}
             >
-              <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#5C3D2E" }]}>{errors.apr}</Text>
+              <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#000000" }]}>{errors.apr}</Text>
             </View>
           )}
           <FormField label="Category" error={errors.debtType} C={C}>
@@ -384,6 +396,25 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                 <Text style={[styles.taxPlanSectionHint, { color: formMutedColor }]}>
                   Payment plan details (from IRS/state). {getIrsUnderpaymentRateSentence()} Enter the rate from your notice. Failure-to-pay charges are separate and are often lower on an approved plan.
                 </Text>
+              )}
+              {isTaxDebt && taxAprNudge && (
+                <View style={[styles.taxHintBox, { borderColor: C.border, backgroundColor: C.surfaceSecondary }]}>
+                  <Ionicons name="information-circle-outline" size={14} color={formMutedColor} style={{ marginTop: 1 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.taxHintText, { color: formMutedColor }]}>{taxAprNudge.message}</Text>
+                    <Pressable
+                      onPress={() => {
+                        setApr(String(taxAprNudge.currentApr));
+                        Haptics.selectionAsync();
+                      }}
+                      style={{ marginTop: 6, alignSelf: "flex-start" }}
+                    >
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: formTextColor }}>
+                        Use {taxAprNudge.currentApr}% for this quarter
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
               )}
               <FormField label="Interest Rate (APR)" suffix="%" error={errors.apr} C={C}>
                 <TextInput
@@ -510,6 +541,8 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
                     style={[styles.input, inputBase, { flex: 1, marginLeft: 8 }]}
                     ref={dueDateInputRef}
                     value={dueDate}
+                    selectTextOnFocus
+                    maxLength={2}
                     onChangeText={(v) => {
                       const digits = v.replace(/[^0-9]/g, "").slice(0, 2);
                       setDueDate(digits);
@@ -558,7 +591,7 @@ export function DebtForm({ initial, onSave, onCancel, headerExtra, title }: Prop
               { backgroundColor: isDark ? "rgba(226,75,74,0.12)" : "#FFEBEE", borderColor: Colors.danger + "33" },
             ]}
           >
-            <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#5C3D2E" }]}>{errors.apr}</Text>
+            <Text style={[styles.errorSummaryText, { color: isDark ? "#FFB4B0" : "#000000" }]}>{errors.apr}</Text>
           </View>
         )}
         <Pressable
@@ -747,7 +780,7 @@ function FormField({
   return (
     <View style={styles.field}>
       <View style={styles.fieldLabelRow}>
-        <Text style={[styles.fieldLabel, { color: "#3D2E26" }]}>{label}</Text>
+        <Text style={[styles.fieldLabel, { color: "#000000" }]}>{label}</Text>
         {hint && (
           <Text style={[styles.fieldHint, { color: "#2F2F2F" }]}>{hint}</Text>
         )}

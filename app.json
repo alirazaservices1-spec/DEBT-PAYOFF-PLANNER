@@ -7,7 +7,6 @@
     "icon": "./assets/images/iconApp.png",
     "scheme": "debtfree",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/iconApp.png",
       "resizeMode": "contain",
@@ -15,7 +14,9 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.debtfree.payoffplanner"
+      "requireFullScreen": true,
+      "bundleIdentifier": "com.curdebt.debtfreeapp",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.debtfree.payoffplanner",
@@ -32,7 +33,7 @@
       [
         "expo-router",
         {
-          "origin": "https://0e61241c-9dcd-4210-95f3-3fbc0d08d5f4-00-2sw12hhjxubm8.worf.replit.dev:5000"
+          "origin": "https://01f62a99-d976-4dc4-815b-7a082bea513b-00-3q3llpcx73wwa.riker.replit.dev:5000"
         }
       ],
       "expo-font",

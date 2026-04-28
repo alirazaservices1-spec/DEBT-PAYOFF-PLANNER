@@ -20,12 +20,12 @@ import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
 
 const BG      = "#EDE8DC";
 const DARK    = "#1C0F00";
-const DARK2   = "#3D2200";
+const DARK2   = "#000000";
 const GOLD    = "#D9A045";
 const GOLD2   = "#C8882A";
-const MUTED   = "#3D2200";
+const MUTED   = "#000000";
 const WHITE   = "#FFFFFF";
-const AMBER   = "#3D2200";
+const AMBER   = "#000000";
 
 
 export default function LevelsScreen() {

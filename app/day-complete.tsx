@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,122 +10,130 @@ import {
   BackHandler,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native";
 import { router } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { useGame } from "@/context/GameContext";
-import { useDebts } from "@/context/DebtContext";
+import { useGame, STREAK_MILESTONES, XP_REWARDS } from "@/context/GameContext";
 import { Fonts } from "@/constants/fonts";
-import { XP_REWARDS } from "@/context/GameContext";
-import { DexCoin } from "@/components/DexCoin";
-import { DEX_SCREEN_MAP } from "@/constants/dexScreenMap";
+import { useDebts } from "@/context/DebtContext";
 import {
   markDayCompleteAcknowledgedToday,
   setHomeWrappedFeedbackPending,
 } from "@/lib/dayCompleteGate";
 import { scheduleNextDayActivitiesReminderAfterAck } from "@/lib/dayActivitiesReminder";
 import { useStreakReminder } from "@/context/StreakReminderContext";
-import { Ionicons } from "@expo/vector-icons";
+import { DexDayComplete, DexDCState } from "@/components/DexDayComplete";
+import { getDailyQuote } from "@/constants/dailyQuotes";
+import { LEVELS_DATA } from "@/constants/levelsData";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
-/** Match onboarding intro / strategy CTAs: warm cream + blue primary + purple accent (custom-order chip in flow). */
-const BG = "#F7F2EA";
-const BLUE_DEEP = "#0D5BAE";
-/** Brighter blue from primary onboarding buttons — reads more “win / celebration”. */
-const BLUE_BRIGHT = "#1F7AE0";
-const BLUE_VIVID = "#2563EB";
-const PURPLE = "#7C3AED";
-const PURPLE_SOFT = "#8B5CF6";
-const DARK = "#1A0A00";
-const MUTED = "#3D2200";
-const CARD_BORDER = "#E0D8CE";
-const LABEL_ACCENT = "#1F7AE0";
+// ─── Colors ───────────────────────────────────────────────────────────────────
+const BG        = "#1B1050";
+const PURPLE_LT = "#C0A8FF";
+const AMBER     = "#F5C842";
+const AMBER_BTN = "#C07820";
+const WHITE     = "#FFFFFF";
+const ROW_BG    = "rgba(255,255,255,0.09)";
+const BADGE_BG  = "rgba(255,255,255,0.10)";
+const BADGE_BD  = "rgba(255,255,255,0.22)";
 
-// Note: we intentionally use the shared `DexMascot` icon everywhere now
-// so the bear stays visually consistent across screens.
+// ─── Message data (Dex state + headline per day) ──────────────────────────────
+interface Message {
+  dex: DexDCState;
+  headlinePlain: string;
+  headlineEm: string;
+}
 
-
-const CONFETTI = [
-  { leftPct: 0.12, topPx: 30, color: BLUE_VIVID, w: 9, h: 9, dur: 1400, delay: 300 },
-  { leftPct: 0.25, topPx: 12, color: BLUE_BRIGHT, w: 7, h: 12, dur: 1600, delay: 500 },
-  { leftPct: 0.45, topPx: 0, color: "#60A5FA", w: 9, h: 9, dur: 1300, delay: 200 },
-  { leftPct: 0.62, topPx: 18, color: PURPLE, w: 9, h: 9, dur: 1700, delay: 600 },
-  { leftPct: 0.78, topPx: 6, color: "#3B82F6", w: 6, h: 11, dur: 1500, delay: 400 },
-  { leftPct: 0.88, topPx: 24, color: PURPLE_SOFT, w: 9, h: 9, dur: 1200, delay: 700 },
-  { leftPct: 0.35, topPx: 36, color: "#93C5FD", w: 8, h: 8, dur: 1800, delay: 350 },
-  { leftPct: 0.55, topPx: 12, color: "#A78BFA", w: 5, h: 10, dur: 1400, delay: 550 },
+const MESSAGES: Message[] = [
+  { dex: "congratulating", headlinePlain: "You crushed it",    headlineEm: "today!"           },
+  { dex: "letsGo",         headlinePlain: "Every payment",     headlineEm: "moves the needle." },
+  { dex: "crushingIt",     headlinePlain: "You're",            headlineEm: "executing."        },
+  { dex: "highFive",       headlinePlain: "Show up &",         headlineEm: "keep winning."     },
+  { dex: "believeInYou",   headlinePlain: "Keep the",          headlineEm: "streak alive."     },
+  { dex: "keepGoing",      headlinePlain: "Nothing can",       headlineEm: "shake you."        },
+  { dex: "youveGotThis",   headlinePlain: "This is your",      headlineEm: "identity now."     },
+  { dex: "imWithYou",      headlinePlain: "You came back today.", headlineEm: "That's real progress." },
 ];
 
-function ConfettiPiece({ leftPct, topPx, color, w, h, dur, delay }: typeof CONFETTI[0]) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getDayOfYear(): number {
+  const now = new Date();
+  return Math.floor(
+    (Date.now() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+const CONFETTI_PIECES = [
+  { leftPct: 0.12, topPx: 40, color: AMBER,     w: 9,  h: 9,  dur: 3200, delay: 100 },
+  { leftPct: 0.26, topPx: 20, color: "#7DE8B0",  w: 6,  h: 13, dur: 3500, delay: 300 },
+  { leftPct: 0.56, topPx: 28, color: "#FF8080",  w: 10, h: 6,  dur: 2900, delay: 50  },
+  { leftPct: 0.72, topPx: 12, color: PURPLE_LT,  w: 8,  h: 8,  dur: 3600, delay: 400 },
+  { leftPct: 0.86, topPx: 40, color: WHITE,       w: 9,  h: 9,  dur: 3000, delay: 200 },
+  { leftPct: 0.06, topPx: 80, color: AMBER,       w: 6,  h: 11, dur: 3300, delay: 650 },
+  { leftPct: 0.44, topPx: 8,  color: "#FF8080",   w: 8,  h: 6,  dur: 2800, delay: 150 },
+  { leftPct: 0.91, topPx: 60, color: "#7DE8B0",   w: 7,  h: 7,  dur: 3400, delay: 500 },
+];
+
+function ConfettiPiece({ leftPct, topPx, color, w, h, dur, delay }: typeof CONFETTI_PIECES[0]) {
   const anim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: dur,
-      delay,
-      useNativeDriver: true,
-      easing: Easing.linear,
-    }).start();
+    Animated.timing(anim, { toValue: 1, duration: dur, delay, useNativeDriver: true, easing: Easing.linear }).start();
   }, []);
-
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 120] });
-  const rotate     = anim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "720deg"] });
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 340] });
+  const rotate     = anim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "500deg"] });
   const opacity    = anim.interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] });
-
   return (
-    <View
-      pointerEvents="none"
-      style={{ position: "absolute", left: SCREEN_W * leftPct, top: topPx, width: w, height: h }}
-    >
-      <Animated.View
-        style={{
-          width: w, height: h,
-          borderRadius: 2,
-          backgroundColor: color,
-          transform: [{ translateY }, { rotate }],
-          opacity,
-        }}
-      />
+    <View pointerEvents="none" style={{ position: "absolute", left: SCREEN_W * leftPct, top: topPx }}>
+      <Animated.View style={{ width: w, height: h, borderRadius: 2, backgroundColor: color, transform: [{ translateY }, { rotate }], opacity }} />
     </View>
   );
 }
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function DayCompleteScreen() {
   const insets = useSafeAreaInsets();
-  const { totalXp, streakCount } = useGame();
+  const { totalXp, streakCount, hasStreakShield, level } = useGame();
   const { streakReminderEnabled } = useStreakReminder();
-  const { extraPayment } = useDebts();
+  const { debts } = useDebts();
+  const { debtId, previewDex } = useLocalSearchParams<{ closeTo?: string; debtId?: string; previewDex?: string }>();
+  const [showDefinitions, setShowDefinitions] = React.useState(false);
 
-  // Onboarding picks an "extra per day" value; we store it as monthly extraPayment.
-  // Convert back so the Day Complete screen can confirm the expectation clearly.
-  const extraPerDay = extraPayment > 0 ? extraPayment / 30.44 : 0;
-  // Snap to slider steps (0.50 increments) when deriving display from stored monthly extra.
-  const extraPerDaySnapped = extraPerDay > 0 ? Math.round(extraPerDay * 2) / 2 : 0;
-  const extraPerDayDisplay = extraPerDaySnapped > 0 ? extraPerDaySnapped.toFixed(2) : null;
+  // Pick today's message and quote
+  const dayOfYear = getDayOfYear();
+  const defaultMsg = MESSAGES[dayOfYear % MESSAGES.length];
+  const previewDexState: DexDCState | null =
+    previewDex &&
+    [
+      "congratulating",
+      "letsGo",
+      "crushingIt",
+      "highFive",
+      "believeInYou",
+      "keepGoing",
+      "youveGotThis",
+      "imWithYou",
+    ].includes(previewDex)
+      ? (previewDex as DexDCState)
+      : null;
+  const msg: Message = previewDexState
+    ? { dex: previewDexState, headlinePlain: "Missed a day?", headlineEm: "I'm with you." }
+    : defaultMsg;
+  const quote     = getDailyQuote(dayOfYear).text;
 
-  const { closeTo, debtId } = useLocalSearchParams<{
-    closeTo?: string;
-    debtId?: string;
-  }>();
+  // Debt name for the personalised line
+  const debt = debtId ? debts.find((d) => d.id === debtId) : debts[0];
+  const debtLabel = debt?.name ?? "freedom";
 
+  // ── Navigation ──
   const handleSeeTomorrow = async () => {
     try {
       await markDayCompleteAcknowledgedToday();
-      await scheduleNextDayActivitiesReminderAfterAck(
-        streakCount,
-        streakReminderEnabled
-      );
-      // Client request: force quit the app when they tap.
-      // Note: web can't truly "exit app", so we fall back to the home tab.
-      if (Platform.OS !== "web") {
-        BackHandler.exitApp();
-        return;
-      }
-
+      await scheduleNextDayActivitiesReminderAfterAck(streakCount, streakReminderEnabled);
+      if (Platform.OS !== "web") { BackHandler.exitApp(); return; }
       await setHomeWrappedFeedbackPending("success");
       router.replace("/(tabs)/dashboard");
     } catch {
@@ -134,409 +142,541 @@ export default function DayCompleteScreen() {
     }
   };
 
+  const handleGoToMenu = async () => {
+    try {
+      await markDayCompleteAcknowledgedToday();
+      await scheduleNextDayActivitiesReminderAfterAck(streakCount, streakReminderEnabled);
+      await setHomeWrappedFeedbackPending("success");
+      router.replace("/(tabs)/dashboard");
+    } catch {
+      await setHomeWrappedFeedbackPending("error");
+      router.replace("/(tabs)/dashboard");
+    }
+  };
+
+  // ── Entrance animations ──
   const badgeAnim = useRef(new Animated.Value(0)).current;
+  const dexAnim   = useRef(new Animated.Value(0)).current;
   const titleAnim = useRef(new Animated.Value(0)).current;
   const cardAnim  = useRef(new Animated.Value(0)).current;
-  const xpAnim    = useRef(new Animated.Value(0)).current;
-  const star1Anim = useRef(new Animated.Value(0)).current;
-  const star2Anim = useRef(new Animated.Value(0)).current;
-  const star3Anim = useRef(new Animated.Value(0)).current;
+  const totalAnim = useRef(new Animated.Value(0)).current;
   const ctaAnim   = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const fadeUp = (anim: Animated.Value, delay: number) =>
-      Animated.timing(anim, { toValue: 1, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) });
-
-    const popIn = (anim: Animated.Value, delay: number) =>
-      Animated.spring(anim, { toValue: 1, delay, useNativeDriver: true, damping: 10, stiffness: 200 });
+    const fadeUp = (a: Animated.Value, delay: number) =>
+      Animated.timing(a, { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) });
+    const popIn = (a: Animated.Value, delay: number) =>
+      Animated.spring(a, { toValue: 1, delay, useNativeDriver: true, damping: 10, stiffness: 200 });
 
     Animated.parallel([
-      fadeUp(badgeAnim, 350),
-      fadeUp(titleAnim, 450),
-      popIn(cardAnim, 600),
-      popIn(xpAnim, 700),
-      popIn(star1Anim, 750),
-      popIn(star2Anim, 900),
-      popIn(star3Anim, 1050),
-      fadeUp(ctaAnim, 1100),
+      popIn(badgeAnim, 100),
+      popIn(dexAnim,   200),
+      fadeUp(titleAnim, 820),
+      fadeUp(cardAnim,  1000),
+      fadeUp(totalAnim, 1200),
+      fadeUp(ctaAnim,   1400),
     ]).start();
   }, []);
 
-  const xpEarned = XP_REWARDS.LOG_PAYMENT + XP_REWARDS.DAILY_STREAK;
   const streakForDisplay = Math.max(streakCount, 1);
+  const xpEarned = XP_REWARDS.LOG_PAYMENT + XP_REWARDS.DAILY_STREAK;
+  const upcomingStreakBonuses = Object.entries(STREAK_MILESTONES)
+    .map(([day, xp]) => ({ day: Number(day), xp }))
+    .filter((m) => Number.isFinite(m.day) && m.day > streakForDisplay)
+    .sort((a, b) => a.day - b.day)
+    .slice(0, 2);
+  const freezeBonusChips = [
+    { key: "life-happens", title: "Life Happens", value: "Pause up to 7 days" },
+    !hasStreakShield && streakForDisplay < 30
+      ? { key: "shield-unlock", title: "Day 30", value: "Unlock shield" }
+      : null,
+    { key: "shield-save", title: "Shield save", value: `+${XP_REWARDS.STREAK_FREEZE} XP` },
+  ].filter((chip): chip is { key: string; title: string; value: string } => chip !== null);
+  const currentLevelIdx = Math.max(0, LEVELS_DATA.findIndex((l) => l.level === level));
+  const upcomingLevels = LEVELS_DATA.slice(currentLevelIdx + 1, currentLevelIdx + 3).map((l) => ({
+    key: `lvl-${l.level}`,
+    title: `Level ${l.level} ${l.icon}`,
+    value: `${Math.max(0, l.minXp - totalXp)} XP to ${l.name}`,
+  }));
 
   return (
     <View style={styles.screen}>
-      <View style={styles.blobTR} />
-      <View style={styles.blobBL} />
+      <View style={styles.glowTop}    pointerEvents="none" />
+      <View style={styles.glowBottom} pointerEvents="none" />
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 },
-        ]}
-        showsVerticalScrollIndicator
-        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 36 }]}
+        showsVerticalScrollIndicator={false}
         bounces
       >
-      <Text style={styles.label}>DEBT-FREE APP</Text>
-
-      <View style={styles.dexWrap}>
-        <DexCoin size={120} mood={DEX_SCREEN_MAP.dayComplete.mood} motion={DEX_SCREEN_MAP.dayComplete.motion} />
-      </View>
-
-      <Animated.View style={[styles.congratsBadgeWrap, { opacity: badgeAnim, transform: [{ scale: badgeAnim }] }]}>
-        <LinearGradient colors={[BLUE_BRIGHT, BLUE_DEEP, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.congratsBadge}>
-          <Text style={styles.congratsText}>🎉 Day complete!</Text>
-        </LinearGradient>
-      </Animated.View>
-
-      <Animated.Text style={[styles.heading, { opacity: titleAnim, transform: [{ translateY: titleAnim.interpolate({ inputRange: [0,1], outputRange: [18, 0] }) }] }]}>
-        You crushed it{" "}
-        <Text style={styles.headingEm}>today!</Text>
-      </Animated.Text>
-
-      <Animated.Text style={[styles.subtitle, { opacity: titleAnim, transform: [{ translateY: titleAnim.interpolate({ inputRange: [0,1], outputRange: [18, 0] }) }] }]}>
-        Every day you show up, your debt-free date gets closer. Keep it going.
-      </Animated.Text>
-
-      <Animated.View style={[styles.stars, { opacity: star1Anim }]}>
-        <Animated.View style={[styles.starWrap, { transform: [{ scale: star1Anim }] }]}>
-          <Ionicons name="star" size={30} color={BLUE_VIVID} />
-        </Animated.View>
-        <Animated.View style={[styles.starWrap, { transform: [{ scale: star2Anim }] }]}>
-          <Ionicons name="star" size={30} color={PURPLE} />
-        </Animated.View>
-        <Animated.View style={[styles.starWrap, { transform: [{ scale: star3Anim }] }]}>
-          <Ionicons name="star" size={30} color={BLUE_BRIGHT} />
-        </Animated.View>
-      </Animated.View>
-
-      <Animated.View style={[styles.pointsCard, { opacity: cardAnim, transform: [{ scale: cardAnim }] }]}>
-        <View style={styles.pointsRow}>
-          <View style={styles.pointsLabel}>
-            <View style={styles.pointsIcon}><Text style={{ fontSize: 17 }}>✅</Text></View>
-            <Text style={styles.pointsLabelText}>Payment logged</Text>
+        {/* ── Badges ── */}
+        <Animated.View style={[styles.badgesRow, {
+          opacity: badgeAnim,
+          transform: [{ scale: badgeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
+        }]}>
+          <View style={styles.tbadge}>
+            <Text style={[styles.tbadgeText, { color: AMBER }]}>🔥 {streakForDisplay} Day Streak</Text>
           </View>
-          <Text style={styles.pointsVal}>+{XP_REWARDS.LOG_PAYMENT} XP</Text>
-        </View>
+          <View style={styles.tbadge}>
+            <Text style={[styles.tbadgeText, { color: "#80EEC0" }]}>⚡ +{xpEarned} XP</Text>
+          </View>
+        </Animated.View>
 
-        {!!extraPerDayDisplay && (
-          <View style={styles.pointsRow}>
-            <View style={styles.pointsLabel}>
-              <View style={styles.pointsIcon}><Text style={{ fontSize: 17 }}>➕</Text></View>
-              <Text style={styles.pointsLabelText}>Extra per day</Text>
+        {/* ── Dex ── */}
+        <Animated.View style={[styles.dexWrap, {
+          opacity: dexAnim,
+          transform: [{ scale: dexAnim.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }],
+        }]}>
+          <DexDayComplete state={msg.dex} />
+        </Animated.View>
+
+        {/* ── Headline ── */}
+        <Animated.Text style={[styles.headline, {
+          opacity: titleAnim,
+          transform: [{ translateY: titleAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        }]}>
+          {msg.headlinePlain}{"\n"}
+          <Text style={styles.headlineEm}>{msg.headlineEm}</Text>
+        </Animated.Text>
+
+        {/* ── Total XP strip ── */}
+        <Animated.View style={[styles.totalStrip, {
+          opacity: totalAnim,
+          transform: [{ translateY: totalAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        }]}>
+          <View style={styles.totalLeft}>
+            <Text style={styles.totalLbl}>TOTAL XP EARNED</Text>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
+              <Text style={styles.totalNum}>{totalXp.toLocaleString()}</Text>
+              <Text style={styles.totalNumSup}>XP</Text>
             </View>
-            <Text style={styles.extraPerDayVal}>+${extraPerDayDisplay}/day</Text>
           </View>
+          <View style={styles.totalRight}>
+            <Text style={styles.totalFire}>🔥</Text>
+            <Text style={styles.totalStreakNum}>{streakForDisplay}</Text>
+            <Text style={styles.totalStreakLbl}>DAY STREAK</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Quote cards (stacked to avoid cut-off) ── */}
+        <Animated.View style={[
+          styles.quoteStack,
+          {
+            opacity: cardAnim,
+            transform: [{ translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+          }
+        ]}>
+          <View style={styles.quoteCardTop}>
+            <Text style={styles.quoteOpenQuote}>{"\u201C"}</Text>
+            <Text style={styles.quoteText}>{quote}</Text>
+          </View>
+
+          <View style={styles.quoteCloserCard}>
+            <Text style={styles.closerLine}>
+              {"You're one day closer to "}
+              <Text style={styles.closerDebt}>{debtLabel}.</Text>
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Upcoming streak bonuses ── */}
+        {(upcomingStreakBonuses.length > 0 || freezeBonusChips.length > 0 || upcomingLevels.length > 0) && (
+          <Animated.View style={[styles.upcomingWrap, {
+            opacity: totalAnim,
+            transform: [{ translateY: totalAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+          }]}>
+            <Text style={styles.upcomingTitle}>Upcoming streak bonuses</Text>
+            <View style={styles.upcomingRow}>
+              {upcomingStreakBonuses.map((m) => (
+                <View key={m.day} style={styles.upcomingChip}>
+                  <Text style={styles.upcomingChipDay}>Day {m.day}</Text>
+                  <Text style={styles.upcomingChipXp}>+{m.xp} XP</Text>
+                </View>
+              ))}
+              {freezeBonusChips.map((chip) => (
+                <View key={chip.key} style={styles.upcomingChip}>
+                  <Text style={styles.upcomingChipDay}>{chip.title}</Text>
+                  <Text style={styles.upcomingChipXp}>{chip.value}</Text>
+                </View>
+              ))}
+            </View>
+            {upcomingLevels.length > 0 && (
+              <>
+                <Text style={[styles.upcomingTitle, { marginTop: 12 }]}>Upcoming levels</Text>
+                <View style={styles.upcomingRow}>
+                  {upcomingLevels.map((lvl) => (
+                    <View key={lvl.key} style={styles.upcomingChip}>
+                      <Text style={styles.upcomingChipDay}>{lvl.title}</Text>
+                      <Text style={styles.upcomingChipXp}>{lvl.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+            <Pressable
+              onPress={() => setShowDefinitions(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open definitions"
+              hitSlop={10}
+              style={styles.defsLinkWrap}
+            >
+              <Text style={styles.defsLinkText}>What do these mean?</Text>
+            </Pressable>
+          </Animated.View>
         )}
 
-        <View style={styles.pointsRow}>
-          <View style={styles.pointsLabel}>
-            <View style={styles.pointsIcon}><Text style={{ fontSize: 17 }}>🔥</Text></View>
-            <Text style={styles.pointsLabelText}>Streak bonus</Text>
-          </View>
-          <Text style={styles.pointsVal}>+{XP_REWARDS.DAILY_STREAK} XP</Text>
-        </View>
-        <View style={[styles.pointsRow, { borderBottomWidth: 0 }]}>
-          <View style={styles.pointsLabel}>
-            <View style={styles.pointsIcon}><Text style={{ fontSize: 17 }}>📅</Text></View>
-            <Text style={styles.pointsLabelText}>Showed up today</Text>
-          </View>
-          <Text style={styles.pointsVal}>+10 XP</Text>
-        </View>
-      </Animated.View>
-
-      <Animated.View style={[styles.xpTotalWrap, { opacity: xpAnim, transform: [{ scale: xpAnim }] }]}>
-        <View style={styles.xpTotalOuter}>
-          <LinearGradient
-            colors={["#E8F1FF", "#DBEAFE", "#EDE9FE"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.xpTotal}
+        {/* ── CTA ── */}
+        <Animated.View style={[styles.ctaWrap, {
+          opacity: ctaAnim,
+          transform: [{ translateY: ctaAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        }]}>
+          <Pressable
+            onPress={handleSeeTomorrow}
+            accessibilityRole="button"
+            accessibilityLabel="See you tomorrow"
+            style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.xpLabel}>Total XP earned</Text>
-              <Text style={styles.xpNumber}>
-                {totalXp.toLocaleString()}{" "}
-                <Text style={styles.xpNumberUnit}>XP</Text>
-              </Text>
-            </View>
-            <View style={styles.xpStreak}>
-              <Text style={styles.xpStreakNum}>🔥 {streakForDisplay}</Text>
-              <Text style={styles.xpStreakLabel}>Day streak</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      </Animated.View>
-
-      <Animated.View style={[{ width: "100%", opacity: ctaAnim, transform: [{ translateY: ctaAnim.interpolate({ inputRange: [0,1], outputRange: [18, 0] }) }] }]}>
-        <Pressable onPress={handleSeeTomorrow} accessibilityRole="button" style={styles.ctaPressable}>
-          <LinearGradient colors={[BLUE_BRIGHT, BLUE_DEEP, PURPLE]} start={{ x: 0.13, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
-            <Text style={styles.ctaText}>See you tomorrow 👋</Text>
-          </LinearGradient>
-        </Pressable>
-
-        <Pressable
-          style={styles.secondaryLink}
-          onPress={async () => {
-            try {
-              await markDayCompleteAcknowledgedToday();
-              await scheduleNextDayActivitiesReminderAfterAck(
-                streakCount,
-                streakReminderEnabled
-              );
-              await setHomeWrappedFeedbackPending("success");
-              router.replace("/(tabs)/dashboard");
-            } catch {
-              await setHomeWrappedFeedbackPending("error");
-              router.replace("/(tabs)/dashboard");
-            }
-          }}
-          accessibilityRole="button"
-        >
-          <Text style={styles.secondaryLinkText}>Go to main menu</Text>
-        </Pressable>
-
-      </Animated.View>
+            <Text style={styles.btnText}>See you tomorrow 👋</Text>
+          </Pressable>
+          <View style={styles.skipRow}>
+            <Text style={styles.skipText}>All done for today? </Text>
+            <Pressable
+              onPress={handleGoToMenu}
+              accessibilityRole="button"
+              accessibilityLabel="Skip to dashboard"
+              hitSlop={12}
+            >
+              <Text style={styles.skipLink}>Skip</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
       </ScrollView>
 
+      {/* ── Confetti overlay ── */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        {CONFETTI.map((c, i) => (
-          <ConfettiPiece key={i} {...c} />
-        ))}
+        {CONFETTI_PIECES.map((c, i) => <ConfettiPiece key={i} {...c} />)}
       </View>
 
+      <Modal
+        visible={showDefinitions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDefinitions(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDefinitions(false)} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Quick definitions</Text>
+            <Text style={styles.modalItem}><Text style={styles.modalItemLabel}>Streak bonus:</Text> Extra XP rewards you earn when you hit milestone days.</Text>
+            <Text style={styles.modalItem}><Text style={styles.modalItemLabel}>Life Happens (pause):</Text> Lets you miss a day without breaking your streak, up to 7 times.</Text>
+            <Text style={styles.modalItem}><Text style={styles.modalItemLabel}>Shield:</Text> Unlocks at day 30 and protects your streak for one missed day.</Text>
+            <Text style={styles.modalItem}><Text style={styles.modalItemLabel}>Shield save:</Text> XP bonus you get when your shield protects a missed day.</Text>
+            <Text style={styles.modalItem}><Text style={styles.modalItemLabel}>Upcoming levels:</Text> How much XP you need to reach the next level names.</Text>
+            <Pressable onPress={() => setShowDefinitions(false)} style={styles.modalBtn}>
+              <Text style={styles.modalBtnText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: BG,
-    overflow: "hidden",
+  screen: { flex: 1, backgroundColor: BG, overflow: "hidden" },
+
+  glowTop: {
+    position: "absolute", top: 0, left: 0, right: 0, height: "60%",
+    backgroundColor: "transparent", borderRadius: 9999,
+    shadowColor: "rgba(120,90,255,1)", shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 200, shadowOpacity: 0.35,
   },
-  scroll: {
-    flex: 1,
-    width: "100%",
+  glowBottom: {
+    position: "absolute", bottom: 0, right: 0, width: "80%", height: "50%",
+    backgroundColor: "transparent",
+    shadowColor: "rgba(80,60,200,1)", shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 180, shadowOpacity: 0.22,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    alignItems: "center",
-    justifyContent: "center",
+
+  scroll: { flex: 1, width: "100%" },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 22, alignItems: "center" },
+
+  // ── Badges ──
+  badgesRow: {
+    width: "100%", flexDirection: "row", justifyContent: "space-between", marginBottom: 20,
   },
-  blobTR: {
-    position: "absolute", top: -40, right: -40,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: "rgba(37, 99, 235, 0.18)",
-    pointerEvents: "none",
+  tbadge: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: BADGE_BG, borderWidth: 1.5, borderColor: BADGE_BD,
+    borderRadius: 100, paddingVertical: 11, paddingHorizontal: 18,
   },
-  blobBL: {
-    position: "absolute", bottom: -50, left: -50,
-    width: 180, height: 180, borderRadius: 90,
-    backgroundColor: "rgba(124, 58, 237, 0.14)",
-    pointerEvents: "none",
-  },
-  label: {
-    fontSize: 11,
+  tbadgeText: {
     fontFamily: Fonts.bold,
-    letterSpacing: 2.5,
-    color: LABEL_ACCENT,
-    textTransform: "uppercase",
-    marginBottom: 18,
-    textAlign: "center",
+    fontSize: 15,   // ↑ was 13 — larger for low vision
+    lineHeight: 18,
   },
-  dexWrap: { marginBottom: 18 },
-  congratsBadgeWrap: {
-    marginBottom: 14,
-    borderRadius: 50,
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.32,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  congratsBadge: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 50,
-  },
-  congratsText: {
-    fontSize: 12,
-    fontFamily: Fonts.extraBold,
-    letterSpacing: 1.6,
-    textTransform: "uppercase",
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
-  heading: {
-    fontFamily: Fonts.serif,
-    fontSize: 30,
-    color: DARK,
-    lineHeight: 36,
-    textAlign: "center",
+
+  // ── Dex ──
+  dexWrap: {
+    width: 170, height: 190,
+    alignItems: "center", justifyContent: "center",
     marginBottom: 8,
   },
-  headingEm: { color: BLUE_VIVID, fontStyle: "italic" as const },
-  subtitle: {
-    fontSize: 14.5, fontFamily: Fonts.semiBold,
-    color: MUTED, textAlign: "center",
-    lineHeight: 23, marginBottom: 22,
-  },
-  stars: {
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 22,
-  },
-  starWrap: {
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  pointsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: CARD_BORDER,
-    paddingVertical: 6,
-    paddingHorizontal: 20,
-    width: "100%",
-    shadowColor: "#1A6FC4",
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 16,
-    elevation: 4,
+
+  // ── Headline ──
+  headline: {
+    fontFamily: Fonts.serif,
+    fontSize: 40,   // ↑ was 36
+    color: WHITE,
+    textAlign: "center",
+    lineHeight: 46,
     marginBottom: 18,
+    marginTop: 4,
   },
-  pointsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(224,216,206,0.9)",
+  headlineEm: { fontStyle: "italic", color: PURPLE_LT },
+
+  // ── Quote cards (stacked to avoid cut-off) ──
+  quoteStack: {
+    width: "100%",
+    flexDirection: "column",
+    marginBottom: 20,
   },
-  pointsLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  pointsIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
+  quoteCardTop: {
+    width: "100%",
+    backgroundColor: ROW_BG,
     borderWidth: 1.5,
-    borderColor: "rgba(26,111,196,0.2)",
-  },
-  pointsLabelText: {
-    fontSize: 14, fontFamily: Fonts.semiBold,
-    color: MUTED,
-  },
-  pointsVal: {
-    fontSize: 16,
-    fontFamily: Fonts.extraBold,
-    color: BLUE_VIVID,
-  },
-  extraPerDayVal: {
-    fontSize: 16,
-    fontFamily: Fonts.extraBold,
-    color: PURPLE,
-  },
-  xpTotalWrap: { width: "100%", marginBottom: 24 },
-  xpTotalOuter: {
+    borderColor: "rgba(255,255,255,0.16)",  // ↑ was 0.13 — higher contrast
     borderRadius: 20,
+    padding: 22,
+    paddingHorizontal: 20,
     overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "rgba(37, 99, 235, 0.45)",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 22,
-    elevation: 8,
+    position: "relative",
   },
-  xpTotal: {
-    borderRadius: 18,
+  quoteOpenQuote: {
+    position: "absolute", top: -10, left: 12,
+    fontFamily: Fonts.serif,
+    fontSize: 80,   // ↑ was 72
+    color: "rgba(192,168,255,0.22)",
+    lineHeight: 88, zIndex: 0,
+  },
+  quoteText: {
+    fontFamily: Fonts.serif,
+    fontSize: 19,   // ↑ was 17
+    lineHeight: 30, // ↑ was 27
+    color: WHITE,
+    fontStyle: "italic",
+    zIndex: 1,
+    marginTop: 10,
+  },
+  quoteDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    marginVertical: 14,
+  },
+  quoteCloserCard: {
+    width: "100%",
+    backgroundColor: ROW_BG,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 12,
+  },
+  closerLine: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 15,   // good size, accessible
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.75)",  // ↑ was no such line
+  },
+  closerDebt: {
+    color: AMBER,
+    fontFamily: Fonts.bold,
+  },
+
+  // ── Total strip ──
+  totalStrip: {
+    width: "100%",
+    backgroundColor: ROW_BG,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 20,
     padding: 18,
     paddingHorizontal: 22,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 24,
   },
-  xpLabel: {
-    fontSize: 11,
+  totalLeft: { flexDirection: "column" },
+  totalLbl: {
     fontFamily: Fonts.bold,
-    letterSpacing: 1.8,
+    fontSize: 12,   // ↑ was 11
+    letterSpacing: 2,
     textTransform: "uppercase",
-    color: "#4338CA",
+    color: "rgba(255,255,255,0.58)",  // ↑ was 0.4
     marginBottom: 4,
   },
-  xpNumber: {
+  totalNum: {
     fontFamily: Fonts.serif,
-    fontSize: 38,
-    color: "#1E3A5F",
-    lineHeight: 42,
+    fontSize: 44,   // ↑ was 42
+    color: WHITE,
+    lineHeight: 50,
   },
-  xpNumberUnit: {
-    fontSize: 18,
-    fontFamily: Fonts.extraBold,
-    color: PURPLE,
+  totalNumSup: {
+    fontFamily: Fonts.bold,
+    fontSize: 16,   // ↑ was 15
+    color: "rgba(255,255,255,0.58)",
   },
-  xpStreak: { alignItems: "flex-end" },
-  xpStreakNum: {
+  totalRight: { alignItems: "center", gap: 2 },
+  totalFire:      { fontSize: 28, lineHeight: 32 },  // ↑ was 26
+  totalStreakNum: {
     fontFamily: Fonts.serif,
-    fontSize: 30,
-    color: "#1E3A5F",
+    fontSize: 30,   // ↑ was 28
+    color: AMBER,
     lineHeight: 34,
   },
-  xpStreakLabel: {
-    fontSize: 11,
+  totalStreakLbl: {
     fontFamily: Fonts.bold,
-    letterSpacing: 1.5,
+    fontSize: 12,   // ↑ was 11
+    letterSpacing: 1.6,
     textTransform: "uppercase",
-    color: "#5B21B6",
-    marginTop: 3,
+    color: "rgba(255,255,255,0.58)",
   },
-  ctaPressable: {
+  upcomingWrap: {
     width: "100%",
-    borderRadius: 50,
-    overflow: "hidden",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 24,
-    elevation: 8,
+    backgroundColor: ROW_BG,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 20,
   },
-  cta: {
+  upcomingTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.58)",
+    marginBottom: 10,
+  },
+  upcomingRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     width: "100%",
-    borderRadius: 50,
-    paddingVertical: 18,
+  },
+  upcomingChip: {
+    width: "48.5%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: "center",
   },
-  ctaText: {
-    fontSize: 17,
+  upcomingChipDay: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    textAlign: "center",
+    color: "rgba(255,255,255,0.78)",
+    marginBottom: 2,
+  },
+  upcomingChipXp: {
     fontFamily: Fonts.extraBold,
-    color: "#FFFFFF",
-    letterSpacing: 0.2,
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: "center",
+    color: "#80EEC0",
   },
-  secondaryLink: {
-    alignItems: "center",
-    paddingVertical: 14,
-    marginTop: 2,
+  defsLinkWrap: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingVertical: 4,
   },
-  secondaryLinkText: {
+  defsLinkText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.88)",
+    textDecorationLine: "underline",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 22,
+  },
+  modalCard: {
+    backgroundColor: "#2A1C67",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.18)",
+    padding: 16,
+  },
+  modalTitle: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 18,
+    color: WHITE,
+    marginBottom: 10,
+  },
+  modalItem: {
+    fontFamily: Fonts.regular,
     fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: PURPLE,
+    lineHeight: 21,
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 7,
+  },
+  modalItemLabel: {
+    fontFamily: Fonts.extraBold,
+    color: WHITE,
+  },
+  modalBtn: {
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: AMBER_BTN,
+    alignItems: "center",
+    paddingVertical: 11,
+  },
+  modalBtnText: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 15,
+    color: WHITE,
+  },
+
+  // ── CTA ──
+  ctaWrap: { width: "100%", alignItems: "center" },
+  btn: {
+    width: "100%",
+    backgroundColor: AMBER_BTN,
+    borderRadius: 18,
+    paddingVertical: 22,  // ↑ was 20 — bigger tap target
+    alignItems: "center",
+    shadowColor: "rgba(192,120,32,1)",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    elevation: 8,
+    marginBottom: 18,
+  },
+  btnPressed: { opacity: 0.88 },
+  btnText: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 18,   // ↑ was 16
+    color: WHITE,
+    letterSpacing: 0.15,
+  },
+  skipRow: { flexDirection: "row", alignItems: "center" },
+  skipText: {
+    fontFamily: Fonts.regular,
+    fontSize: 15,   // ↑ was 14
+    color: "rgba(255,255,255,0.60)",  // ↑ was 0.45
+  },
+  skipLink: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: "rgba(255,255,255,0.85)",  // ↑ was 0.75
     textDecorationLine: "underline",
   },
 });

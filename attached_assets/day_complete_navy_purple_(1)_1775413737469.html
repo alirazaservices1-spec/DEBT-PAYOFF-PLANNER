@@ -1,0 +1,312 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/dm-serif-display@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@8/index.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mascotIn{0%{opacity:0;transform:scale(0.55) translateY(20px)}60%{transform:scale(1.07) translateY(-6px)}80%{transform:scale(0.97) translateY(2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes sparkle{0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)}50%{opacity:1;transform:scale(1) rotate(22deg)}}
+@keyframes confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(340px) rotate(500deg)}}
+@keyframes badgePop{0%{opacity:0;transform:scale(0.5)}70%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+@keyframes rowIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
+
+.wrap{display:flex;justify-content:center;padding:32px}
+
+.phone{
+  width:345px;
+  background:#1B1050;
+  border-radius:46px;
+  border:7px solid #0A0628;
+  box-shadow:0 32px 80px rgba(0,0,0,0.5),0 8px 20px rgba(0,0,0,0.25);
+  display:flex;flex-direction:column;align-items:center;
+  padding:0;
+  position:relative;overflow:hidden;
+}
+.phone::before{content:'';position:absolute;top:16px;left:50%;transform:translateX(-50%);width:82px;height:5px;background:rgba(255,255,255,0.14);border-radius:3px;z-index:10}
+
+/* Purple radial glow */
+.bg-glow{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse at 50% 25%,rgba(120,90,255,0.35) 0%,transparent 60%),
+    radial-gradient(ellipse at 80% 80%,rgba(80,60,200,0.2) 0%,transparent 50%);
+  pointer-events:none;
+}
+
+/* Confetti */
+.cf{position:absolute;animation:confetti linear both;pointer-events:none;z-index:3}
+.cf1{width:8px;height:8px;background:#F5C842;border-radius:2px;left:12%;top:8%;animation-duration:3.2s;animation-delay:0.1s}
+.cf2{width:5px;height:12px;background:#7DE8B0;border-radius:1px;left:26%;top:4%;animation-duration:3.5s;animation-delay:0.3s}
+.cf3{width:9px;height:5px;background:#FF8080;border-radius:2px;left:56%;top:6%;animation-duration:2.9s;animation-delay:0.05s;transform:rotate(-20deg)}
+.cf4{width:7px;height:7px;background:#C0A8FF;border-radius:50%;left:72%;top:3%;animation-duration:3.6s;animation-delay:0.4s}
+.cf5{width:8px;height:8px;background:#fff;border-radius:2px;left:86%;top:9%;animation-duration:3.0s;animation-delay:0.2s}
+.cf6{width:5px;height:10px;background:#F5C842;border-radius:1px;left:6%;top:18%;animation-duration:3.3s;animation-delay:0.65s}
+.cf7{width:7px;height:5px;background:#FF8080;border-radius:2px;left:44%;top:2%;animation-duration:2.8s;animation-delay:0.15s;transform:rotate(30deg)}
+.cf8{width:6px;height:6px;background:#7DE8B0;border-radius:50%;left:91%;top:14%;animation-duration:3.4s;animation-delay:0.5s}
+.cf9{width:6px;height:10px;background:#C0A8FF;border-radius:1px;left:62%;top:16%;animation-duration:2.7s;animation-delay:0.38s}
+.cf10{width:8px;height:5px;background:#F5C842;border-radius:2px;left:33%;top:11%;animation-duration:3.1s;animation-delay:0.48s;transform:rotate(-40deg)}
+
+/* ── TOP ── */
+.top{
+  width:100%;
+  display:flex;flex-direction:column;align-items:center;
+  padding:50px 22px 36px;
+  position:relative;z-index:4;
+}
+
+/* Badges */
+.badges{
+  width:100%;display:flex;justify-content:space-between;
+  margin-bottom:22px;
+  animation:badgePop 0.55s cubic-bezier(0.34,1.56,0.64,1) both 0.1s;
+}
+.tbadge{
+  display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,0.08);
+  border:1.5px solid rgba(255,255,255,0.16);
+  border-radius:100px;padding:10px 16px;
+}
+.tbadge-text{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:#fff;line-height:1}
+.tbadge.streak .tbadge-text{color:#F5C842}
+.tbadge.xp .tbadge-text{color:#80EEC0}
+
+/* Mascot */
+.mascot-wrap{position:relative;margin-bottom:6px}
+.mascot-anim{animation:mascotIn 1s cubic-bezier(0.34,1.56,0.64,1) both 0.2s}
+.mascot-float{animation:float 3.8s ease-in-out infinite 1.5s}
+.sp{position:absolute;animation:sparkle 2.5s ease-in-out infinite}
+.sp1{top:0;left:14px;animation-delay:0s}
+.sp2{top:10px;right:6px;animation-delay:0.9s}
+.sp3{bottom:72px;left:-10px;animation-delay:1.6s}
+.sp4{top:34px;left:-18px;animation-delay:0.4s}
+
+/* Eyebrow */
+.eyebrow{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:0.26em;text-transform:uppercase;
+  color:rgba(255,255,255,0.45);
+  margin-bottom:10px;
+  animation:fadeUp 0.45s ease both 0.72s;
+}
+
+/* Headline — large, high contrast white */
+.headline{
+  font-family:'DM Serif Display',serif;
+  font-size:40px;font-weight:400;color:#fff;
+  text-align:center;line-height:1.12;
+  margin-bottom:14px;
+  animation:fadeUp 0.5s ease both 0.82s;
+}
+.headline em{font-style:italic;color:#C0A8FF}
+
+/* Sub — bright enough to read easily */
+.sub{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:15px;font-weight:400;
+  color:rgba(255,255,255,0.72);
+  text-align:center;line-height:1.7;
+  margin-bottom:28px;
+  animation:fadeUp 0.5s ease both 0.92s;
+  padding:0 6px;
+}
+
+/* XP rows */
+.xp-list{
+  width:100%;
+  display:flex;flex-direction:column;gap:10px;
+  margin-bottom:22px;
+}
+.xp-row{
+  display:flex;align-items:center;gap:12px;
+  background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(255,255,255,0.1);
+  border-radius:16px;
+  padding:14px 16px;
+  animation:rowIn 0.4s ease both;
+}
+.xp-row:nth-child(1){animation-delay:1.05s}
+.xp-row:nth-child(2){animation-delay:1.15s}
+.xp-row:nth-child(3){animation-delay:1.25s}
+.xp-row:nth-child(4){animation-delay:1.35s}
+
+.xp-icon{
+  width:32px;height:32px;border-radius:10px;
+  background:rgba(255,255,255,0.09);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+/* Easy to read label — pure white */
+.xp-label{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:15px;font-weight:600;
+  color:#fff;flex:1;
+}
+.xp-val{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:14px;font-weight:800;
+  border-radius:100px;padding:5px 13px;
+}
+.xp-val.green{color:#5FD68A;background:rgba(95,214,138,0.14)}
+.xp-val.amber{color:#F5C842;background:rgba(245,200,66,0.14)}
+
+/* Total strip */
+.total{
+  width:100%;
+  background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(255,255,255,0.12);
+  border-radius:20px;
+  padding:16px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:22px;
+  animation:fadeUp 0.5s ease both 1.45s;
+}
+.t-left .t-lbl{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;
+  color:rgba(255,255,255,0.4);margin-bottom:4px;
+}
+.t-left .t-num{
+  font-family:'DM Serif Display',serif;
+  font-size:42px;color:#fff;line-height:1;
+  display:flex;align-items:baseline;gap:5px;
+}
+.t-left .t-num sup{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:15px;font-weight:700;color:rgba(255,255,255,0.4);
+}
+.t-right{display:flex;flex-direction:column;align-items:center;gap:2px}
+.t-fire{font-size:26px;line-height:1}
+.t-streak{font-family:'DM Serif Display',serif;font-size:28px;color:#F5C842;line-height:1}
+.t-sl{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+}
+
+/* Dots */
+.dots{
+  display:flex;gap:8px;margin-bottom:22px;
+  animation:fadeUp 0.4s ease both 1.5s;
+}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.22)}
+.dot.on{background:#C0A8FF;width:22px;border-radius:10px}
+
+/* CTA */
+.btn{
+  width:100%;
+  background:#C07820;color:#fff;
+  border:none;border-radius:16px;
+  padding:20px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;
+  cursor:pointer;letter-spacing:0.01em;
+  animation:fadeUp 0.5s ease both 1.6s;
+  transition:background 0.13s,transform 0.08s;
+  box-shadow:0 8px 28px rgba(192,120,32,0.4);
+  margin-bottom:16px;
+}
+.btn:hover{background:#A86510}.btn:active{transform:scale(0.98)}
+
+.skip{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:14px;color:rgba(255,255,255,0.45);
+  animation:fadeUp 0.4s ease both 1.7s;
+}
+.skip a{color:rgba(255,255,255,0.75);font-weight:700;text-decoration:underline}
+</style>
+
+<div class="wrap">
+  <div class="phone">
+    <div class="bg-glow"></div>
+
+    <div class="cf cf1"></div><div class="cf cf2"></div><div class="cf cf3"></div>
+    <div class="cf cf4"></div><div class="cf cf5"></div><div class="cf cf6"></div>
+    <div class="cf cf7"></div><div class="cf cf8"></div><div class="cf cf9"></div><div class="cf cf10"></div>
+
+    <div class="top">
+
+      <div class="badges">
+        <div class="tbadge streak"><span class="tbadge-text">🔥 1 Day Streak</span></div>
+        <div class="tbadge xp"><span class="tbadge-text">⚡ +85 XP</span></div>
+      </div>
+
+      <div class="mascot-wrap">
+        <div class="sp sp1"><svg width="15" height="15" viewBox="0 0 14 14"><polygon points="7,0 8.5,5 13.5,7 8.5,9 7,14 5.5,9 0.5,7 5.5,5" fill="#C0A8FF"/></svg></div>
+        <div class="sp sp2"><svg width="11" height="11" viewBox="0 0 14 14"><polygon points="7,0 8.5,5 13.5,7 8.5,9 7,14 5.5,9 0.5,7 5.5,5" fill="#F5C842"/></svg></div>
+        <div class="sp sp3"><svg width="9" height="9" viewBox="0 0 14 14"><polygon points="7,0 8.5,5 13.5,7 8.5,9 7,14 5.5,9 0.5,7 5.5,5" fill="#fff" opacity="0.6"/></svg></div>
+        <div class="sp sp4"><svg width="7" height="7" viewBox="0 0 14 14"><polygon points="7,0 8.5,5 13.5,7 8.5,9 7,14 5.5,9 0.5,7 5.5,5" fill="#C0A8FF" opacity="0.5"/></svg></div>
+
+        <div class="mascot-anim">
+          <div class="mascot-float">
+            <svg viewBox="0 0 260 280" width="192" height="207" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="130" cy="268" rx="52" ry="11" fill="rgba(0,0,0,0.25)"/>
+              <ellipse cx="103" cy="252" rx="26" ry="12" fill="#8B4A14"/>
+              <ellipse cx="157" cy="252" rx="26" ry="12" fill="#8B4A14"/>
+              <ellipse cx="34" cy="108" rx="16" ry="34" fill="#D09828" transform="rotate(-42,34,108)"/>
+              <circle cx="14" cy="76" r="16" fill="#C88A20"/>
+              <ellipse cx="226" cy="108" rx="16" ry="34" fill="#D09828" transform="rotate(42,226,108)"/>
+              <circle cx="246" cy="76" r="16" fill="#C88A20"/>
+              <circle cx="130" cy="158" r="88" fill="#EAA835"/>
+              <ellipse cx="130" cy="204" rx="66" ry="36" fill="#C07820" opacity="0.22"/>
+              <circle cx="56" cy="82" r="28" fill="#D09828"/>
+              <circle cx="204" cy="82" r="28" fill="#D09828"/>
+              <circle cx="56" cy="82" r="16" fill="#C08020"/>
+              <circle cx="204" cy="82" r="16" fill="#C08020"/>
+              <ellipse cx="104" cy="144" rx="28" ry="32" fill="white"/>
+              <ellipse cx="156" cy="144" rx="28" ry="32" fill="white"/>
+              <circle cx="108" cy="148" r="18" fill="#1A0800"/>
+              <circle cx="160" cy="148" r="18" fill="#1A0800"/>
+              <circle cx="100" cy="140" r="8" fill="white"/>
+              <circle cx="152" cy="140" r="8" fill="white"/>
+              <circle cx="114" cy="155" r="4" fill="white" opacity="0.5"/>
+              <circle cx="166" cy="155" r="4" fill="white" opacity="0.5"/>
+              <ellipse cx="130" cy="172" rx="7" ry="5" fill="#A86010"/>
+              <path d="M104 186 Q130 218 156 186" stroke="#A86010" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+              <path d="M107 190 Q130 212 153 190 Q130 196 107 190Z" fill="white" opacity="0.7"/>
+              <ellipse cx="84" cy="162" rx="15" ry="10" fill="#E87040" opacity="0.28"/>
+              <ellipse cx="176" cy="162" rx="15" ry="10" fill="#E87040" opacity="0.28"/>
+              <circle cx="96" cy="196" r="20" fill="#F5C842"/>
+              <circle cx="96" cy="196" r="16" fill="#E8A820"/>
+              <text x="96" y="202" text-anchor="middle" font-size="15" font-weight="bold" fill="#8B5E10" font-family="Georgia,serif">$</text>
+              <polygon points="130,22 112,80 148,80" fill="#7B5FE8"/>
+              <line x1="121" y1="51" x2="139" y2="51" stroke="#C0A8FF" stroke-width="2.5" opacity="0.9"/>
+              <line x1="116" y1="65" x2="144" y2="65" stroke="#C0A8FF" stroke-width="2.5" opacity="0.9"/>
+              <rect x="112" y="76" width="36" height="8" rx="3" fill="#C0A8FF"/>
+              <circle cx="130" cy="22" r="8" fill="#C0A8FF"/>
+              <circle cx="130" cy="22" r="5" fill="#E8DFFF"/>
+              <polygon points="40,54 42.5,61 50,61 44,65.5 46.5,73 40,68.5 33.5,73 36,65.5 30,61 37.5,61" fill="#F5C842" opacity="0.9"/>
+              <polygon points="222,46 224,52 230,52 225,56 227,62 222,58 217,62 219,56 214,52 220,52" fill="#C0A8FF" opacity="0.8"/>
+              <polygon points="178,26 179.5,31 185,31 181,34 182.5,39 178,36 173.5,39 175,34 171,31 176.5,31" fill="#fff" opacity="0.55"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+
+      <h1 class="headline">You crushed it<br><em>today!</em></h1>
+      <p class="sub">Every day you show up, your debt-free<br>date gets closer. Keep it going.</p>
+
+      <div class="xp-list">
+        <div class="xp-row"><div class="xp-icon">✅</div><span class="xp-label">Payment logged</span><span class="xp-val green">+50 XP</span></div>
+        <div class="xp-row"><div class="xp-icon">🔥</div><span class="xp-label">Streak bonus</span><span class="xp-val green">+25 XP</span></div>
+        <div class="xp-row"><div class="xp-icon">➕</div><span class="xp-label">Extra per day</span><span class="xp-val amber">+$0.50/day</span></div>
+      </div>
+
+      <div class="total">
+        <div class="t-left">
+          <div class="t-lbl">Total XP Earned</div>
+          <div class="t-num">75<sup>XP</sup></div>
+        </div>
+        <div class="t-right">
+          <div class="t-fire">🔥</div>
+          <div class="t-streak">1</div>
+          <div class="t-sl">Day Streak</div>
+        </div>
+      </div>
+
+      <button class="btn">See you tomorrow 👋</button>
+      <p class="skip">All done for today? <a href="#">Skip</a></p>
+
+    </div>
+  </div>
+</div>

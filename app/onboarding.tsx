@@ -51,13 +51,8 @@ import {
 import { getRecommendations } from "@/lib/MonetizationRules";
 import { AFFILIATE_URLS } from "@/lib/affiliateUrls";
 import { withAppUtmParams } from "@/lib/utm";
-import { getIrsUnderpaymentAprFieldHint } from "@/lib/irsUnderpaymentRate";
-import { MiniCelebrationOverlay } from "@/components/MiniCelebrationOverlay";
-import {
-  ONBOARDING_MINI_CELEBRATIONS,
-  type OnboardingMiniCelebrationConfig,
-  type OnboardingMiniId,
-} from "@/lib/onboardingMiniCelebrations";
+import { getIrsAprUpdateNotice, getIrsUnderpaymentAprFieldHint, getIrsUnderpaymentRateSummary } from "@/lib/irsUnderpaymentRate";
+import { soundManager } from "@/utils/SoundManager";
 
 // Local alias so this file can use warm contrast tokens.
 // (Some tooling only recognizes WarmContrast on the default export.)
@@ -134,9 +129,11 @@ import { DebtForm } from "@/components/DebtForm";
 import { NavyBackground } from "@/components/NavyBackground";
 import {
   runStrategy,
+  projectedInterestSavedVsMinimumPayments,
   calendarDaysUntilPaymentDue,
   debtEligibleForPaymentReminder,
   getNextPaymentDueDate,
+  MAX_SIM_MONTHS,
   type Debt,
   type DebtType,
   type MonthlySnapshot,
@@ -434,6 +431,48 @@ function BackBtn({ onPress, isDark, topPad = 0 }: { onPress: () => void; isDark:
   );
 }
 
+type OnboardingStratDebt = {
+  name: string;
+  balance: number;
+  rate: number;
+  minPay: number;
+  debtType: DebtType;
+  taxPaymentPlan?: boolean;
+  introApr?: number;
+  introEndsMonth?: number;
+  introEndsYear?: number;
+};
+
+function localDraftsToOnboardingDebts(drafts: Partial<LocalDebt>[]): OnboardingStratDebt[] {
+  return (drafts || [])
+    .filter((d) => Boolean(d?._saved))
+    .map((d) => {
+      const isTax = d.typeKey === "taxDebt";
+      const hasIntro = !isTax && Boolean(d.hasIntro);
+      const parsedIntro = hasIntro && d.introEnds ? parseMonthYearString(String(d.introEnds)) : null;
+      const aprRaw = Number.parseFloat(String(d.apr ?? "0"));
+      const minRaw = Number.parseFloat(String(d.minPayment ?? "0"));
+      return {
+        name: String(d.name || d.typeKey || "Debt").trim(),
+        balance: Math.max(0, Number.parseFloat(String(d.balance ?? "0")) || 0),
+        rate: Math.max(0, Number.isFinite(aprRaw) ? aprRaw : 0),
+        minPay: Math.max(0, Number.isFinite(minRaw) ? minRaw : 0),
+        debtType: (d.typeKey as DebtType) || "other",
+        taxPaymentPlan: isTax ? Boolean(d.onPlan) : undefined,
+        ...(hasIntro &&
+        parsedIntro &&
+        Number.isFinite(Number.parseFloat(String(d.introApr ?? "")))
+          ? {
+              introApr: Math.max(0, Number.parseFloat(String(d.introApr))),
+              introEndsMonth: parsedIntro.month,
+              introEndsYear: parsedIntro.year,
+            }
+          : {}),
+      };
+    })
+    .filter((d) => d.balance > 0);
+}
+
 // ─── Main onboarding component ────────────────────────────────────────────────
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -463,47 +502,13 @@ export default function OnboardingScreen() {
   const [dailyGoal, setDailyGoal] = useState(0.5);
   // Debt entered during onboarding — passed directly to strategy screen
   // so live numbers never depend on async context timing
-  const [onboardingDebts, setOnboardingDebts] = useState<{
-    name: string;
-    balance: number;
-    rate: number;
-    minPay: number;
-    debtType: DebtType;
-    taxPaymentPlan?: boolean;
-    introApr?: number;
-    introEndsMonth?: number;
-    introEndsYear?: number;
-  }[]>([]);
+  const [onboardingDebts, setOnboardingDebts] = useState<OnboardingStratDebt[]>([]);
   // Keep step-2 debt drafts when user navigates back/forward.
   const [onboardingDebtDrafts, setOnboardingDebtDrafts] = useState<any[]>([]);
-
-  const pendingAfterMiniRef = useRef<(() => void) | null>(null);
-  const [miniOverlayOpen, setMiniOverlayOpen] = useState(false);
-  const [miniConfig, setMiniConfig] = useState<OnboardingMiniCelebrationConfig | null>(null);
-
-  const queueMiniCelebration = useCallback(
-    (id: OnboardingMiniId, then: () => void) => {
-      pendingAfterMiniRef.current = then;
-      setMiniConfig(ONBOARDING_MINI_CELEBRATIONS[id]);
-      setMiniOverlayOpen(true);
-      triggerDex("happy", 2200);
-    },
-    [triggerDex]
-  );
-
-  const handleMiniCelebrationDone = useCallback(() => {
-    setMiniOverlayOpen(false);
-    setMiniConfig(null);
-    const fn = pendingAfterMiniRef.current;
-    pendingAfterMiniRef.current = null;
-    requestAnimationFrame(() => {
-      try {
-        fn?.();
-      } catch (e) {
-        console.log("after mini celebration", e);
-      }
-    });
-  }, []);
+  const onboardingDebtsForStrategy = useMemo<OnboardingStratDebt[]>(() => {
+    const fromDrafts = localDraftsToOnboardingDebts(onboardingDebtDrafts);
+    return fromDrafts.length > 0 ? fromDrafts : onboardingDebts;
+  }, [onboardingDebtDrafts, onboardingDebts]);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const bg = isDark ? "#080E14" : "#FFFFFF";
@@ -605,7 +610,7 @@ export default function OnboardingScreen() {
         {step === 1.5 && (
           <HowItWorksScreen
             {...sp}
-            onNext={() => queueMiniCelebration("how_it_works", () => goTo(2))}
+            onNext={() => goTo(2)}
             onBack={() => goTo(1, "back")}
           />
         )}
@@ -615,7 +620,7 @@ export default function OnboardingScreen() {
             {...sp}
             debts={debts}
             onSave={handleSaveDebt}
-            onContinue={() => queueMiniCelebration("debts_entered", () => goTo(3))}
+            onContinue={() => goTo(3)}
             onBack={() => goTo(1.5, "back")}
             initialDrafts={onboardingDebtDrafts}
             onDraftsChange={setOnboardingDebtDrafts}
@@ -635,10 +640,10 @@ export default function OnboardingScreen() {
                   await setExtraPayment(monthlyExtra);
                   await AsyncStorage.setItem(DAILY_SAVINGS_GOAL_KEY, String(extraPerDaySelected));
                 }
-                queueMiniCelebration("dream_set", () => goTo(4));
+                goTo(4);
               } catch (e) {
                 console.log("Error saving dream goal", e);
-                queueMiniCelebration("dream_set", () => goTo(4));
+                goTo(4);
               }
             }}
             onBack={() => goTo(2, "back")}
@@ -648,7 +653,7 @@ export default function OnboardingScreen() {
         {step === 4 && (
           <PayoffStrategyScreen
             {...sp}
-            onboardingDebts={onboardingDebts}
+            onboardingDebts={onboardingDebtsForStrategy}
             extraPayment={extraPayment}
             onSelect={async (strategy) => {
               try {
@@ -656,7 +661,7 @@ export default function OnboardingScreen() {
               } catch (_) {
                 /* non-fatal */
               }
-              queueMiniCelebration("strategy_chosen", () => goTo(5));
+              goTo(5);
             }}
             onBack={() => goTo(3, "back")}
           />
@@ -736,12 +741,6 @@ export default function OnboardingScreen() {
         )}
 
       </Animated.View>
-
-      <MiniCelebrationOverlay
-        visible={miniOverlayOpen}
-        config={miniConfig}
-        onComplete={handleMiniCelebrationDone}
-      />
     </View>
   );
 }
@@ -954,7 +953,7 @@ function TrueSplashScreen({ onDone }: { onDone: () => void }) {
         {/* Subtitle */}
         <Animated.Text style={{
           fontFamily: Fonts.bold, fontSize: 13,
-          color: "rgba(255,255,255,0.5)", letterSpacing: 1.5,
+          color: "#ffffff", letterSpacing: 1.5,
           textTransform: "uppercase", marginTop: 8, textAlign: "center",
           opacity: subAnim, transform:[{ translateY: subTY }],
         }}>
@@ -964,12 +963,12 @@ function TrueSplashScreen({ onDone }: { onDone: () => void }) {
         {/* XP badge */}
         <Animated.View style={{
           flexDirection:"row", alignItems:"center",
-          backgroundColor:"rgba(58,122,16,0.25)",
-          borderWidth:1.5, borderColor:"rgba(58,122,16,0.5)",
+          backgroundColor:"rgba(34,82,24,0.72)",
+          borderWidth:1.5, borderColor:"rgba(180,240,140,0.75)",
           borderRadius:20, paddingVertical:5, paddingHorizontal:14, marginTop:16,
           opacity: badgeAnim, transform:[{ translateY: badgeTY }],
         }}>
-          <Text style={{ fontFamily: Fonts.extraBold, fontSize:11.5, color:"#7FCC30", letterSpacing:1, textTransform:"uppercase" }}>
+          <Text style={{ fontFamily: Fonts.extraBold, fontSize:11.5, color:"#FFFFFF", letterSpacing:1, textTransform:"uppercase" }}>
             ⚡ Level Up Your Finances
           </Text>
         </Animated.View>
@@ -1067,6 +1066,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
   const { width: W, height: H } = useWindowDimensions();
   const carouselRef = useRef<ScrollView>(null);
   const [active, setActive] = useState(0);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   /** After user swipes the carousel, pause auto-advance briefly so it doesn’t fight them. */
   const resumeAutoAdvanceAt = useRef(0);
   const SLIDE_AUTO_MS = 5200;
@@ -1108,6 +1108,11 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
   const ctaWidth = Math.min(380, innerW * 0.88);
   const ctaLeft = (innerW - ctaWidth) / 2;
   const footerInset = Math.max(botPad, insets.bottom);
+  const ctaBottom = 56 + footerInset;
+  const ctaHeight = 64;
+  const legalMinHeight = 56;
+  const legalBottom = ctaBottom + ctaHeight + 14;
+  const dotsBottom = legalBottom + legalMinHeight + 18;
   /** Space for persistent dots + CTA + sign-in so centered column doesn’t sit under them. */
   const centerBottomPad = 184 + botPad;
 
@@ -1160,7 +1165,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
           line1: "See your next",
           line2Before: "",
           line2Em: "milestone",
-          body: "Your next milestone is always visible in your plan. Stay consistent and watch your progress add up—right in the app.",
+          body: "Your next milestone is always visible in your plan. Stay consistent and watch your progress add up-right in the app.",
           dex: "proud" as const,
         },
       ] as const,
@@ -1292,7 +1297,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                     marginTop: 20,
                   }}
                 >
-                  {"Let's get started adding your debts to pay off"}
+                  {"Let's get started adding your debts\n to pay off"}
                 </Text>
               </View>
             </View>
@@ -1377,11 +1382,11 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                     paddingVertical: 10,
                   }}
                 >
-                  <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#F2C040", textAlign: "center" }}>
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#FFFFFF", textAlign: "center" }}>
                     🔥 7 Days!
                   </Text>
-                  <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "rgba(242,192,64,0.7)", marginTop: 2, textAlign: "center" }}>
-                    +175 XP
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "rgba(255,255,255,0.92)", marginTop: 2, textAlign: "center" }}>
+                    +150 XP
                   </Text>
                 </View>
               </Animated.View>
@@ -1402,10 +1407,10 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                   }}
                 >
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#40E090", textAlign: "center" }}>
-                    ✓ Debt Gone!
+                    ✓ Debt Free!
                   </Text>
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "rgba(40,200,100,0.7)", marginTop: 2, textAlign: "center" }}>
-                    +500 XP
+                    +5000 XP
                   </Text>
                 </View>
               </Animated.View>
@@ -1426,11 +1431,11 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
               }}
             >
               {[
-                { mark: "✓", t: "First Payment", xp: "+150 XP", done: true },
-                { mark: "✓", t: "3-Day Streak", xp: "+100 XP", done: true },
-                { mark: "→", t: "7-Day Streak", xp: "+175 XP", next: true },
-                { mark: " ", t: "30-Day Streak", xp: "+525 XP", dim: true },
-                { mark: " ", t: "Debt Free 🏆", xp: "+500 XP", dim: true },
+                { mark: "✓", t: "First Payment", xp: "+25 XP", done: true },
+                { mark: "✓", t: "3-Day Streak", xp: "+75 XP", done: true },
+                { mark: "→", t: "7-Day Streak", xp: "+150 XP", next: true },
+                { mark: " ", t: "30-Day Streak", xp: "+500 XP", dim: true },
+                { mark: " ", t: "Debt Free 🏆", xp: "+5000 XP", dim: true },
               ].map((row, ri) => (
                 <View
                   key={ri}
@@ -1468,7 +1473,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                       fontFamily: Fonts.bold,
                       fontSize: 13,
                       overflow: "hidden",
-                      color: row.done ? "#40E090" : row.next ? "#F2C040" : "rgba(255,255,255,0.25)",
+                      color: row.done ? "#40E090" : row.next ? "#FFFFFF" : "rgba(255,255,255,0.25)",
                       backgroundColor: row.done
                         ? "rgba(40,200,100,0.2)"
                         : row.next
@@ -1549,7 +1554,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                     fontFamily: Fonts.serif,
                     fontSize: headlinePx,
                     fontStyle: "italic",
-                    color: "#F2C040",
+                    color: "#FFFFFF",
                   }}
                 >
                   {item.line2Em}
@@ -1572,7 +1577,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
                     fontFamily: Fonts.regular,
                     fontSize: Math.max(11, Math.round(bodyPx) - 3),
                     lineHeight: Math.max(11, Math.round(bodyPx) - 3) * 1.45,
-                    color: "rgba(255,255,255,0.52)",
+                    color: "#FFFFFF",
                     textAlign: "center",
                     marginTop: 14,
                     paddingHorizontal: 4,
@@ -1603,12 +1608,17 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
     ]
   );
 
-  /** Cream hero slide only — remaining slides are dark. */
-  const onLightSplash = active === 0;
+  /** Treat only the intro cream slide as light; all other slides are dark. */
+  const onLightSplash = slides[active]?.key === "getStarted";
   const dotInactive = onLightSplash ? "rgba(17,17,17,0.45)" : "rgba(255,255,255,0.45)";
   const dotBorder = onLightSplash ? "rgba(17,17,17,0.55)" : "rgba(255,255,255,0.35)";
   const skipMuted = onLightSplash ? "rgba(17,17,17,0.72)" : "rgba(255,255,255,0.38)";
-  const skipLink = onLightSplash ? "#2A1F18" : "rgba(255,255,255,0.65)";
+  const skipLink = onLightSplash ? "#000000" : "rgba(255,255,255,0.65)";
+  const legalTextColor = onLightSplash ? "#111111" : "#FFFFFF";
+  const legalLinkColor = "#2563EB";
+  const legalCheckBorderColor = onLightSplash ? "#111111" : "#FFFFFF";
+  const legalCheckFillColor = onLightSplash ? "#E5E7EB" : "#2563EB";
+  const legalCheckIconColor = onLightSplash ? "#111111" : "#FFFFFF";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#1A1430" }}>
@@ -1666,8 +1676,8 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
               pointerEvents="box-none"
               style={{
                 position: "absolute",
-                /** CTA is ~bottom 56 + ~64px tall; keep dots clearly above. */
-                bottom: 140 + footerInset,
+                /** Keep dots above legal consent + CTA stack. */
+                bottom: dotsBottom,
                 left: 0,
                 right: 0,
                 flexDirection: "row",
@@ -1701,21 +1711,23 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
 
             <Pressable
               onPress={() => {
+                if (!legalAccepted) return;
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 goTo(1.5);
               }}
+              disabled={!legalAccepted}
               style={({ pressed }) => ({
                 position: "absolute",
-                bottom: 56 + footerInset,
+                bottom: ctaBottom,
                 left: ctaLeft,
                 width: ctaWidth,
-                opacity: pressed ? 0.95 : 1,
+                opacity: !legalAccepted ? 0.6 : pressed ? 0.95 : 1,
                 transform: [{ translateY: pressed ? 3 : 0 }],
               })}
             >
               <View
                 style={{
-                  backgroundColor: "#D08A10",
+                  backgroundColor: legalAccepted ? "#D08A10" : "#9CA3AF",
                   borderRadius: 18,
                   padding: 20,
                   alignItems: "center",
@@ -1729,6 +1741,55 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
               >
                 <Text style={{ fontFamily: Fonts.extraBold, fontSize: 18, color: "#FFFFFF" }}>Get Started</Text>
               </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setLegalAccepted((prev) => !prev)}
+              hitSlop={12}
+              style={{
+                position: "absolute",
+                bottom: legalBottom,
+                left: ctaLeft,
+                width: ctaWidth,
+                minHeight: legalMinHeight,
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: 10,
+              }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 1.5,
+                  borderColor: legalCheckBorderColor,
+                  backgroundColor: legalAccepted ? legalCheckFillColor : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {legalAccepted ? (
+                  <Ionicons name="checkmark" size={15} color={legalCheckIconColor} />
+                ) : null}
+              </View>
+              <Text style={{ fontFamily: Fonts.semiBold, fontSize: 12, color: legalTextColor, flex: 1, lineHeight: 18 }}>
+                By continuing, you agree to our{" "}
+                <Text
+                  style={{ textDecorationLine: "underline", color: legalLinkColor, fontFamily: Fonts.bold }}
+                  onPress={() => router.push("/privacy")}
+                >
+                  Privacy Policy
+                </Text>
+                {" "}and{" "}
+                <Text
+                  style={{ textDecorationLine: "underline", color: legalLinkColor, fontFamily: Fonts.bold }}
+                  onPress={() => router.push("/terms")}
+                >
+                  Terms of Service
+                </Text>
+                .
+              </Text>
             </Pressable>
 
             <Pressable
@@ -1759,7 +1820,7 @@ function SplashScreen({ isDark: _isDark, bg: _bg, topPad: _topPad, botPad, goTo,
 }
 
 // ─── Screen 1.5: How It Works ─────────────────────────────────────────────────
-function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
+function HowItWorksScreen({ topPad, botPad, onNext, onBack, handleSkipAll }: any) {
 
   // Floating Dex animation
   const dexBob = useRef(new Animated.Value(0)).current;
@@ -1784,21 +1845,57 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
   }, []);
 
   const BG   = "#F2EEE5";
-  const DARK  = "#1A0A00";
+  const DARK  = "#000000";
   const GOLD  = "#C88A24";
-  const LABEL = "#3D2200";
+  const LABEL = "#000000";
   const BLOB  = "#D4C9A8";
 
   const STEPS = [
     { emoji: "💳", title: "Add your debts" },
+    { emoji: "🏆", title: "Choose a goal that keeps you motivated" },
     { emoji: "🎯", title: "Pick your payoff method" },
-    { emoji: "🏆", title: "Set your freedom goal" },
-    { emoji: "📅", title: "See your debt-free date" },
-    { emoji: "🔔", title: "Get daily reminders" },
+    { emoji: "🔥", title: "Start paying off your debts" },
   ];
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+
+      {/* Skip — top-right text control (keeps footer quote/source readable) */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          paddingTop: topPad + 10,
+          paddingRight: 20,
+          flexDirection: "row",
+          justifyContent: "flex-end",
+          zIndex: 30,
+        }}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            void handleSkipAll().catch(() => {});
+          }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
+        >
+          <Text
+            style={{
+              fontFamily: Fonts.semiBold,
+              fontSize: 16,
+              color: "#000000",
+              textDecorationLine: "underline",
+            }}
+          >
+            Skip
+          </Text>
+        </Pressable>
+      </View>
 
       {/* Corner blob — top right */}
       <View pointerEvents="none" style={{
@@ -1816,9 +1913,9 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          flexGrow: 1,
-          paddingTop: topPad + 14,
-          paddingBottom: botPad + 24,
+          /** Extra top inset so body clears fixed Skip row */
+          paddingTop: topPad + 48,
+          paddingBottom: botPad + 28,
           paddingHorizontal: 28,
           alignItems: "center",
         }}
@@ -1904,7 +2001,7 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
               {/* Step number — gold circle on RIGHT */}
               <View style={{
                 width: 28, height: 28, borderRadius: 14,
-                backgroundColor: GOLD,
+                backgroundColor: "#1E3A8A",
                 alignItems: "center", justifyContent: "center",
                 flexShrink: 0, marginTop: 2,
               }}>
@@ -1961,8 +2058,8 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
               <Rect x={3} y={11} width={18} height={11} rx={2} fill="none" stroke="#2563EB" strokeWidth={2} />
               <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#2563EB" strokeWidth={2} strokeLinecap="round" fill="none" />
             </Svg>
-            <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#2A1F18", lineHeight: 20 }}>
-              Secure & no account needed to start.
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#000000", lineHeight: 20 }}>
+              Secure & no account needed to start
             </Text>
           </View>
         </View>
@@ -1970,7 +2067,7 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
         <Text style={{
           fontFamily: Fonts.semiBold,
           fontSize: 13,
-          color: "#2A1F18",
+          color: "#000000",
           textAlign: "center",
           lineHeight: 20,
           marginTop: 30,
@@ -1981,16 +2078,16 @@ function HowItWorksScreen({ topPad, botPad, onNext, onBack }: any) {
 
         <Text style={{
           fontFamily: Fonts.regular,
-          fontSize: 8,
-          color: "#2A1F18",
+          fontSize: 10,
+          color: "#000000",
           textAlign: "center",
-          lineHeight: 11,
-          marginTop: 6,
+          lineHeight: 15,
+          marginTop: 8,
+          marginBottom: 12,
           paddingHorizontal: 16,
         }}>
           Source: Matthews, G. (2015), Dominican University of California - goal-setting study.
         </Text>
-
       </ScrollView>
     </View>
   );
@@ -2032,7 +2129,6 @@ const REACTIONS_DATA = [
   { bubble: "INCREDIBLE! You are staring debt in the face. That is power! 💪" },
   { bubble: "I am SO proud of you right now! Champions do exactly this! 🎉" },
   { bubble: "WOW - you are SERIOUS about this! Look at you go! 🌟" },
-  { bubble: "Every single debt you add gets you closer to ZERO. Keep going! 🏅" },
   { bubble: "This takes guts. You have it. I believe in you! 🦁" },
 ];
 
@@ -2058,7 +2154,12 @@ function normalizeLocalDebtDraft(d: Partial<LocalDebt> | null | undefined): Loca
     minPayment: typeof d?.minPayment === "string" ? d.minPayment : "",
     apr: typeof d?.apr === "string" ? d.apr : "",
     dueDate: typeof d?.dueDate === "string" ? d.dueDate : "1",
-    introApr: typeof d?.introApr === "string" ? d.introApr : "",
+    introApr:
+      typeof d?.introApr === "string"
+        ? d.introApr
+        : typeof d?.introApr === "number" && Number.isFinite(d.introApr)
+          ? String(d.introApr)
+          : "",
     introEnds: typeof d?.introEnds === "string" ? d.introEnds : "",
     hasIntro: Boolean(d?.hasIntro),
     onPlan: Boolean(d?.onPlan),
@@ -2071,6 +2172,18 @@ function normalizeLocalDebtDraft(d: Partial<LocalDebt> | null | undefined): Loca
 
 function fmtMoney(v: number) {
   return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function ordinalDay(n: number) {
+  const v = Math.abs(Math.trunc(n));
+  const mod100 = v % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${v}th`;
+  switch (v % 10) {
+    case 1: return `${v}st`;
+    case 2: return `${v}nd`;
+    case 3: return `${v}rd`;
+    default: return `${v}th`;
+  }
 }
 
 function DebtEntryScreen({
@@ -2091,16 +2204,17 @@ function DebtEntryScreen({
   initialDrafts?: LocalDebt[];
   onDraftsChange?: (drafts: LocalDebt[]) => void;
 }) {
+  const irsCurrentAprDefault = String(getIrsUnderpaymentRateSummary().annualPercent);
   // ── colour tokens (always warm cream, matching HTML) ──────────────────────
   const BG          = "#F7F2EA";
   const CARD        = "#ffffff";
   const BLUE        = "#1A6FC4";
   const BLUE_LIGHT  = "#EFF6FF";
   const GREEN       = "#2C7A43";
-  const DARK        = "#1A0A00";
+  const DARK        = "#000000";
   const PLACEHOLDER_TINT = "#9A948C";
-  const LABEL_MUTED      = "#3D2200";
-  const SECONDARY_CHROME = "#3D2200";
+  const LABEL_MUTED      = "#000000";
+  const SECONDARY_CHROME = "#000000";
   const INP_ADORN        = "#8E8983";
   const INP_BG      = "#F7F2EA";
   const INP_BORDER  = "#D4C8B8";
@@ -2113,9 +2227,10 @@ function DebtEntryScreen({
       : [makeLocalDebt()]
   );
   const [celebCount, setCelebCount] = useState(0);
-  const [bubbleMsg, setBubbleMsg] = useState("Add each debt and I'll build your payoff plan! 💪");
+  const [bubbleMsg, setBubbleMsg] = useState("Add your debts that we'll pay off together. 💪");
   const [bubbleCelebrate, setBubbleCelebrate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const debtsScrollRef = useRef<any>(null);
 
   useEffect(() => {
     onDraftsChange?.(localDebts);
@@ -2185,9 +2300,14 @@ function DebtEntryScreen({
         return;
       }
       updateDebt(id, { _introEndsError: "" });
-      const introAprRaw = (d.introApr ?? "").trim();
-      const introAprN = parseFloat(introAprRaw);
-      if (!introAprRaw || isNaN(introAprN) || introAprN < 0) {
+      const introAprRaw = String(d.introApr ?? "").trim();
+      const introAprN = Number.parseFloat(introAprRaw);
+      if (
+        introAprRaw === "" ||
+        !Number.isFinite(introAprN) ||
+        introAprN < 0 ||
+        introAprN > 100
+      ) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
@@ -2227,7 +2347,7 @@ function DebtEntryScreen({
         taxPaymentPlan: d.typeKey === "taxDebt" ? d.onPlan : undefined,
         ...(!isTax && d.hasIntro && introEndsParsed
           ? {
-              introApr: parseFloat((d.introApr ?? "").trim()),
+              introApr: Number.parseFloat(String(d.introApr ?? "").trim()),
               introEndsMonth: introEndsParsed.month,
               introEndsYear: introEndsParsed.year,
             }
@@ -2270,6 +2390,15 @@ function DebtEntryScreen({
     ));
   };
 
+  const startEditingDebt = (id: string) => {
+    toggleExpand(id);
+    requestAnimationFrame(() => {
+      // Editing opens the expanded form near the top of the step.
+      debtsScrollRef.current?.scrollToPosition?.(0, 0, true);
+      debtsScrollRef.current?.scrollTo?.({ x: 0, y: 0, animated: true });
+    });
+  };
+
   const handleContinue = () => {
     if (localDebts.every(d => !d._saved) && localDebts.length === 1 && !parseFloat(localDebts[0].balance)) {
       setBubbleMsg("Add at least one debt first so I can build your plan! 💪");
@@ -2296,6 +2425,8 @@ function DebtEntryScreen({
   // ── render one open (active) debt card ──────────────────────────────────
   const renderActiveCard = (d: LocalDebt) => {
     const isTax = d.typeKey === "taxDebt";
+    const enteredTaxApr = d.apr.trim() === "" ? null : parseFloat(d.apr);
+    const taxAprNudge = isTax && d.onPlan ? getIrsAprUpdateNotice(enteredTaxApr) : null;
     return (
       <View key={d.id} style={{ backgroundColor: CARD, borderWidth: 2, borderColor: INP_BORDER, borderRadius: 18, padding: 16, marginBottom: 10,
         shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 }}>
@@ -2317,7 +2448,7 @@ function DebtEntryScreen({
                   borderColor: active ? BLUE : INP_BORDER,
                   backgroundColor: active ? BLUE : INP_BG,
                   ...(active ? { shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 3 } : {}) }}>
-                <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14.5, color: active ? "white" : "#2A1F18" }}>{p.label}</Text>
+                <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14.5, color: active ? "white" : "#000000" }}>{p.label}</Text>
               </Pressable>
             );
           })}
@@ -2356,7 +2487,13 @@ function DebtEntryScreen({
           <>
             {/* IRS plan toggle */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <Pressable onPress={() => updateDebt(d.id, { onPlan: !d.onPlan })}
+              <Pressable onPress={() => {
+                const nextOnPlan = !d.onPlan;
+                updateDebt(d.id, {
+                  onPlan: nextOnPlan,
+                  apr: nextOnPlan && !d.apr.trim() ? irsCurrentAprDefault : d.apr,
+                });
+              }}
                 style={{ width: 44, height: 24, borderRadius: 12, backgroundColor: d.onPlan ? BLUE : INP_BORDER, justifyContent: "center", paddingHorizontal: 3 }}>
                 <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: "white",
                   transform: [{ translateX: d.onPlan ? 20 : 0 }],
@@ -2378,20 +2515,35 @@ function DebtEntryScreen({
                 <View style={{ flex: 1 }}>
                   {inpLabel("Interest rate (APR)")}
                   <View style={{ position: "relative" }}>
-                    <TextInput style={[inpStyle, { paddingRight: 26, borderColor: d._aprError ? "#DC2626" : INP_BORDER }]} placeholder="e.g. 7" placeholderTextColor={PLACEHOLDER_TINT}
+                    <TextInput style={[inpStyle, { paddingRight: 26, borderColor: d._aprError ? "#DC2626" : INP_BORDER }]} placeholder="e.g. 6" placeholderTextColor={PLACEHOLDER_TINT}
                       keyboardType="decimal-pad" value={d.apr}
                       onChangeText={t => updateDebt(d.id, { apr: t.replace(/[^0-9.]/g, ""), _aprError: false })} />
                     <Text style={{ position: "absolute", right: 12, top: 0, bottom: 0, textAlignVertical: "center", lineHeight: 46, fontFamily: Fonts.extraBold, fontSize: 15, color: INP_ADORN }}>%</Text>
                   </View>
-                  <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: SECONDARY_CHROME, marginTop: 4, lineHeight: 15 }}>
+                  <Text style={{ fontFamily: Fonts.regular, fontSize: 10.5, color: "#111111", marginTop: 4, lineHeight: 15 }}>
                     {getIrsUnderpaymentAprFieldHint()}
                   </Text>
+                  {taxAprNudge && (
+                    <View style={{ marginTop: 6, backgroundColor: "#F7F2EA", borderWidth: 1.5, borderColor: INP_BORDER, borderRadius: 8, padding: 8 }}>
+                      <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11, color: "#000000", lineHeight: 16 }}>
+                        {taxAprNudge.message}
+                      </Text>
+                      <Pressable
+                        onPress={() => updateDebt(d.id, { apr: String(taxAprNudge.currentApr), _aprError: false })}
+                        style={{ alignSelf: "flex-start", marginTop: 6 }}
+                      >
+                        <Text style={{ fontFamily: Fonts.bold, fontSize: 11.5, color: "#000000" }}>
+                          Use {taxAprNudge.currentApr}% for this quarter
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
                   {d._aprError && <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11.5, color: "#DC2626", marginTop: 3 }}>Enter APR (0% allowed)</Text>}
                 </View>
               </View>
             ) : (
               <View style={{ backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#E8D8B8", borderRadius: 8, padding: 10, marginBottom: 10 }}>
-                <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11.5, color: "#2A1F18", lineHeight: 18 }}>
+                <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11.5, color: "#000000", lineHeight: 18 }}>
                   Not on a formal IRS/state plan yet. Payment and APR details are optional now, and you can add them later.
                 </Text>
               </View>
@@ -2429,7 +2581,9 @@ function DebtEntryScreen({
                   const nextHasIntro = !d.hasIntro;
                   updateDebt(d.id, {
                     hasIntro: nextHasIntro,
-                    introApr: nextHasIntro ? (((d.introApr ?? "").trim()) || "0") : (d.introApr ?? ""),
+                    introApr: nextHasIntro
+                      ? String(d.introApr ?? "").trim() || "0"
+                      : String(d.introApr ?? ""),
                     _introEndsError: "",
                   });
                 }}
@@ -2470,7 +2624,7 @@ function DebtEntryScreen({
                   </View>
                 </View>
                 <View style={{ backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#E8D8B8", borderRadius: 8, padding: 10, marginBottom: 10 }}>
-                  <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11.5, color: "#2A1F18", lineHeight: 18 }}>
+                  <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11.5, color: "#000000", lineHeight: 18 }}>
                     Intro rate applies until this date, then switches to standard APR.
                   </Text>
                 </View>
@@ -2482,11 +2636,11 @@ function DebtEntryScreen({
         {/* Tax debt off-plan has no monthly due day; on-plan uses same as other debts */}
         {(!isTax || d.onPlan) && (
           <View style={{ marginBottom: 10 }}>
-            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14, color: "#2A1F18", marginBottom: 6 }}>
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14, color: "#000000", marginBottom: 6 }}>
               Payment due date
             </Text>
             <DueDayPickerField
-              value={d.dueDate || "1"}
+              value={d.dueDate ?? ""}
               onChangeText={(t) => updateDebt(d.id, { dueDate: t })}
               placeholder="1"
               placeholderTextColor={PLACEHOLDER_TINT}
@@ -2518,14 +2672,18 @@ function DebtEntryScreen({
   // ── render a saved (collapsed) debt pill ─────────────────────────────────
   const renderSavedPill = (d: LocalDebt) => {
     const bal = parseFloat(d.balance) || 0;
+    const minPay = parseFloat(d.minPayment) || 0;
     const apr = parseFloat(d.apr) || 0;
     const dueDay = parseInt(d.dueDate || "1", 10);
     let meta = fmtMoney(bal);
+    if (minPay > 0) meta += ` · payment ${fmtMoney(minPay)}/mo`;
     if (apr > 0) meta += " · " + apr + "% APR";
-    if (Number.isFinite(dueDay) && !(d.typeKey === "taxDebt" && !d.onPlan)) meta += " · due " + dueDay;
+    if (Number.isFinite(dueDay) && !(d.typeKey === "taxDebt" && !d.onPlan)) {
+      meta += ` · due on the ${ordinalDay(dueDay)} of each month`;
+    }
     if (d.typeKey === "taxDebt" && !d.onPlan) meta += " · No plan";
     return (
-      <Pressable key={d.id} onPress={() => toggleExpand(d.id)}
+      <Pressable key={d.id} onPress={() => startEditingDebt(d.id)}
         style={{ backgroundColor: CARD, borderWidth: 2, borderColor: GREEN, borderRadius: 14, padding: 11,
           paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8,
           shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1 }}>
@@ -2548,6 +2706,7 @@ function DebtEntryScreen({
   const activeDebt = localDebts.find(d => !d._saved || d._expanded);
   const savedDebts = localDebts.filter(d => d._saved && !d._expanded);
   const totalBalance = localDebts.reduce((s, d) => s + (parseFloat(d.balance) || 0), 0);
+  const totalMonthlyPayment = localDebts.reduce((s, d) => s + (parseFloat(d.minPayment) || 0), 0);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -2598,11 +2757,12 @@ function DebtEntryScreen({
           borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 8,
           borderLeftColor: "transparent", borderRightColor: "transparent",
           borderBottomColor: bubbleCelebrate ? "#F0FFF4" : CARD }} />
-        <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: "#2A1F18", lineHeight: 21 }}>{bubbleMsg}</Text>
+        <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: "#000000", lineHeight: 21 }}>{bubbleMsg}</Text>
       </View>
 
       {/* ── Scroll area ───────────────────────────────────────────────────── */}
       <KeyboardAwareScrollView
+        ref={debtsScrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 10, paddingHorizontal: 14, paddingBottom: Math.max(botPad, 24) + 20 }}
         showsVerticalScrollIndicator={false}
@@ -2619,6 +2779,9 @@ function DebtEntryScreen({
             <View>
               <Text style={{ fontFamily: Fonts.extraBold, fontSize: 11, color: "rgba(255,255,255,0.78)", textTransform: "uppercase", letterSpacing: 1.6 }}>Total Debt</Text>
               <Text style={{ fontFamily: Fonts.black, fontSize: 23, color: "#FFFFFF" }}>{fmtMoney(totalBalance)}</Text>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "rgba(255,255,255,0.88)", marginTop: 2 }}>
+                Current monthly payment {fmtMoney(totalMonthlyPayment)}/mo
+              </Text>
             </View>
             <View style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10 }}>
               <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: "#FFFFFF" }}>
@@ -2666,7 +2829,7 @@ function DebtEntryScreen({
             start={{ x: 0.13, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
-            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 16, color: "white" }}>Continue to choose payoff method</Text>
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 16, color: "white" }}>Continue to choose your dream</Text>
             {/* shimmer sweep */}
             {!!(savedCount > 0) && (
               <Animated.View pointerEvents="none" style={{
@@ -2721,7 +2884,19 @@ function OnboardingDebtSheet({
   onClose: () => void;
   onSave: (debt: Omit<Debt, "id" | "dateAdded">) => Promise<void> | void;
 }) {
-  const [name, setName] = useState("");
+  const debtTypeOptions: Array<{ value: DebtType; label: string }> = [
+    { value: "creditCard", label: "Credit Card" },
+    { value: "auto", label: "Car Loan" },
+    { value: "studentLoan", label: "Student Loan" },
+    { value: "taxDebt", label: "IRS/Tax" },
+    { value: "medical", label: "Medical" },
+    { value: "businessDebt", label: "Business" },
+    { value: "other", label: "Other" },
+  ];
+  const getSuggestedDebtName = (type: DebtType) =>
+    debtTypeOptions.find((option) => option.value === type)?.label ?? "Debt";
+  const initialSuggestedName = getSuggestedDebtName("creditCard");
+  const [name, setName] = useState(initialSuggestedName);
   const [debtType, setDebtType] = useState<DebtType>("creditCard");
   const [balance, setBalance] = useState("");
   const [aprModeFixed, setAprModeFixed] = useState(true);
@@ -2733,11 +2908,13 @@ function OnboardingDebtSheet({
   const [taxPlan, setTaxPlan] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const autoSuggestedNameRef = useRef<string | null>(initialSuggestedName);
 
   const isTaxDebt = debtType === "taxDebt";
 
   const reset = () => {
-    setName("");
+    const nextSuggestedName = getSuggestedDebtName("creditCard");
+    setName(nextSuggestedName);
     setDebtType("creditCard");
     setBalance("");
     setAprModeFixed(true);
@@ -2748,6 +2925,7 @@ function OnboardingDebtSheet({
     setDueDay(null);
     setTaxPlan(false);
     setErrors({});
+    autoSuggestedNameRef.current = nextSuggestedName;
   };
 
   const validate = () => {
@@ -2794,6 +2972,17 @@ function OnboardingDebtSheet({
 
   const dayLabels = Array.from({ length: 31 }, (_, i) => i + 1);
 
+  useEffect(() => {
+    if (!visible) return;
+    const suggestedName = getSuggestedDebtName(debtType);
+    const trimmed = name.trim();
+    const currentSuggestedName = autoSuggestedNameRef.current;
+    if (trimmed.length === 0 || (currentSuggestedName !== null && trimmed === currentSuggestedName)) {
+      setName(suggestedName);
+      autoSuggestedNameRef.current = suggestedName;
+    }
+  }, [visible, debtType, name]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -2811,11 +3000,11 @@ function OnboardingDebtSheet({
             <View style={{ width: 40, height: 4, borderRadius: 999, backgroundColor: "#D1D5DB" }} />
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 6 }}>
-            <Text style={{ fontFamily: Fonts.extraBold, fontWeight: "800", fontSize: 16, color: "#1A0F08" }}>
+            <Text style={{ fontFamily: Fonts.extraBold, fontWeight: "800", fontSize: 16, color: "#000000" }}>
               Add Debt
             </Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <Ionicons name="close" size={22} color="#5C4A38" />
+              <Ionicons name="close" size={22} color="#000000" />
             </Pressable>
           </View>
 
@@ -2830,7 +3019,17 @@ function OnboardingDebtSheet({
               <Text style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Debt name</Text>
               <TextInput
                 value={name}
-                onChangeText={setName}
+                onChangeText={(v) => {
+                  setName(v);
+                  const trimmed = v.trim();
+                  if (!trimmed) {
+                    autoSuggestedNameRef.current = getSuggestedDebtName(debtType);
+                  } else if (trimmed === getSuggestedDebtName(debtType)) {
+                    autoSuggestedNameRef.current = trimmed;
+                  } else {
+                    autoSuggestedNameRef.current = null;
+                  }
+                }}
                 placeholder="e.g. Credit Card 1"
                 placeholderTextColor="#5C4A38"
                 style={{
@@ -2858,22 +3057,29 @@ function OnboardingDebtSheet({
                   paddingVertical: 6,
                 }}
               >
-                {[
-                  ["creditCard", "Credit Card"],
-                  ["auto", "Car Loan"],
-                  ["studentLoan", "Student Loan"],
-                  ["taxDebt", "IRS/Tax"],
-                  ["medical", "Medical"],
-                  ["businessDebt", "Business"],
-                  ["other", "Other"],
-                ].map(([value, label]) => {
-                  const v = value as DebtType;
+                {debtTypeOptions.map(({ value: v, label }) => {
                   const selected = debtType === v;
                   return (
                     <Pressable
                       key={v}
                       onPress={() => {
                         setDebtType(v);
+                        const suggestedName = getSuggestedDebtName(v);
+                        setName((currentName) => {
+                          const trimmed = currentName.trim();
+                          const currentSuggestedName = autoSuggestedNameRef.current;
+                          const shouldReplaceName =
+                            trimmed.length === 0 ||
+                            (currentSuggestedName !== null && trimmed === currentSuggestedName);
+
+                          if (!shouldReplaceName) {
+                            autoSuggestedNameRef.current = null;
+                            return currentName;
+                          }
+
+                          autoSuggestedNameRef.current = suggestedName;
+                          return suggestedName;
+                        });
                         if (v !== "taxDebt") setTaxPlan(false);
                         Haptics.selectionAsync();
                       }}
@@ -2886,7 +3092,7 @@ function OnboardingDebtSheet({
                     >
                       <Text
                         style={{
-                          color: selected ? "#1A0F08" : "#5C4A38",
+                          color: selected ? "#000000" : "#000000",
                           fontFamily: Fonts.regular,
                         }}
                       >
@@ -2933,7 +3139,7 @@ function OnboardingDebtSheet({
                       backgroundColor: aprModeFixed ? "#C07820" : "transparent",
                     }}
                   >
-                    <Text style={{ fontSize: 11, color: aprModeFixed ? "#FFFFFF" : "#5C4A38" }}>Fixed</Text>
+                    <Text style={{ fontSize: 11, color: aprModeFixed ? "#FFFFFF" : "#000000" }}>Fixed</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => setAprModeFixed(false)}
@@ -2943,7 +3149,7 @@ function OnboardingDebtSheet({
                       backgroundColor: !aprModeFixed ? "#C07820" : "transparent",
                     }}
                   >
-                    <Text style={{ fontSize: 11, color: !aprModeFixed ? "#FFFFFF" : "#5C4A38" }}>Variable</Text>
+                    <Text style={{ fontSize: 11, color: !aprModeFixed ? "#FFFFFF" : "#000000" }}>Variable</Text>
                   </Pressable>
                 </View>
               </View>
@@ -3000,8 +3206,8 @@ function OnboardingDebtSheet({
                     }}
                   />
                   <View style={{ flexDirection: "row", alignItems: "flex-start", marginTop: 4 }}>
-                    <Ionicons name="information-circle-outline" size={14} color="#5C4A38" style={{ marginTop: 1, marginRight: 4 }} />
-                    <Text style={{ flex: 1, fontSize: 11, color: "#5C4A38" }}>
+                    <Ionicons name="information-circle-outline" size={14} color="#000000" style={{ marginTop: 1, marginRight: 4 }} />
+                    <Text style={{ flex: 1, fontSize: 11, color: "#000000" }}>
                       Variable rates change. Enter your best estimate.
                     </Text>
                   </View>
@@ -3048,8 +3254,8 @@ function OnboardingDebtSheet({
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, paddingHorizontal: 4 }}>
-                  <Ionicons name="calendar-outline" size={16} color="#5C4A38" />
-                  <Text style={{ marginLeft: 6, fontSize: 12, color: "#5C4A38" }}>
+                  <Ionicons name="calendar-outline" size={16} color="#000000" />
+                  <Text style={{ marginLeft: 6, fontSize: 12, color: "#000000" }}>
                     Tap a date for this bill. Estimate is fine!
                   </Text>
                 </View>
@@ -3083,7 +3289,7 @@ function OnboardingDebtSheet({
                           <Text
                             style={{
                               fontSize: 12,
-                              color: selected ? "#FFFFFF" : "#1A0F08",
+                              color: selected ? "#FFFFFF" : "#000000",
                               fontFamily: Fonts.regular,
                             }}
                           >
@@ -3104,7 +3310,7 @@ function OnboardingDebtSheet({
                   <Text style={{ fontSize: 13, color: "#374151", marginBottom: 2 }}>
                     On payment plan?
                   </Text>
-                  <Text style={{ fontSize: 11, color: "#5C4A38" }}>
+                  <Text style={{ fontSize: 11, color: "#000000" }}>
                     Only applies to IRS/state debts.
                   </Text>
                 </View>
@@ -3423,12 +3629,21 @@ const STRAT_SAMPLE_DEBTS: StratDebtRow[] = [
 
 const STRAT_MAX_MONTHS = 600;
 
+/**
+ * Guard against malformed APR scaling in onboarding snapshots.
+ * Some imported/legacy paths can surface APR as basis points (e.g. 2800 for 28%).
+ */
+function normalizeAprForSim(apr: number): number {
+  if (!Number.isFinite(apr) || apr < 0) return 0;
+  return apr > 1000 ? apr / 100 : apr;
+}
+
 function stratRowsToEngineDebts(rows: StratDebtRow[]): Debt[] {
   return rows.map((d, i) => ({
     id: `onb-strat-${i}`,
     name: d.name,
     balance: d.balance,
-    apr: d.rate,
+    apr: normalizeAprForSim(d.rate),
     minimumPayment: d.minPay,
     debtType: d.debtType,
     isSecured: d.debtType === "auto",
@@ -3454,6 +3669,10 @@ function firstPayoffMonthFromSnapshots(snapshots: MonthlySnapshot[]): number | n
 function payoffMonthForDebtId(snapshots: MonthlySnapshot[], debtId: string): number | null {
   for (const s of snapshots) {
     if (s.paidOffDebts.includes(debtId)) return s.month;
+    const debtRow = s.debtBreakdown.find((d) => d.debtId === debtId);
+    // Fallback for runs where the paid-off event marker is missed:
+    // treat near-zero balance as paid for display purposes.
+    if (debtRow && debtRow.balance <= 0.01) return s.month;
   }
   return null;
 }
@@ -3526,6 +3745,7 @@ function PayoffStrategyScreen({
 }) {
   type StratKey = "avalanche" | "snowball";
   const [sel, setSel] = useState<StratKey | null>(null);
+  const [ctaError, setCtaError] = useState("");
   const [showMinimumComparison, setShowMinimumComparison] = useState(false);
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
@@ -3547,13 +3767,22 @@ function PayoffStrategyScreen({
     () => (engineDebts.length ? runStrategy(engineDebts, safeExtra, "avalanche") : null),
     [engineDebts, safeExtra]
   );
-  const sbBaseRun = useMemo(
-    () => (engineDebts.length ? runStrategy(engineDebts, 0, "snowball") : null),
-    [engineDebts]
-  );
-  const avBaseRun = useMemo(
+  const minOnlyBaselineRun = useMemo(
     () => (engineDebts.length ? runStrategy(engineDebts, 0, "avalanche") : null),
     [engineDebts]
+  );
+
+  // Only show the "promotional APR" disclosure when at least one debt actually has an intro/promo rate.
+  const hasPromotionalApr = useMemo(
+    () =>
+      stratDebts.some(
+        (d) =>
+          d.introApr != null &&
+          d.introApr > 0 &&
+          d.introEndsMonth != null &&
+          d.introEndsYear != null
+      ),
+    [stratDebts]
   );
 
   const avRes = avRun ? { interest: Math.round(avRun.totalInterestPaid), months: avRun.totalMonths } : { interest: 0, months: 0 };
@@ -3561,37 +3790,18 @@ function PayoffStrategyScreen({
 
   const totalBal = allDebts.reduce((s, d) => s + d.balance, 0);
   const totalMinPayment = stratDebts.reduce((sum, d) => sum + Math.max(0, d.minPay || 0), 0);
-  const firstMonthInterest = stratDebts.reduce(
-    (sum, d) => sum + Math.max(0, d.balance) * (Math.max(0, d.rate) / 100 / 12),
+  const firstMonthInterest = minOnlyBaselineRun?.snapshots?.[0]?.debtBreakdown?.reduce(
+    (sum, row) => sum + Math.max(0, row.interest),
     0
-  );
+  ) ?? 0;
   const monthlyInterestGap = Math.max(0, Math.ceil(firstMonthInterest - totalMinPayment));
 
-  // Per-debt minimum-only baseline (detects non-amortizing debts). Strategy math uses `runStrategy` (intro APR, tax daily, etc.).
-  const baseline = stratDebts.reduce(
-    (acc, d) => {
-      let bal = d.balance;
-      let months = 0;
-      const r = d.rate / 100 / 12;
-      while (bal > 0.01 && months < STRAT_MAX_MONTHS) {
-        months++;
-        const interest = bal * r;
-        acc.interest += interest;
-        bal += interest;
-        bal -= Math.min(d.minPay, bal);
-      }
-      if (bal > 0.01) acc.fullyAmortizes = false;
-      return acc;
-    },
-    { interest: 0, fullyAmortizes: true }
-  );
-
   const interestSavedAvVsSb =
-    indices.length && baseline.fullyAmortizes && sbRun && avRun
+    indices.length && sbRun && avRun
       ? Math.max(0, Math.round(sbRun.totalInterestPaid - avRun.totalInterestPaid))
       : null;
   const firstWinSbMonths =
-    indices.length && baseline.fullyAmortizes && sbRun
+    indices.length && sbRun
       ? firstPayoffMonthFromSnapshots(sbRun.snapshots)
       : null;
   const avalancheTopDebt = useMemo(() => {
@@ -3609,16 +3819,18 @@ function PayoffStrategyScreen({
   const hasVeryLongProjection =
     indices.length > 0 &&
     (avRes.months >= STRAT_MAX_MONTHS || sbRes.months >= STRAT_MAX_MONTHS);
-  const hasNonAmortizingBaseline = indices.length > 0 && !baseline.fullyAmortizes;
+  const hasNonAmortizingBaseline =
+    indices.length > 0 &&
+    ((minOnlyBaselineRun?.totalMonths ?? 0) >= STRAT_MAX_MONTHS);
 
   /** Interest saved vs paying only minimums (same engine rules: intro APR, tax daily, etc.). */
   const saveIntSbVsMin =
-    indices.length > 0 && sbBaseRun && sbRun
-      ? Math.max(0, Math.round(sbBaseRun.totalInterestPaid - sbRun.totalInterestPaid))
+    indices.length > 0 && sbRun
+      ? projectedInterestSavedVsMinimumPayments(engineDebts, sbRun.totalInterestPaid, "snowball")
       : null;
   const saveIntAvVsMin =
-    indices.length > 0 && avBaseRun && avRun
-      ? Math.max(0, Math.round(avBaseRun.totalInterestPaid - avRun.totalInterestPaid))
+    indices.length > 0 && avRun
+      ? projectedInterestSavedVsMinimumPayments(engineDebts, avRun.totalInterestPaid, "avalanche")
       : null;
 
   const shimmerX = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-SW * 0.55, SW * 1.3] });
@@ -3631,6 +3843,10 @@ function PayoffStrategyScreen({
   useEffect(() => {
     setSel((prev) => prev ?? bestSavingsKey);
   }, [bestSavingsKey]);
+
+  useEffect(() => {
+    if (sel && ctaError) setCtaError("");
+  }, [sel, ctaError]);
 
   useEffect(() => {
     Animated.loop(
@@ -3649,7 +3865,7 @@ function PayoffStrategyScreen({
   /** Align with day-complete / intro: warm cream + gold accents */
   const INTRO_DARK = "#1C0F00";
   const DARK = INTRO_DARK;
-  const MUTED = "#3D2200";
+  const MUTED = "#000000";
   const CARD_SEL = "#FFF9F0";
   const WARM_CREAM = "#EDE8DC";
   const BG = WARM_CREAM;
@@ -3661,7 +3877,7 @@ function PayoffStrategyScreen({
   const TOTAL_INT_SAVED_VS_MIN_LBL = "Total interest saved vs min. payments";
 
   const strategyComparisonBundle = useMemo(() => {
-    if (!avBaseRun || !sbRun || !avRun || engineDebts.length === 0) return null;
+    if (!minOnlyBaselineRun || !sbRun || !avRun || engineDebts.length === 0) return null;
     const carDebt = findEngineDebtForCarPayoff(engineDebts);
     const sbCarMo =
       carDebt && sbRun ? payoffMonthForDebtId(sbRun.snapshots, carDebt.id) : null;
@@ -3672,15 +3888,15 @@ function PayoffStrategyScreen({
 
     const minRows: [string, string][] = [
       ["Monthly (start)", fmtUsd0(totalMinPayment)],
-      ["Est. interest", fmtUsd0(Math.round(avBaseRun.totalInterestPaid))],
-      ["Debt-free in", fmtPayoffMonthsCap(avBaseRun.totalMonths)],
-      ["Est. total paid", fmtUsd0(Math.round(avBaseRun.totalPaid))],
+      ["Est. interest", fmtUsd0(Math.round(minOnlyBaselineRun.totalInterestPaid))],
+      ["Debt-free in", fmtPayoffMonthsCap(minOnlyBaselineRun.totalMonths)],
+      ["Est. total paid", fmtUsd0(Math.round(minOnlyBaselineRun.totalPaid))],
       [
         "Quickest win",
         firstPaidOffDebtLabel(
-          avBaseRun.snapshots,
+          minOnlyBaselineRun.snapshots,
           engineDebts,
-          avBaseRun.totalMonths >= STRAT_MAX_MONTHS ? "Not in 50+ yr est." : "—"
+          minOnlyBaselineRun.totalMonths >= STRAT_MAX_MONTHS ? "Not in 50+ yr est." : "—"
         ),
       ],
     ];
@@ -3727,7 +3943,7 @@ function PayoffStrategyScreen({
 
     return { minCol, snowballCol, avalancheCol };
   }, [
-    avBaseRun,
+    minOnlyBaselineRun,
     sbRun,
     avRun,
     engineDebts,
@@ -3740,7 +3956,17 @@ function PayoffStrategyScreen({
   ]);
 
   const continueWithSelection = () => {
-    if (!sel) return;
+    if (!sel) {
+      const msg = "Please choose Debt snowball or Debt avalanche before continuing.";
+      setCtaError(msg);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "Almost there",
+        "Choose a payoff method first (Debt snowball or Debt avalanche), then continue."
+      );
+      return;
+    }
+    setCtaError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onSelect(sel);
   };
@@ -3795,7 +4021,13 @@ function PayoffStrategyScreen({
 
           <View style={{ marginTop: 10, marginBottom: 2, backgroundColor: "#FFFCF7", borderWidth: 2, borderColor: BORDER, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16 }}>
             <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: DARK, lineHeight: 21 }}>
-              Tap <Text style={{ fontFamily: Fonts.extraBold }}>Debt snowball</Text> or <Text style={{ fontFamily: Fonts.extraBold }}>Debt avalanche</Text> in the comparison below to choose. Open the minimum-only baseline anytime from the link there.
+              {"I've chosen "}
+              <Text style={{ fontFamily: Fonts.extraBold }}>
+                {bestSavingsKey === "avalanche" ? "Debt avalanche" : "Debt snowball"}
+              </Text>
+              {" because it has the best savings in interest. If you wish to change, just click "}
+              <Text style={{ fontFamily: Fonts.extraBold }}>Debt snowball or Debt avalanche</Text>
+              {" below. When done click the blue button to continue."}
             </Text>
           </View>
 
@@ -3806,16 +4038,31 @@ function PayoffStrategyScreen({
               marginBottom: 4,
               borderRadius: 14,
               overflow: "hidden",
-              opacity: sel ? 1 : 0.42,
             }}
           >
             <LinearGradient colors={[PRIMARY_BTN_BLUE_START, PRIMARY_BTN_BLUE_END]} start={{ x: 0.13, y: 0 }} end={{ x: 1, y: 1 }}
               style={{ paddingVertical: 13, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ fontFamily: Fonts.extraBold, fontSize: 15, color: "white", textAlign: "center", paddingHorizontal: 12 }}>
-                Go with your choice, continue to my dream
+                Continue to complete setup
               </Text>
             </LinearGradient>
           </Pressable>
+          {!!ctaError && (
+            <Text
+              style={{
+                fontFamily: Fonts.semiBold,
+                fontSize: 13,
+                color: "#B91C1C",
+                lineHeight: 19,
+                marginTop: 8,
+                marginBottom: 2,
+                textAlign: "center",
+                paddingHorizontal: 6,
+              }}
+            >
+              {ctaError}
+            </Text>
+          )}
 
           <View
             style={{
@@ -3843,7 +4090,25 @@ function PayoffStrategyScreen({
             </View>
           </View>
 
-          {stratDebts.length > 0 && avBaseRun && sbRun && avRun && strategyComparisonBundle && (
+          {onboardingDebts.length > 0 && stratDebts.length > 0 && hasNonAmortizingBaseline && hasVeryLongProjection && (
+            <View style={{ marginTop: 14, backgroundColor: "#FFF7ED", borderWidth: 1.5, borderColor: "#FDBA74", borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+              <Text style={{ fontSize: 20, lineHeight: 24 }}>⚠️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14, color: WarmContrast.textOnYellowBold, marginBottom: 4 }}>
+                  Current payments are too low for a useful estimate
+                </Text>
+                <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: "#000000", lineHeight: 19, marginBottom: 10 }}>
+                  That is why you are seeing "N/A" savings and very long payoff time estimates. Add about {fmtUsd0(monthlyInterestGap)}/mo above minimums to start reducing balances reliably, then these projections will become more meaningful.
+                </Text>
+                <Pressable onPress={onBack} style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: "#EA580C", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, gap: 4 }}>
+                  <Ionicons name="chevron-back" size={14} color="white" />
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "white" }}>Edit payments</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {stratDebts.length > 0 && minOnlyBaselineRun && sbRun && avRun && strategyComparisonBundle && (
             <View
               style={{
                 marginTop: 14,
@@ -3857,8 +4122,8 @@ function PayoffStrategyScreen({
               <Text
                 style={{
                   fontFamily: Fonts.extraBold,
-                  fontSize: 12,
-                  color: BLUE,
+                  fontSize: 13,
+                  color: DARK,
                   textTransform: "uppercase",
                   letterSpacing: 1.4,
                   marginBottom: 6,
@@ -3867,89 +4132,40 @@ function PayoffStrategyScreen({
                 Snowball vs. avalanche
               </Text>
               <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13, color: DARK, lineHeight: 20, marginBottom: 10 }}>
-                At your committed{" "}
-                <Text style={{ fontFamily: Fonts.extraBold, color: DARK }}>{fmtUsd0(totalMinPayment + safeExtra)}/mo</Text>, compare the two methods side by side.
+                <Text style={{ fontFamily: Fonts.extraBold, color: DARK }}>Bottom line:</Text> versus paying only minimums, avalanche saves about{" "}
+                <Text style={{ fontFamily: Fonts.black, color: DARK }}>{fmtUsd0(saveIntAvVsMin ?? 0)}</Text> in interest and snowball about{" "}
+                <Text style={{ fontFamily: Fonts.black, color: DARK }}>{fmtUsd0(saveIntSbVsMin ?? 0)}</Text>.
+                {interestSavedAvVsSb != null && interestSavedAvVsSb > 0
+                  ? ` Same ${fmtUsd0(totalMinPayment + safeExtra)}/mo budget - avalanche beats snowball by about ${fmtUsd0(interestSavedAvVsSb)} in interest.`
+                  : ""}
               </Text>
               {saveIntAvVsMin != null && saveIntAvVsMin > 0 && (
                 <View
                   style={{
-                    backgroundColor: "#DCFCE7",
+                    backgroundColor: "#F7FFF9",
                     borderRadius: 14,
                     paddingVertical: 12,
                     paddingHorizontal: 14,
                     marginBottom: 12,
                     borderWidth: 2,
-                    borderColor: "#86EFAC",
+                    borderColor: "#4ADE80",
                   }}
                 >
                   <Text
                     style={{
                       fontFamily: Fonts.extraBold,
                       fontSize: 13,
-                      color: "#14532D",
+                      color: DARK,
                       textAlign: "center",
-                      lineHeight: 20,
+                      lineHeight: 22,
                     }}
                   >
                     Estimated interest saved vs. minimums only:{" "}
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: "#15803D" }}>{fmtUsd0(saveIntSbVsMin ?? 0)}</Text>
+                    <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: DARK }}>{fmtUsd0(saveIntSbVsMin ?? 0)}</Text>
                     {" "}snowball ·{" "}
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: "#15803D" }}>{fmtUsd0(saveIntAvVsMin)}</Text>
+                    <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: DARK }}>{fmtUsd0(saveIntAvVsMin)}</Text>
                     {" "}avalanche
                   </Text>
-                </View>
-              )}
-              <Pressable
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setShowMinimumComparison((v) => !v);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: showMinimumComparison }}
-                style={{ alignSelf: "flex-start", marginBottom: showMinimumComparison ? 10 : 4 }}
-              >
-                <Text
-                  style={{
-                    fontFamily: Fonts.extraBold,
-                    fontSize: 14,
-                    color: BLUE,
-                    textDecorationLine: "underline",
-                  }}
-                >
-                  {showMinimumComparison ? "Hide minimum-only comparison" : "See minimum-only comparison"}
-                </Text>
-              </Pressable>
-              {showMinimumComparison && (
-                <View
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderRadius: 14,
-                    padding: 12,
-                    borderWidth: 2,
-                    borderColor: strategyComparisonBundle.minCol.border,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: DARK }}>{strategyComparisonBundle.minCol.title}</Text>
-                  <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11, color: MUTED, marginBottom: 10, lineHeight: 15 }}>
-                    {strategyComparisonBundle.minCol.sub}
-                  </Text>
-                  {strategyComparisonBundle.minCol.rows.map(([lbl, val]) => (
-                    <View key={`min-${lbl}`} style={{ marginBottom: 8 }}>
-                      <Text
-                        style={{
-                          fontFamily: Fonts.bold,
-                          fontSize: 9,
-                          color: MUTED,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.6,
-                        }}
-                      >
-                        {lbl}
-                      </Text>
-                      <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: DARK, lineHeight: 18 }}>{val}</Text>
-                    </View>
-                  ))}
                 </View>
               )}
               <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
@@ -3987,10 +4203,10 @@ function PayoffStrategyScreen({
                                 end={{ x: 1, y: 1 }}
                                 style={{ alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 }}
                               >
-                                <Text style={{ fontFamily: Fonts.extraBold, fontSize: 9, color: "white", textTransform: "uppercase", letterSpacing: 0.6 }}>Popular</Text>
+                                <Text style={{ fontFamily: Fonts.extraBold, fontSize: 10, color: "white", textTransform: "uppercase", letterSpacing: 0.6 }}>Popular</Text>
                               </LinearGradient>
                             )}
-                            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: DARK }}>{col.title}</Text>
+                            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 15, color: DARK }}>{col.title}</Text>
                           </View>
                           <View
                             style={{
@@ -4017,7 +4233,7 @@ function PayoffStrategyScreen({
                             ) : null}
                           </View>
                         </View>
-                        <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11, color: MUTED, marginBottom: 10, lineHeight: 15 }}>{col.sub}</Text>
+                        <Text style={{ fontFamily: Fonts.semiBold, fontSize: 12, color: MUTED, marginBottom: 10, lineHeight: 18 }}>{col.sub}</Text>
                         {col.rows.map(([lbl, val]) => {
                           const highlightSave = lbl === TOTAL_INT_SAVED_VS_MIN_LBL;
                           return (
@@ -4025,8 +4241,8 @@ function PayoffStrategyScreen({
                               <Text
                                 style={{
                                   fontFamily: Fonts.bold,
-                                  fontSize: highlightSave ? 10 : 9,
-                                  color: highlightSave ? "#166534" : MUTED,
+                                  fontSize: highlightSave ? 11 : 10,
+                                  color: highlightSave ? DARK : MUTED,
                                   textTransform: "uppercase",
                                   letterSpacing: 0.6,
                                 }}
@@ -4036,9 +4252,9 @@ function PayoffStrategyScreen({
                               <Text
                                 style={{
                                   fontFamily: Fonts.black,
-                                  fontSize: highlightSave ? 15 : 13,
-                                  color: highlightSave ? "#15803D" : DARK,
-                                  lineHeight: highlightSave ? 20 : 18,
+                                  fontSize: highlightSave ? 16 : 15,
+                                  color: DARK,
+                                  lineHeight: highlightSave ? 21 : 20,
                                 }}
                               >
                                 {val}
@@ -4051,15 +4267,68 @@ function PayoffStrategyScreen({
                   })}
                 </View>
               </ScrollView>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setShowMinimumComparison((v) => !v);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showMinimumComparison }}
+                style={{ alignSelf: "flex-start", marginTop: 10, marginBottom: showMinimumComparison ? 10 : 4 }}
+              >
+                <Text
+                  style={{
+                    fontFamily: Fonts.regular,
+                    fontSize: 14,
+                    color: BLUE,
+                    textDecorationLine: "underline",
+                  }}
+                >
+                  {showMinimumComparison ? "Hide minimum-only comparison" : "See minimum-only comparison"}
+                </Text>
+              </Pressable>
+              {showMinimumComparison && (
+                <View
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 14,
+                    padding: 12,
+                    borderWidth: 2,
+                    borderColor: strategyComparisonBundle.minCol.border,
+                    marginBottom: 12,
+                  }}
+                >
+                  <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: DARK }}>{strategyComparisonBundle.minCol.title}</Text>
+                  <Text style={{ fontFamily: Fonts.semiBold, fontSize: 12, color: MUTED, marginBottom: 10, lineHeight: 18 }}>
+                    {strategyComparisonBundle.minCol.sub}
+                  </Text>
+                  {strategyComparisonBundle.minCol.rows.map(([lbl, val]) => (
+                    <View key={`min-${lbl}`} style={{ marginBottom: 8 }}>
+                      <Text
+                        style={{
+                          fontFamily: Fonts.bold,
+                          fontSize: 10,
+                          color: MUTED,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.6,
+                        }}
+                      >
+                        {lbl}
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: DARK, lineHeight: 20 }}>{val}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               {saveIntAvVsMin != null && saveIntAvVsMin > 0 && (
                 <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: DARK, marginTop: 12, lineHeight: 20 }}>
-                  <Text style={{ fontFamily: Fonts.extraBold, color: "#15803D" }}>Bottom line:</Text> versus paying only minimums, avalanche saves about{" "}
-                  <Text style={{ fontFamily: Fonts.black, color: "#15803D" }}>{fmtUsd0(saveIntAvVsMin)}</Text> in interest and snowball about{" "}
-                  <Text style={{ fontFamily: Fonts.black, color: "#15803D" }}>{fmtUsd0(saveIntSbVsMin ?? 0)}</Text>.
+                  <Text style={{ fontFamily: Fonts.extraBold, color: DARK }}>Bottom line:</Text> versus paying only minimums, avalanche saves about{" "}
+                  <Text style={{ fontFamily: Fonts.black, color: DARK }}>{fmtUsd0(saveIntAvVsMin)}</Text> in interest and snowball about{" "}
+                  <Text style={{ fontFamily: Fonts.black, color: DARK }}>{fmtUsd0(saveIntSbVsMin ?? 0)}</Text>.
                   {interestSavedAvVsSb != null && interestSavedAvVsSb > 0
-                    ? ` Same ${fmtUsd0(totalMinPayment + safeExtra)}/mo budget — avalanche beats snowball by about ${fmtUsd0(interestSavedAvVsSb)} in interest.`
+                    ? ` Same ${fmtUsd0(totalMinPayment + safeExtra)}/mo budget - avalanche beats snowball by about ${fmtUsd0(interestSavedAvVsSb)} in interest.`
                     : interestSavedAvVsSb === 0
-                      ? ` Same ${fmtUsd0(totalMinPayment + safeExtra)}/mo budget — snowball and avalanche tie on interest for your debts.`
+                      ? ` Same ${fmtUsd0(totalMinPayment + safeExtra)}/mo budget - snowball and avalanche tie on interest for your debts. That's normal, not a bug. Choose snowball for motivation (quick wins) or avalanche to target highest APR first; outcomes can differ as balances and rates change.`
                       : ""}
                 </Text>
               )}
@@ -4079,24 +4348,6 @@ function PayoffStrategyScreen({
               <Ionicons name="chevron-back" size={14} color="white" />
               <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "white" }}>Update debts</Text>
             </Pressable>
-          </View>
-        )}
-
-        {onboardingDebts.length > 0 && stratDebts.length > 0 && hasNonAmortizingBaseline && hasVeryLongProjection && (
-          <View style={{ backgroundColor: "#FFF7ED", borderWidth: 1.5, borderColor: "#FDBA74", borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-            <Text style={{ fontSize: 20, lineHeight: 24 }}>⚠️</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14, color: WarmContrast.textOnYellowBold, marginBottom: 4 }}>
-                Current payments are too low for a useful estimate
-              </Text>
-              <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: "#78350F", lineHeight: 19, marginBottom: 10 }}>
-                That is why you are seeing "N/A" savings and very long payoff time estimates. Add about {fmtUsd0(monthlyInterestGap)}/mo above minimums to start reducing balances reliably, then these projections will become more meaningful.
-              </Text>
-              <Pressable onPress={onBack} style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: "#EA580C", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, gap: 4 }}>
-                <Ionicons name="chevron-back" size={14} color="white" />
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "white" }}>Edit payments</Text>
-              </Pressable>
-            </View>
           </View>
         )}
 
@@ -4122,7 +4373,7 @@ function PayoffStrategyScreen({
               <Text style={{ fontFamily: Fonts.extraBold, fontSize: 14, color: WarmContrast.textOnYellowBold, marginBottom: 4 }}>
                 Interest rates are set to 0%
               </Text>
-              <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: "#78350F", lineHeight: 19, marginBottom: 10 }}>
+              <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: "#000000", lineHeight: 19, marginBottom: 10 }}>
                 Your debts show no interest, so the planner can't calculate savings. Go back and add APR rates to get real payoff projections.
               </Text>
               <Pressable onPress={onBack} style={{ flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: "#F59E0B", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, gap: 4 }}>
@@ -4146,7 +4397,7 @@ function PayoffStrategyScreen({
           <LinearGradient colors={[PRIMARY_BTN_BLUE_START, PRIMARY_BTN_BLUE_END]} start={{ x: 0.13, y: 0 }} end={{ x: 1, y: 1 }}
             style={{ paddingVertical: 15, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ fontFamily: Fonts.extraBold, fontSize: 17, color: "white" }}>
-              Continue to Dream Goal →
+              Continue to Make It Official →
             </Text>
             <Animated.View pointerEvents="none" style={{
               position: "absolute", top: 0, bottom: 0, width: "55%",
@@ -4177,7 +4428,10 @@ function PayoffStrategyScreen({
           }}
         >
           <Text style={{ fontFamily: Fonts.semiBold, fontSize: 11, color: MUTED, textAlign: "center", lineHeight: 16 }}>
-            Estimates use dollar amounts in standard US format. Payoff math only includes debts that have a minimum payment. Tax debt without a formal payment plan is left out of the strategy math, but your total balance still includes every debt. Payoff time is capped at about 50 years in the calculator. If you see that long a horizon, minimums may not be covering interest on every debt. You can edit amounts or add extra payment later. Assumes no new charges. Real results will vary. If you entered a promotional APR and end date, interest uses that through the intro period (strategy order still uses your standard APR).
+            Estimates use dollar amounts in standard US format. Payoff math only includes debts that have a minimum payment. Tax debt without a formal payment plan is left out of the strategy math, but your total balance still includes every debt. Payoff time is capped at about 50 years in the calculator. If you see that long a horizon, minimums may not be covering interest on every debt. You can edit amounts or add extra payment later. Assumes no new charges. Real results will vary.
+            {hasPromotionalApr
+              ? " If you entered a promotional APR and end date, interest uses that through the intro period (strategy order still uses your standard APR)."
+              : ""}
           </Text>
         </View>
       </ScrollView>
@@ -4240,8 +4494,8 @@ export function DreamGoalScreen({
   const BLUE   = "#1A6FC4";
   const GOLD   = "#F5C030";
   /** True black on cream (avoid brown-tinted browns on this step). */
-  const DARK   = "#1A0A00";
-  const MUTED  = "#3D2200";
+  const DARK   = "#000000";
+  const MUTED  = "#000000";
   const PLACEHOLDER_BLACK = "rgba(0,0,0,0.45)";
   const BORDER = "#E0D8CE";
 
@@ -4260,21 +4514,31 @@ export function DreamGoalScreen({
   ];
 
   const initialNameTrim = (initialDreamName ?? "").trim();
+  const parseDreamTokens = (v: string): string[] =>
+    (v || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const normalize = (v: string): string => v.trim().toLowerCase();
+  const extractSelectedTiles = (tokens: string[]): string[] =>
+    DREAM_TILES
+      .map((t) => t.name)
+      .filter((name) => tokens.some((token) => normalize(token) === normalize(name)));
+  const initialTokens = parseDreamTokens(initialNameTrim);
+  const initialSelectedTiles = extractSelectedTiles(initialTokens);
   const initialCostStr = initialDreamCost === undefined || initialDreamCost === null
     ? ""
     : String(initialDreamCost).replace(/[^0-9]/g, "");
-  const matchedTile = initialNameTrim
-    ? DREAM_TILES.find((t) => t.name.toLowerCase() === initialNameTrim.toLowerCase())
-    : undefined;
 
   const [dreamName,   setDreamName]   = useState(initialNameTrim);
   const [dreamCost,   setDreamCost]   = useState(initialCostStr);
-  const [customDream, setCustomDream] = useState(matchedTile ? "" : initialNameTrim);
-  const [selTile,     setSelTile]     = useState(matchedTile ? matchedTile.name : "");
+  const [customDream, setCustomDream] = useState(initialNameTrim);
+  const [selTiles,    setSelTiles]    = useState<string[]>(initialSelectedTiles);
   const [extraPerDay, setExtraPerDay] = useState(0);
   const [extraMonthlyInput, setExtraMonthlyInput] = useState("");
+  const [ctaError, setCtaError] = useState("");
   const [bubbleText,  setBubbleText]  = useState(
-    "Choose a dream that motivates you to stay consistent. Pick one below (or type your own), add a rough cost, then continue. 🌟"
+    "Choose one thing that motivates you the most. Pick one below (or type your own), add a rough cost, then continue. 🌟"
   );
   const [bubbleLit,   setBubbleLit]   = useState(false);
   const parseWholeMoney = (v: string): number => {
@@ -4308,16 +4572,14 @@ export function DreamGoalScreen({
   // Prefill dream name + cost when opening from Settings.
   useEffect(() => {
     const nameTrim = (initialDreamName ?? "").trim();
+    const tokens = parseDreamTokens(nameTrim);
     const costStr = initialDreamCost === undefined || initialDreamCost === null
       ? ""
       : String(initialDreamCost).replace(/[^0-9]/g, "");
-    const tile = nameTrim
-      ? DREAM_TILES.find((t) => t.name.toLowerCase() === nameTrim.toLowerCase())
-      : undefined;
     setDreamName(nameTrim);
     setDreamCost(costStr);
-    setSelTile(tile ? tile.name : "");
-    setCustomDream(tile ? "" : nameTrim);
+    setSelTiles(extractSelectedTiles(tokens));
+    setCustomDream(nameTrim);
   }, [initialDreamName, initialDreamCost]);
 
   const shimmerX = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-SW * 0.55, SW * 1.3] });
@@ -4336,7 +4598,7 @@ export function DreamGoalScreen({
           id: d.id,
           name: d.name,
           balance: Math.max(0, Number(d.balance) || 0),
-          rate: Math.max(0, Number(d.apr) || 0),
+          rate: normalizeAprForSim(Math.max(0, Number(d.apr) || 0)),
           minimumPayment: Math.max(0, Number(d.minimumPayment) || 0),
         }))
     : [
@@ -4354,7 +4616,7 @@ export function DreamGoalScreen({
       rate: d.rate,
       minimumPayment: d.minimumPayment,
     }));
-    const result = simulateDebtPayoffMonths(simDebts, extraMonthly, 720);
+    const result = simulateDebtPayoffMonths(simDebts, extraMonthly, MAX_SIM_MONTHS);
     payoffCacheRef.current.set(extraMonthly, result);
     return result;
   }
@@ -4368,9 +4630,7 @@ export function DreamGoalScreen({
     return `${y.toLocaleString("en-US")} yr${y > 1 ? "s" : ""}${m > 0 ? ` ${m} mo.` : ""}`;
   }
 
-  const firstMonthInterestTotal = dreamFirstMonthInterest(
-    eff.map((d) => ({ balance: d.balance, rate: d.rate, minimumPayment: d.minimumPayment }))
-  );
+  const firstMonthInterestTotal = useMemo(() => dreamFirstMonthInterest(eff), [eff]);
 
   function getTargetDate(months: number): string {
     if (months >= 999) return "Unknown";
@@ -4381,9 +4641,21 @@ export function DreamGoalScreen({
 
   const sliderMonthly = Math.max(0, Math.round(extraPerDay * 30.44));
   const customExtraMonthly = parseWholeMoney(extraMonthlyInput);
-  const usingCustomExtra = customExtraMonthly > 0;
+  const usingCustomExtra = customExtraMonthly > sliderMonthly;
   const extraMonthly  = usingCustomExtra ? customExtraMonthly : sliderMonthly;
   const effectivePerDay = extraMonthly / 30.44;
+
+  const handleExtraPerDayChange = useCallback((v: number) => {
+    const nextPerDay = typeof v === "number" && Number.isFinite(v) ? v : 0;
+    const nextSliderMonthly = Math.max(0, Math.round(nextPerDay * 30.44));
+    setExtraPerDay(nextPerDay);
+    // Keep monthly field in sync with slider unless user typed a higher monthly override.
+    setExtraMonthlyInput((prev) => {
+      const prevMonthly = parseWholeMoney(prev);
+      if (prevMonthly <= nextSliderMonthly) return formatWholeMoney(nextSliderMonthly);
+      return prev;
+    });
+  }, []);
 
   useEffect(() => {
     if (usingCustomExtra || extraPerDay > 0) {
@@ -4402,6 +4674,7 @@ export function DreamGoalScreen({
 
   const debtMonths    = calcDebtPayoff(extraMonthly);
   const savingsMo     = totalMin + extraMonthly;
+  const monthlyInterestGap = Math.max(0, Math.ceil(firstMonthInterestTotal - totalMin));
   const paymentCoversInterest = savingsMo > firstMonthInterestTotal;
 
   function fmtDebtPayoff(months: number): string {
@@ -4416,12 +4689,39 @@ export function DreamGoalScreen({
   }
   const canStartDreamTimeline = Number.isFinite(debtMonths);
   const cost          = parseWholeMoney(dreamCost);
+  const hasDreamName  = !!dreamName.trim();
   const dreamMonthsN  = dreamName && cost > 0 && canStartDreamTimeline ? monthsToSavingsGoal(savingsMo, cost, 0.04) : null;
   const totalMonthsN =
     dreamMonthsN !== null && Number.isFinite(debtMonths)
       ? debtMonths + dreamMonthsN
       : null;
   const showVision    = !!(dreamName && cost > 0 && dreamMonthsN !== null);
+  const extraEncouragementOptions = useMemo(() => {
+    if (!dreamName || cost <= 0 || !canStartDreamTimeline) return [];
+    const baseTotalMonths = totalMonthsN;
+    if (baseTotalMonths == null || !Number.isFinite(baseTotalMonths)) return [];
+    const perDayBoosts = [1, 3, 5];
+    return perDayBoosts
+      .map((perDay, idx) => {
+        const boostMonthly = Math.max(0, Math.round(perDay * 30.44));
+        const nextExtraMonthly = extraMonthly + boostMonthly;
+        const nextDebtMonths = calcDebtPayoff(nextExtraMonthly);
+        if (!Number.isFinite(nextDebtMonths)) return null;
+        const nextSavingsMonthly = totalMin + nextExtraMonthly;
+        const nextDreamMonths = monthsToSavingsGoal(nextSavingsMonthly, cost, 0.04);
+        if (nextDreamMonths == null) return null;
+        const nextTotalMonths = nextDebtMonths + nextDreamMonths;
+        const soonerMonths = Math.max(0, Math.round(baseTotalMonths - nextTotalMonths));
+        if (soonerMonths <= 0) return null;
+        return {
+          label: ["A", "B", "C"][idx],
+          perDay,
+          boostMonthly,
+          soonerMonths,
+        };
+      })
+      .filter((v): v is { label: string; perDay: number; boostMonthly: number; soonerMonths: number } => v !== null);
+  }, [dreamName, cost, canStartDreamTimeline, totalMonthsN, extraMonthly, totalMin, calcDebtPayoff]);
 
   useEffect(() => {
     if (canStartDreamTimeline) {
@@ -4435,16 +4735,28 @@ export function DreamGoalScreen({
     return () => clearTimeout(t);
   }, [canStartDreamTimeline, eff.length]);
 
+  useEffect(() => {
+    if (hasDreamName && cost > 0 && ctaError) setCtaError("");
+  }, [hasDreamName, cost, ctaError]);
+
   function pickDream(tile: { emoji: string; name: string }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelTile(tile.name);
-    setDreamName(tile.name);
-    setCustomDream("");
+    setCustomDream((prev) => {
+      const tokens = parseDreamTokens(prev);
+      const has = tokens.some((token) => normalize(token) === normalize(tile.name));
+      const nextTokens = has
+        ? tokens.filter((token) => normalize(token) !== normalize(tile.name))
+        : [...tokens, tile.name];
+      const nextInput = nextTokens.join(", ");
+      setSelTiles(extractSelectedTiles(nextTokens));
+      setDreamName(nextInput.trim());
+      return nextInput;
+    });
     const lines = [
-      `I LOVE that dream - ${tile.name}! Let's make it real. 🌟`,
-      `YES! You deserve this! 🎉`,
-      `Amazing! Picture yourself there, debt-free with money to spare. 💪`,
-      `That's a GREAT dream. You'll get there fast! 🚀`,
+      `I LOVE that dream - ${tile.name}! Add more dreams if you want, then estimate your cost below. 🌟`,
+      `YES! You deserve this! 🎉 Add an estimated cost below so we can map the timeline.`,
+      `Amazing! Picture yourself there, debt-free with money to spare. 💪 Now add an estimated cost below.`,
+      `That's a GREAT dream. You'll get there fast! 🚀 Add an estimated cost below to continue.`,
     ];
     setBubbleText(lines[Math.floor(Math.random() * lines.length)]);
     setBubbleLit(true);
@@ -4492,7 +4804,7 @@ export function DreamGoalScreen({
           <DexCoin size={72} mood={ONBOARDING_DEX.step4Dream.mood} motion={ONBOARDING_DEX.step4Dream.motion} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: DARK, lineHeight: 30 }}>
-              Pick a <Text style={{ color: BLUE, fontStyle: "italic" }}>dream</Text> that keeps you consistent.
+              Choose one thing that keeps you consistent.
             </Text>
           </View>
         </View>
@@ -4517,14 +4829,14 @@ export function DreamGoalScreen({
         {/* ── Dream picker card ── */}
         <View style={{ backgroundColor: "#fff", borderWidth: 2, borderColor: BORDER, borderRadius: 18, padding: 16, marginBottom: 10 }}>
           <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: DARK, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-            What are you saving for?
+            Choose one thing that motivates you most
           </Text>
 
           {/* 3×3 tile grid — 3 rows of 3 */}
           {[DREAM_TILES.slice(0,3), DREAM_TILES.slice(3,6), DREAM_TILES.slice(6,9)].map((row, ri) => (
             <View key={ri} style={{ flexDirection: "row", gap: 8, marginBottom: ri < 2 ? 8 : 12 }}>
               {row.map(tile => {
-                const isSel = selTile === tile.name;
+                const isSel = selTiles.includes(tile.name);
                 return (
                   <Pressable
                     key={tile.name}
@@ -4551,13 +4863,18 @@ export function DreamGoalScreen({
           <TextInput
             style={{ backgroundColor: "#F7F2EA", borderWidth: 2, borderColor: BORDER, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 13, fontFamily: Fonts.bold, fontSize: 16, color: DARK, marginBottom: 14 }}
             value={customDream}
-            onChangeText={v => { setCustomDream(v); if (v.trim()) { setDreamName(v.trim()); setSelTile(""); } else if (!selTile) setDreamName(""); }}
-            placeholder="Or type any goal you want..."
+            onChangeText={v => {
+              setCustomDream(v);
+              const tokens = parseDreamTokens(v);
+              setSelTiles(extractSelectedTiles(tokens));
+              setDreamName(v.trim());
+            }}
+            placeholder="Choose one thing, or type your own..."
             placeholderTextColor={PLACEHOLDER_BLACK}
           />
 
           {/* Cost input */}
-          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: DARK, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 4 }}>
+          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: "#111111", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 4 }}>
             Rough cost (estimate is fine)
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F7F2EA", borderWidth: 2, borderColor: BORDER, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 13 }}>
@@ -4576,39 +4893,54 @@ export function DreamGoalScreen({
           </View>
         </View>
 
-        {/* ── Vision card (dark) — shows as soon as a dream is selected ── */}
-        {!!dreamName && (
+        {/* ── Vision card (dark) ── */}
+        {eff.length > 0 && (
           <View style={{ backgroundColor: "#1A0A00", borderRadius: 18, padding: 18, marginBottom: 10 }}>
             <Text style={{ fontFamily: Fonts.black, fontSize: 22, color: "#ffffff", lineHeight: 29, marginBottom: 12 }}>
-              {!cost
-                ? `${dreamName}: enter a cost to see your timeline 👆`
+              {!dreamName
+                ? "Your payoff timeline 💪"
+                : !cost
+                ? `${dreamName} - once debt can be paid down, your timeline opens up 💪`
                 : showVision && totalMonthsN !== null
                   ? `${dreamName} in ${fmt(totalMonthsN)} 💪`
                   : `${dreamName} - once debt can be paid down, your timeline opens up 💪`}
             </Text>
-            <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: "#FFFFFF", lineHeight: 26 }}>
-              {"Debt gone in "}
-              <Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>
-                {fmtDebtPayoff(debtMonths).replace(/\.$/, "")}
-              </Text>
-              {", Paying "}
-              <Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>
-                ${Math.round(savingsMo).toLocaleString("en-US")}
-              </Text>
-              {" per month. "}
-              {canStartDreamTimeline ? (
-                <>
-                  {"Keep saving for "}<Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>{showVision && dreamMonthsN !== null ? fmt(dreamMonthsN) : "..."}</Text>{" to get "}<Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>{dreamName}</Text>{".\n"}
-                  <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.92)" }}>
-                    Saving ${Math.round(savingsMo).toLocaleString("en-US")}/mo at 4% APY after debt
-                  </Text>
-                </>
-              ) : (
-                <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.92)" }}>
-                  Increase monthly payment until it covers interest. Then your {dreamName} timeline will appear.
+            {canStartDreamTimeline ? (
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: "#FFFFFF", lineHeight: 26 }}>
+                {"Your debt will be gone in "}
+                <Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>
+                  {fmtDebtPayoff(debtMonths).replace(/\.$/, "")}
                 </Text>
-              )}
-            </Text>
+                {", with a payment of "}
+                <Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>
+                  ${Math.round(savingsMo).toLocaleString("en-US")}
+                </Text>
+                {" per month. "}
+                {showVision && dreamMonthsN !== null ? (
+                  <>
+                    {"Keep paying for approximately "}<Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>{fmt(dreamMonthsN)}</Text>{" to get your "}<Text style={{ color: GOLD, fontFamily: Fonts.extraBold }}>{dreamName}</Text>{".\n"}
+                    <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.92)" }}>
+                      Assumes saving ${Math.round(savingsMo).toLocaleString("en-US")}/mo at 4% APY after payoff.
+                    </Text>
+                  </>
+                ) : null}
+              </Text>
+            ) : (
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: "rgba(255,255,255,0.92)", lineHeight: 24 }}>
+                Increase your monthly amount to{" "}
+                <Text
+                  onPress={() => {
+                    const needed = Math.max(0, monthlyInterestGap);
+                    setExtraMonthlyInput(needed > 0 ? formatWholeMoney(needed) : "");
+                    Haptics.selectionAsync();
+                  }}
+                  style={{ color: GOLD, fontFamily: Fonts.extraBold, textDecorationLine: "underline" }}
+                >
+                  {`$${monthlyInterestGap.toLocaleString("en-US")}`}
+                </Text>
+                {" so your debt starts going down. You can also adjust it manually below."}
+              </Text>
+            )}
             {!!excludedTaxDebtCount && (
               <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.92)", marginTop: 6 }}>
                 (Excluding tax debt since not in a resolution yet).
@@ -4622,6 +4954,21 @@ export function DreamGoalScreen({
           <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: DARK, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
             Can you commit a little extra per day?
           </Text>
+          <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: DARK, marginBottom: 8 }}>
+            Total committed payment: {fmtMoney(savingsMo)}/mo
+          </Text>
+          {extraEncouragementOptions.length > 0 && (
+            <View style={{ backgroundColor: "#EFF6FF", borderWidth: 1.5, borderColor: "#BFDBFE", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 }}>
+              <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: "#1E3A5F", marginBottom: 4 }}>
+                Tiny steps get your {dreamName} sooner:
+              </Text>
+              {extraEncouragementOptions.map((opt) => (
+                <Text key={opt.label} style={{ fontFamily: Fonts.semiBold, fontSize: 12.5, color: "#1E40AF", lineHeight: 18 }}>
+                  {opt.label}) +${opt.perDay}/day (+${opt.boostMonthly}/mo) = about {opt.soonerMonths} mo sooner
+                </Text>
+              ))}
+            </View>
+          )}
           <View style={{ marginBottom: 8 }}>
             <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: BLUE }}>
               ${usingCustomExtra ? effectivePerDay.toFixed(2) : extraPerDay.toFixed(2)}/day
@@ -4629,47 +4976,44 @@ export function DreamGoalScreen({
           </View>
           {usingCustomExtra ? (
             <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13, color: DARK, lineHeight: 19, marginBottom: 6 }}>
-              Using your custom ${extraMonthly.toLocaleString("en-US")}/mo — clear the field below to use the daily slider.
+              Using your custom ${extraMonthly.toLocaleString("en-US")}/mo — move the slider to switch back.
             </Text>
-          ) : (
-            <>
-              {extraPerDay === 0 && (
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10, paddingRight: 2 }}>
-                  <Animated.View
-                    accessible={false}
-                    importantForAccessibility="no-hide-descendants"
-                    style={{ marginTop: 2, transform: [{ translateX: sliderHintTranslateX }] }}
-                  >
-                    <Ionicons name="arrow-forward" size={22} color={BLUE} />
-                  </Animated.View>
-                  <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13, color: DARK, flex: 1, lineHeight: 19 }}>
-                    Slide right to add extra — the monthly payment in the card above updates as you go.
-                  </Text>
-                </View>
-              )}
-              <Slider
-                style={{ width: "100%", height: 36 }}
-                minimumValue={0}
-                maximumValue={10}
-                step={0.5}
-                value={extraPerDay}
-                onValueChange={(v) => setExtraPerDay(typeof v === "number" && Number.isFinite(v) ? v : 0)}
-                minimumTrackTintColor={BLUE}
-                maximumTrackTintColor={BORDER}
-                thumbTintColor={BLUE}
-                accessibilityLabel="Extra payment per day"
-              />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$0/day</Text>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$2.50</Text>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$5</Text>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$10/day</Text>
-              </View>
-            </>
+          ) : null}
+          {!usingCustomExtra && extraPerDay === 0 && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10, paddingRight: 2 }}>
+              <Animated.View
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                style={{ marginTop: 2, transform: [{ translateX: sliderHintTranslateX }] }}
+              >
+                <Ionicons name="arrow-forward" size={22} color={BLUE} />
+              </Animated.View>
+              <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13, color: DARK, flex: 1, lineHeight: 19 }}>
+                Slide right to add extra — the monthly payment in the card above updates as you go.
+              </Text>
+            </View>
           )}
+          <Slider
+            style={{ width: "100%", height: 36 }}
+            minimumValue={0}
+            maximumValue={10}
+            step={0.5}
+            value={extraPerDay}
+            onValueChange={handleExtraPerDayChange}
+            minimumTrackTintColor={usingCustomExtra ? "#AFC8E8" : BLUE}
+            maximumTrackTintColor={BORDER}
+            thumbTintColor={usingCustomExtra ? "#FFFFFF" : BLUE}
+            accessibilityLabel="Extra payment per day"
+          />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$0/day</Text>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$2.50</Text>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$5</Text>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: DARK }}>$10/day</Text>
+          </View>
 
           <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: DARK, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 14 }}>
-            Or set a custom extra / month (optional)
+            Or set a custom extra / month
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F7F2EA", borderWidth: 2, borderColor: BORDER, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 4 }}>
             <Text style={{ fontFamily: Fonts.extraBold, fontSize: 16, color: DARK, marginRight: 4 }}>$</Text>
@@ -4690,30 +5034,64 @@ export function DreamGoalScreen({
 
         {/* ── CTA — Gold gradient ── */}
         <Pressable
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onComplete(dreamName || "", cost > 0 ? dreamCost : "", effectivePerDay); }}
+          onPress={() => {
+            if (!hasDreamName || cost <= 0) {
+              const missing: string[] = [];
+              if (!hasDreamName) missing.push("pick or type your dream");
+              if (cost <= 0) missing.push("enter an estimated cost");
+              const inline = `Please ${missing.join(" and ")} before continuing.`;
+              setCtaError(inline);
+              requestAnimationFrame(() => {
+                dreamScrollRef.current?.scrollTo({ y: 0, animated: true });
+              });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Alert.alert(
+                "Almost there",
+                `You're one step away. Please ${missing.join(" and ")} first so we can build your timeline.`
+              );
+              return;
+            }
+            setCtaError("");
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onComplete(dreamName || "", cost > 0 ? dreamCost : "", effectivePerDay);
+          }}
           style={{
             width: "100%",
             borderRadius: 22,
             overflow: "hidden",
             marginBottom: 24,
-            opacity: cost > 0 ? 1 : 0.55,
             shadowColor: GOLD,
             shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: cost > 0 ? 0.45 : 0,
+            shadowOpacity: 0.45,
             shadowRadius: 28,
-            elevation: cost > 0 ? 8 : 0,
+            elevation: 8,
           }}
-          disabled={cost <= 0}
         >
           <LinearGradient colors={["#F5C030", "#D4900A"]} start={{ x: 0.13, y: 0 }} end={{ x: 1, y: 1 }}
             style={{ paddingVertical: 22, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontFamily: Fonts.black, fontSize: 20, color: DARK, letterSpacing: 0.2, textAlign: "center" }}>See My Complete Debt-Free Plan</Text>
+            <Text style={{ fontFamily: Fonts.black, fontSize: 20, color: DARK, letterSpacing: 0.2, textAlign: "center" }}>Choose Payoff Method Next</Text>
             <Text style={{ fontSize: 20, textAlign: "center", marginTop: 4 }}>✨</Text>
             <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, width: "55%", transform: [{ translateX: shimmerX }] }}>
               <LinearGradient colors={["transparent", "rgba(255,255,255,0.35)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
             </Animated.View>
           </LinearGradient>
         </Pressable>
+        {!!ctaError && (
+          <Text
+            style={{
+              fontFamily: Fonts.semiBold,
+              fontSize: 13,
+              color: "#B91C1C",
+              lineHeight: 19,
+              marginTop: -14,
+              marginBottom: 16,
+              textAlign: "center",
+              paddingHorizontal: 4,
+            }}
+          >
+            {ctaError}
+          </Text>
+        )}
 
       </ScrollView>
 
@@ -4745,14 +5123,40 @@ export function DreamGoalScreen({
             </Text>
             <Text style={{ fontFamily: Fonts.semiBold, fontSize: 15, color: DARK, lineHeight: 22, marginBottom: 18 }}>
               {
-                "Right now your committed payment does not cover interest across your debts, so balances may never shrink and we cannot show a real debt-free date. Slide “a little extra per day” up (or add a custom amount per month) until the timeline appears—then you will see your dream date."
+                "Right now your committed payment does not cover interest across your debts, so balances may never shrink and we cannot show a real debt-free date. Move the slider up, or add a custom amount below, until your timeline appears."
               }
             </Text>
+            <Text style={{ fontFamily: Fonts.semiBold, fontSize: 13.5, color: DARK, lineHeight: 20, marginBottom: 14 }}>
+              {`Need a shortcut? Tap below to auto-fill the lowest extra needed right now (+$${monthlyInterestGap.toLocaleString("en-US")}/mo).`}
+            </Text>
+            <Pressable
+              onPress={() => {
+                const needed = Math.max(0, monthlyInterestGap);
+                setExtraMonthlyInput(needed > 0 ? formatWholeMoney(needed) : "");
+                setShowPaydownModal(false);
+                requestAnimationFrame(() =>
+                  dreamScrollRef.current?.scrollTo({ y: 0, animated: true })
+                );
+              }}
+              style={{
+                backgroundColor: "#F7F2EA",
+                borderRadius: 12,
+                paddingVertical: 13,
+                alignItems: "center",
+                marginBottom: 10,
+                borderWidth: 1.5,
+                borderColor: BORDER,
+              }}
+            >
+              <Text style={{ fontFamily: Fonts.extraBold, fontSize: 15, color: DARK }}>
+                {`Use minimum needed (+$${monthlyInterestGap.toLocaleString("en-US")}/mo)`}
+              </Text>
+            </Pressable>
             <Pressable
               onPress={() => {
                 setShowPaydownModal(false);
                 requestAnimationFrame(() =>
-                  dreamScrollRef.current?.scrollToEnd({ animated: true })
+                  dreamScrollRef.current?.scrollTo({ y: 0, animated: true })
                 );
               }}
               style={{
@@ -4855,18 +5259,12 @@ function CommitScreen({
   const BLUE   = "#1A6FC4";
   const GREEN  = "#2C7A43";
   const GOLD   = "#F5C030";
-  const DARK   = "#1A0A00";
-  const MUTED  = "#3D2200";
+  const DARK   = "#000000";
+  const MUTED  = "#000000";
   const BORDER = "#E0D8CE";
 
   const [phase, setPhase]         = useState<"commit"|"day1">("commit");
   const [committed, setCommitted] = useState(false);
-  const strategyDisplay =
-    selectedStrategy === "avalanche"
-      ? "Avalanche"
-      : selectedStrategy === "custom"
-        ? "Custom"
-        : "Snowball";
   const [payoffStr, setPayoffStr] = useState("-");
   const [dreamStr, setDreamStr]   = useState("-");
   const [totalDebt, setTotalDebt] = useState(0);
@@ -4879,7 +5277,9 @@ function CommitScreen({
   const [showBanner, setShowBanner]           = useState(false);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [localXp, setLocalXp]                 = useState(0);
-  const [dexStatusText, setDexStatusText]     = useState("Tap your tasks to stay on track!");
+  const [dexStatusText, setDexStatusText]     = useState(
+    "Welcome to Day 1. Tap your tasks below and complete them one by one. Small habits lead to big wins - paying off debt and reaching what matters most to you."
+  );
   const [day1XpBursts, setDay1XpBursts]       = useState<{ id: number; pts: number; color: string }[]>([]);
   const [day1Confetti, setDay1Confetti]       = useState<{ id: number; x: number; color: string; size: number; round: boolean }[]>([]);
   const [inviteHidden, setInviteHidden]       = useState(false);
@@ -4901,14 +5301,26 @@ function CommitScreen({
     customOrder,
   } = useDebts();
 
+  const strategyDisplay =
+    selectedStrategy === "avalanche"
+      ? "Avalanche"
+      : selectedStrategy === "custom"
+        ? "Custom"
+        : "Snowball";
+
   const bounceAnim  = useRef(new Animated.Value(0)).current;
   const shimmer     = useRef(new Animated.Value(0)).current;
   const momentumBar = useRef(new Animated.Value(0)).current;
   const xpFillAnim  = useRef(new Animated.Value(progress)).current;
   const pulseAnim   = useRef(new Animated.Value(0)).current;
   const SW = Dimensions.get("window").width;
+  const day1CelebrationPlayedRef = useRef(false);
 
-  const triggerDay1RewardFx = useCallback((pts: number, color: string = "#F5C030") => {
+  const triggerDay1RewardFx = useCallback((
+    pts: number,
+    color: string = "#F5C030",
+    sfx: "xp_earned" | "payment_logged" | "milestone" = "xp_earned"
+  ) => {
     const id = Date.now() + Math.floor(Math.random() * 10000);
     setDay1XpBursts((prev) => [...prev, { id, pts, color }]);
     setTimeout(() => {
@@ -4928,6 +5340,7 @@ function CommitScreen({
       const ids = new Set(pieces.map((p) => p.id));
       setDay1Confetti((prev) => prev.filter((p) => !ids.has(p.id)));
     }, 1800);
+    void soundManager.play(sfx);
   }, [SW]);
 
   useEffect(() => {
@@ -4949,6 +5362,20 @@ function CommitScreen({
     }
   }, [phase]);
 
+  useEffect(() => {
+    if (phase !== "day1") {
+      day1CelebrationPlayedRef.current = false;
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "day1" || !allDone || day1CelebrationPlayedRef.current) return;
+    day1CelebrationPlayedRef.current = true;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerDay1RewardFx(50, "#2C7A43", "milestone");
+    setTimeout(() => triggerDay1RewardFx(35, "#1A6FC4", "milestone"), 220);
+  }, [phase, allDone, triggerDay1RewardFx]);
+
   const shimmerX   = shimmer.interpolate({ inputRange: [0, 1], outputRange: [-SW * 0.55, SW * 1.3] });
   const barWidth   = momentumBar.interpolate({ inputRange: [0, 1], outputRange: ["0%", "95%"] });
 
@@ -4957,8 +5384,6 @@ function CommitScreen({
     Animated.timing(xpFillAnim, { toValue: pct, duration: 500, useNativeDriver: false }).start();
   }, [localXp]);
 
-  const LEVEL_NAMES = ["","Seedling","Bronze Starter","Momentum Builder","Gold Saver","Diamond Warrior","Freedom Champion","Debt-Free Legend"];
-  const levelName   = LEVEL_NAMES[Math.min(level, 7)] || "Seedling";
   const todayDateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
 
   /** Calendar days ahead to show on Day 1 (real due dates, not day-of-month math). */
@@ -5024,6 +5449,26 @@ function CommitScreen({
   const requiredDay1TaskIdxs = useMemo(
     () => (day1SnapshotDebtIds.length > 0 ? [0, 1, 2] : [0, 1]),
     [day1SnapshotDebtIds]
+  );
+  const requiredTaskLabelByIdx = useMemo(() => {
+    const paymentLabel =
+      day1UnpaidPaymentCount === 1
+        ? "Log the payment that is due soon."
+        : day1UnpaidPaymentCount > 1
+          ? `Log all ${day1UnpaidPaymentCount} payments due soon.`
+          : "Log payments due soon.";
+    return {
+      0: "Confirm no new debt added.",
+      1: "Mark today's saved amount.",
+      2: paymentLabel,
+    } as Record<number, string>;
+  }, [day1UnpaidPaymentCount]);
+  const missingRequiredTaskLabels = useMemo(
+    () =>
+      requiredDay1TaskIdxs
+        .filter((idx) => !tasksDone[idx])
+        .map((idx) => requiredTaskLabelByIdx[idx] ?? "Complete required task."),
+    [requiredDay1TaskIdxs, tasksDone, requiredTaskLabelByIdx]
   );
   const allDone     = requiredDay1TaskIdxs.every((i) => tasksDone[i]);
   const day1DexMood: "keepGoing" | "overjoyed" = allDone ? "overjoyed" : "keepGoing";
@@ -5095,7 +5540,7 @@ function CommitScreen({
   const TASK_XP_D1 = [25, 25, 0, 0];
 
   const DEX_REACTIONS = [
-    { status: "YES! One down! Keep going! 💪" },
+    { status: "YES! One down! Keep going! Click on each step, then ... when done. Tiny steps result in great results. 💪" },
     { status: "Amazing! Halfway there! 🌟" },
     { status: "THREE! You are on fire! 🔥" },
     { status: "ALL DONE! Day complete! You champion! 🏆" },
@@ -5159,7 +5604,7 @@ function CommitScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     grantBonusXp(DAY1_PER_PAYMENT_XP);
     setLocalXp((x) => x + DAY1_PER_PAYMENT_XP);
-    triggerDay1RewardFx(DAY1_PER_PAYMENT_XP, "#1A6FC4");
+    triggerDay1RewardFx(DAY1_PER_PAYMENT_XP, "#1A6FC4", "payment_logged");
     const nextPaid = day1PaidDebtIds.includes(debtId)
       ? day1PaidDebtIds
       : [...day1PaidDebtIds, debtId];
@@ -5452,7 +5897,7 @@ function CommitScreen({
         {/* ── XP BAR ── padding: 4px 16px 10px */}
         <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
-            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: DARK }}>Level {level} - {levelName}</Text>
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: DARK }}>Level {level}</Text>
             <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#D4900A" }}>{currentLevelXp + localXp} / {nextLevelXp} XP</Text>
           </View>
           <View style={{ height: 10, backgroundColor: "#E0D8CE", borderRadius: 5, overflow: "hidden" }}>
@@ -5469,10 +5914,12 @@ function CommitScreen({
               <DexCoin size={120} mood={day1DexMood} motion={day1DexMotion} />
             </Animated.View>
           </Pressable>
-          {/* Status pill — white bg, 2px border #E0D8CE, border-radius 20px, padding 6px 14px */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "white", borderWidth: 2, borderColor: "#E0D8CE", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginTop: 6, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
-            <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: allDone ? GOLD : GREEN, opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] }} />
-            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 12, color: DARK }}>{dexStatusText}</Text>
+          {/* Coaching speech box */}
+          <View style={{ width: "100%", backgroundColor: "white", borderWidth: 2, borderColor: "#E0D8CE", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <Animated.View style={{ width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: allDone ? GOLD : GREEN, opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] }} />
+              <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, lineHeight: 19, color: DARK, flex: 1 }}>{dexStatusText}</Text>
+            </View>
           </View>
         </View>
 
@@ -5719,6 +6166,10 @@ function CommitScreen({
               if (!allDone) {
                 setDexStatusText("Finish today's tasks first to complete Day 1.");
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert(
+                  "Complete required tasks first",
+                  `Before completing Day 1, please finish:\n\n• ${missingRequiredTaskLabels.join("\n• ")}`
+                );
                 return;
               }
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -5881,7 +6332,7 @@ function CommitScreen({
 
         <View style={{ backgroundColor: "white", borderWidth: 2, borderColor: "#D4C8B8", borderRadius: 14, padding: 12, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
           <Text style={{ fontFamily: Fonts.semiBold, fontSize: 14, color: DARK, lineHeight: 20, textAlign: "center" }}>
-            You've done something most people never do. You built a real plan. Now seal it with a commitment. 🤝
+            You've done something most people never do. You built a real plan. Now seal it with a commitment. Tap the checkbox “I am committed to this plan”, then press “✊ I Commit - Let's Do This!” to continue. 🤝
           </Text>
         </View>
 
@@ -5892,14 +6343,6 @@ function CommitScreen({
               label: "Total monthly payment",
               val: `${fmtUsd0(totalMonthlyCommitment)}/mo`,
             },
-            ...(hasExtraCommitment
-              ? [
-                  {
-                    label: "Above minimums (included in total)",
-                    val: `${fmtUsd0(monthlyExtraCommitment)}/mo`,
-                  },
-                ]
-              : []),
             { label: "Payoff Method", val: strategyDisplay },
             { label: "Debt-Free By", val: payoffStr },
             { label: "Dream Goal", val: dreamStr },
@@ -5992,7 +6435,7 @@ function CoachSettingsScreen({
       try {
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
         const { sound: s } = await Audio.Sound.createAsync(
-          require("../assets/sounds/Sucess.wav"),
+          require("../assets/sounds/All_sounds/Let's go.mp3"),
           { shouldPlay: true, volume: 1.0 }
         );
         sound = s;
@@ -6296,8 +6739,8 @@ function StreakBornScreen({ isDark, bg, topPad, botPad, onNext, onBack }: any) {
       } catch (_) {}
     } else {
       const file = big
-        ? require("../assets/sounds/milestone.wav")
-        : require("../assets/sounds/xp_earned.wav");
+        ? require("../assets/sounds/All_sounds/That's momentum.mp3")
+        : require("../assets/sounds/All_sounds/yes.mp3");
       Audio.Sound.createAsync(file, { volume: 0.85 }).then(({ sound }) => {
         sound.playAsync();
         sound.setOnPlaybackStatusUpdate((s: any) => { if (s.didJustFinish) sound.unloadAsync().catch(() => {}); });
@@ -6339,7 +6782,7 @@ function StreakBornScreen({ isDark, bg, topPad, botPad, onNext, onBack }: any) {
         });
       } catch (_) {}
     } else {
-      Audio.Sound.createAsync(require("../assets/sounds/Sucess.wav"), { volume: 0.9 }).then(({ sound }) => {
+      Audio.Sound.createAsync(require("../assets/sounds/All_sounds/You did the impossible.mp3"), { volume: 0.9 }).then(({ sound }) => {
         sound.playAsync();
         sound.setOnPlaybackStatusUpdate((s: any) => { if (s.didJustFinish) sound.unloadAsync().catch(() => {}); });
       }).catch(() => {});
@@ -6465,6 +6908,8 @@ function StreakBornScreen({ isDark, bg, topPad, botPad, onNext, onBack }: any) {
     setTimeout(() => setXpFloats(f => f.filter(x => x.id !== id)), 1400);
   };
 
+  const LEVEL_STEP_XP = 200;
+
   const completeTask = (idx: number) => {
     const task = tasks[idx];
     if (task.done) return;
@@ -6479,11 +6924,11 @@ function StreakBornScreen({ isDark, bg, topPad, botPad, onNext, onBack }: any) {
 
     // XP + level
     const newXpRaw = xp + task.pts;
-    const newLevel = newXpRaw >= 100 ? level + 1 : level;
-    const newXp    = newXpRaw >= 100 ? newXpRaw - 100 : newXpRaw;
+    const newLevel = newXpRaw >= LEVEL_STEP_XP ? level + 1 : level;
+    const newXp    = newXpRaw >= LEVEL_STEP_XP ? newXpRaw - LEVEL_STEP_XP : newXpRaw;
     setXp(newXp);
     setLevel(newLevel);
-    Animated.timing(xpBarAnim, { toValue: Math.min(newXp / 100, 1), duration: 700, useNativeDriver: false }).start();
+    Animated.timing(xpBarAnim, { toValue: Math.min(newXp / LEVEL_STEP_XP, 1), duration: 700, useNativeDriver: false }).start();
 
     // reward chain
     playTick();

@@ -45,7 +45,7 @@ General fallback reminders (no goal):
 
 Primary user level tiers (`constants/levelsData.ts`):
 
-1. Level 1: Seedling (0-199 XP)
+1. Level 1: Path Starter (0-199 XP)
 2. Level 2: Bronze Starter (200-499 XP)
 3. Level 3: Momentum Builder (500-999 XP)
 4. Level 4: Gold Saver (1000-1999 XP)

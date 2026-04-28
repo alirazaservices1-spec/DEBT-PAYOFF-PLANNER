@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.extraBold,
     fontSize: 18,
-    color: "#1A0F08",
+    color: "#000000",
     marginBottom: 6,
   },
   sub: {

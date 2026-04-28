@@ -5,8 +5,14 @@ import { useDebts } from "@/context/DebtContext";
 
 export default function DashboardScreen() {
   /** Global params avoid LocalRouteParamsContext issues seen with useLocalSearchParams in some tab layouts. */
-  const params = useGlobalSearchParams<{ openLog?: string | string[] }>();
+  const params = useGlobalSearchParams<{
+    openLog?: string | string[];
+    welcomeBack?: string | string[];
+  }>();
   const openLog = Array.isArray(params.openLog) ? params.openLog[0] : params.openLog;
+  const welcomeBack = Array.isArray(params.welcomeBack)
+    ? params.welcomeBack[0]
+    : params.welcomeBack;
   const { debts } = useDebts();
 
   useEffect(() => {
@@ -27,6 +33,12 @@ export default function DashboardScreen() {
   // While we redirect, render nothing to avoid flicker.
   if (openLog === "1") return null;
 
-  return <MainMenuScreen showClose={false} />;
+  return (
+    <MainMenuScreen
+      showClose={false}
+      showWelcomeBackBanner={welcomeBack === "1"}
+      onContinueFromWelcomeBack={() => router.replace("/(tabs)/dashboard")}
+    />
+  );
 }
 

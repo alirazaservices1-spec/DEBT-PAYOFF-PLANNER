@@ -3,11 +3,12 @@ import { useGame } from "@/context/GameContext";
 import { LevelUpOverlay } from "@/components/LevelUpOverlay";
 import { DebtClearedOverlay } from "@/components/DebtClearedOverlay";
 import { StreakMilestoneCelebration } from "@/components/StreakMilestoneCelebration";
+import { MiniCelebrationToast } from "@/components/MiniCelebrationToast";
 import { SatisfactionFeedbackModal } from "@/components/SatisfactionFeedbackModal";
 import { hasTriggerFired, FeedbackTrigger } from "@/lib/satisfactionFeedbackGate";
 
 export function CelebrationHost() {
-  const { celebration, dismissCelebration, lastXpGain } = useGame();
+  const { celebration, dismissCelebration, lastXpGain, miniCelebration, dismissMiniCelebration } = useGame();
 
   const [feedbackTrigger, setFeedbackTrigger] = useState<FeedbackTrigger | null>(null);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -55,7 +56,7 @@ export function CelebrationHost() {
         onDismiss={handleDismissDebtCleared}
       />
       <StreakMilestoneCelebration
-        visible={celebration.type === "streak_milestone"}
+        visible={celebration.type === "streak_milestone" && (celebration.streakDays ?? 0) > 1}
         streakDays={celebration.streakDays ?? 3}
         bonusXp={celebration.bonusXp ?? 75}
         onDismiss={handleDismissStreakMilestone}
@@ -70,6 +71,10 @@ export function CelebrationHost() {
           }}
         />
       )}
+      <MiniCelebrationToast
+        celebration={miniCelebration}
+        onDismiss={dismissMiniCelebration}
+      />
     </>
   );
 }

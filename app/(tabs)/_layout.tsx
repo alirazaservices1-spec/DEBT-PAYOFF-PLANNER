@@ -1,7 +1,6 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { BlurView } from "expo-blur";
 import { SymbolView } from "expo-symbols";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -83,23 +82,25 @@ const TAB_CONFIG = [
 function NativeTabLayout({ onOpenDebts }: { onOpenDebts: () => void }) {
   return (
     <NativeTabs
-      iconColor={{
-        default: "#8E8E93",
-        selected: "#1A6FC4",
-      }}
-      labelStyle={{
-        default: { color: "#8E8E93" },
-        selected: { color: "#1A6FC4" },
-      }}
-      screenListeners={{
-        tabPress: (e: any) => {
-          const routeName = (e.target as string)?.split?.("-")[0] ?? "";
-          if (routeName === "debts") {
-            e.preventDefault?.();
-            onOpenDebts();
-          }
+      {...({
+        iconColor: {
+          default: TAB_INACTIVE,
+          selected: TAB_ACTIVE,
         },
-      }}
+        labelStyle: {
+          default: { color: TAB_INACTIVE },
+          selected: { color: TAB_ACTIVE },
+        },
+        screenListeners: {
+          tabPress: (e: { preventDefault?: () => void; target?: string }) => {
+            const routeName = e.target?.split?.("-")[0] ?? "";
+            if (routeName === "debts") {
+              e.preventDefault?.();
+              onOpenDebts();
+            }
+          },
+        },
+      } as React.ComponentProps<typeof NativeTabs>)}
     >
       {TAB_CONFIG.map((tab) => (
         <NativeTabs.Trigger key={tab.name} name={tab.name}>
@@ -111,12 +112,11 @@ function NativeTabLayout({ onOpenDebts }: { onOpenDebts: () => void }) {
   );
 }
 
-// Light-mode-only tab bar colours — never derived from isDark so there is
-// no context timing window that could briefly flip the bar dark on first render.
-const TAB_BAR_BORDER     = "rgba(192,120,32,0.22)";
-const TAB_BAR_BG         = "rgba(250,244,234,0.98)";  // near-opaque so nothing bleeds through
-const TAB_BAR_BLUR_BG    = "rgba(253,248,238,0.95)";
-const TAB_PILL_BG        = "rgba(192,120,32,0.14)";
+// Dark navy tab bar — matches the home screen background (#1B1850)
+const TAB_BAR_BORDER     = "rgba(255,255,255,0.10)";
+const TAB_PILL_BG        = "rgba(255,255,255,0.08)";
+const TAB_INACTIVE       = "rgba(255,255,255,0.45)";
+const TAB_ACTIVE         = "#1A6FC4";
 
 function CustomTabBar({
   state,
@@ -126,7 +126,7 @@ function CustomTabBar({
   const insets = useSafeAreaInsets();
   const { width } = Dimensions.get("window");
 
-  const tabBarWidth = width - 32;
+  const tabBarWidth = width;
   const tabWidth = tabBarWidth / TAB_CONFIG.length;
 
   // Routes that belong under the "More" tab — they keep the More button highlighted
@@ -159,29 +159,22 @@ function CustomTabBar({
     transform: [{ translateX: activeIndex.value * tabWidth }],
   }));
 
-  const bottomPad = Math.max(insets.bottom, Platform.OS === "web" ? 34 : 12);
+  const safeBottom = insets.bottom;
 
   return (
     <View
       style={[
         styles.tabBarOuter,
         {
-          bottom: bottomPad,
-          left: 16,
-          right: 16,
-          borderColor: TAB_BAR_BORDER,
-          backgroundColor: TAB_BAR_BG,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          borderTopColor: TAB_BAR_BORDER,
+          paddingBottom: safeBottom,
         },
       ]}
     >
-      <BlurView
-        intensity={80}
-        tint="light"
-        style={[
-          styles.tabBarBlur,
-          { backgroundColor: TAB_BAR_BLUR_BG },
-        ]}
-      >
+      <View style={styles.tabBarBlur}>
         <Animated.View
           style={[
             styles.pill,
@@ -222,7 +215,7 @@ function CustomTabBar({
             );
           })}
         </View>
-      </BlurView>
+      </View>
     </View>
   );
 }
@@ -247,8 +240,8 @@ function TabItem({
   });
 
   // Always light mode — no isDark dependency prevents any first-render colour flash
-  const iconColor = isActive ? "#1A6FC4" : Colors.light.tabIconDefault;
-  const labelColor = isActive ? "#1A6FC4" : Colors.light.tabIconDefault;
+  const iconColor = isActive ? TAB_ACTIVE : TAB_INACTIVE;
+  const labelColor = isActive ? TAB_ACTIVE : TAB_INACTIVE;
 
   return (
     <Pressable
@@ -299,8 +292,12 @@ function ClassicTabLayout({ onOpenDebts }: { onOpenDebts: () => void }) {
       initialRouteName="dashboard"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#1A6FC4",
-        tabBarInactiveTintColor: Colors.light.tabIconDefault,
+        tabBarActiveTintColor: TAB_ACTIVE,
+        tabBarInactiveTintColor: TAB_INACTIVE,
+        tabBarStyle: {
+          borderTopColor: TAB_BAR_BORDER,
+          borderTopWidth: 1,
+        },
       }}
       tabBar={renderTabBarWithDebts}
     >
@@ -360,13 +357,14 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBarOuter: {
     position: "absolute",
-    borderRadius: 32,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     overflow: "hidden",
-    borderWidth: 1.5,
-    shadowColor: Colors.amber,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
+    borderTopWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 20,
   },
   tabBarBlur: {
@@ -414,7 +412,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.amber,
+    backgroundColor: TAB_ACTIVE,
     marginTop: 1,
   },
 });

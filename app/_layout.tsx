@@ -95,7 +95,6 @@ function AppNavigator() {
 
   useEffect(() => {
     const inOnboarding   = segments[0] === "onboarding";
-    const inWelcomeBack  = segments[0] === "welcome-back";
     const inMainMenu     = segments[0] === "main-menu";
     const inDayComplete  = segments[0] === "day-complete";
 
@@ -110,12 +109,13 @@ function AppNavigator() {
       return;
     }
 
-    // 2. Onboarded + been away 3+ days → show welcome-back first
-    if (onboardingDone && !inWelcomeBack && !welcomeShown.current) {
+    // 2. Onboarded + been away 3+ days → land on Home with a light welcome banner (no debt pile-on)
+    if (onboardingDone && !welcomeShown.current) {
       const daysAway = calDaysAway(prevLastOpenedAt);
       if (daysAway >= 3) {
         welcomeShown.current = true;
-        router.replace("/welcome-back");
+        homeShown.current = true;
+        router.replace("/(tabs)/dashboard?welcomeBack=1");
         // Avoid blank screen if the redirect doesn't trigger a second render.
         setReady(true);
         return;
@@ -132,7 +132,7 @@ function AppNavigator() {
     // 4. First landing after onboarding (every app open) → show tabbed Home
     // Avoid redirect flicker when we set onboardingDone from within the onboarding flow
     // and immediately route to another screen (e.g. `/day-complete`).
-    if (onboardingDone && !homeShown.current && !inWelcomeBack && !inOnboarding) {
+    if (onboardingDone && !homeShown.current && !inOnboarding) {
       homeShown.current = true;
       router.replace("/(tabs)/dashboard");
       // Avoid blank screen if the redirect doesn't trigger a second render.
@@ -163,7 +163,7 @@ function AppNavigator() {
           router.push("/(tabs)/dashboard");
         }
       } else if (data?.type === "day_activities_reminder") {
-        router.push("/day-complete");
+        router.push("/(tabs)/day-complete");
       }
     });
     return () => sub.remove();
